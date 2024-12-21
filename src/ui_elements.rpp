@@ -1,0 +1,118 @@
+import rl;
+import theming;
+import std;
+
+bool Button(Vec2 tl, Vec2 dimens, char^ text) {
+	Vec2 br = tl + dimens;
+
+	d.RectBetween(tl, br, theme.button);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	if (hovered) { // hover overlay-lighten
+		d.RectBetween(tl, br, hex("FFFFFF11"));
+	}
+
+	int fontSize = 18;
+
+	float text_width = c:MeasureText(text, fontSize);
+	float center_x = tl.x + dimens.x / 2;
+	int tx = c:float_to_int(center_x - text_width / 2);
+	int ty = c:float_to_int(tl.y + dimens.y / 2 - fontSize / 2);
+	d.Text(text, tx, ty, fontSize, c:WHITE);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
+bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover) {
+	Vec2 br = tl + dimens;
+
+	d.RectBetween(tl, br, theme.button);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	if (hovered || force_hover) { // hover overlay-lighten
+		d.RectBetween(tl, br, hex("FFFFFF11"));
+	}
+
+	int fontSize = 18;
+
+	float text_width = c:MeasureText(text, fontSize);
+	float center_x = tl.x + dimens.x / 2;
+	int tx = c:float_to_int(center_x - text_width / 2);
+	int ty = c:float_to_int(tl.y + dimens.y / 2 - fontSize / 2);
+	d.Text(text, tx, ty, fontSize, Colors.White);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
+struct TextInput {
+	List<char> char_list;
+
+	int cursor_i;
+	bool selected;
+	bool hovered;
+
+	Rectangle rect;
+
+	Font font;
+	int font_size;
+	float padding;
+
+	construct(char^ init_text, float padding, Font font, int font_size) {
+		List<char> char_list = .();
+		// List a = .(10, 20);
+		for (int i in ..strlen(init_text)) {
+			char_list.add(init_text[i]);
+		}
+
+		return {
+			:char_list,
+			.cursor_i = 0,
+			.selected = false,
+			.hovered = false,
+			.rect = RectV(v2(0, 0), v2(0, 0)),
+			:font,
+			:font_size,
+			:padding,
+		};
+	}
+
+	static Self make(char^ init_text) -> .(init_text, 4, c:GetFontDefault(), 16);
+
+	char^ ttext() {
+		char^ text = talloc(char_list.size + 1);
+		c:memcpy(text, char_list.data, char_list.size);
+		text[char_list.size] = "\0"[0];
+		return text;
+	}
+	char^ mtext() -> f"{this.ttext()}";
+
+	// @discardable
+	Vec2 Layout(Vec2 tl, float width) { // returns dimens
+		// TODO: is "0" an ok string to measure?
+		float height = c:MeasureTextEx(font, "0", font_size, 0).y + padding*2; // TODO: what is the right spacing num???
+		rect = RectV(tl, v2(width, height));
+		return rect.dimen();
+	}
+
+	// // @discardable
+	// Vec2 Layout(Rectangle rect) { // returns dimens
+	// 	return rect.dimen();
+	// }
+
+	void Interact() {
+		selected = rect.Contains(mouse.GetPos());
+	}
+
+	Color bg() -> selected ? theme.active | theme.button;
+
+	void Render() {
+		d.Rect(rect.tl(), rect.dimen(), this.bg());
+		let text_tl = rect.tl() + v2(padding, padding);
+		d.TextV(this.ttext(), text_tl, font_size, Colors.White);
+	}
+
+	void Do() {
+		this.Interact();
+		this.Render();
+	}
+}

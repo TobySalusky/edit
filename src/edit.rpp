@@ -1,0 +1,441 @@
+import rl;
+import theming;
+import timer;
+import thread;
+import element;
+import ui_elements;
+import maths;
+
+import std;
+import map;
+
+import dylib;
+import code_manager;
+
+c:import "rlgl.h";
+
+int window_width = 1200;
+int window_height = 900;
+Vec2 window_dimens = v2(window_width, window_height);
+
+RenderTexture canvas;
+
+List<Image> images;
+int max_images;
+
+int frame_rate = 60;
+
+int current_frame = 0;
+float current_time = 0;
+float max_time = 5;
+int max_frames = c:float_to_int(max_time * frame_rate);
+float time_per_frame = 1.0 / frame_rate;
+
+
+int MODE_RUNNING = 0;
+int MODE_EXPORTING = 1;
+int MODE_PAUSED = 2;
+
+int mode = MODE_RUNNING;
+
+bool is_running() -> mode == MODE_RUNNING;
+bool is_exporting() -> mode == MODE_EXPORTING;
+bool is_paused() -> mode == MODE_PAUSED;
+
+bool ui_hidden = false;
+
+struct ExportState {
+	int total_frames;
+	int frames_rendered;
+	int frames_written;
+
+	bool is_ffmpegging;
+	float start_ffmpeg_time;
+}
+
+ExportState make_export_state() -> {
+	.total_frames = max_frames,
+	.frames_rendered = 0,
+	.frames_written = 0,
+	.is_ffmpegging = false,
+	.start_ffmpeg_time = 0
+};
+
+ExportState export_state;
+
+// stateful elements (hardcoded, currently)
+List<Element> elements = List<Element>();
+
+int selected_elem_i = 0;
+
+void ExportFrameThread(void^ arg) {
+	int^ i_arg = arg;
+	int i = *i_arg;
+	free(arg);
+
+	while (images.size <= i) { }
+	Image img = images.get(i);
+	c:ImageFlipVertical(^img); // TODO: flip vertical
+	char^ name = f"edit/out/frames/{i %d05}.png"; // t"" not thread safe!
+	defer free(name);
+	img.ExportTo(name);
+	img.delete();
+	export_state.frames_written++;
+}
+
+List<TextInput> temp_inputs = .();
+
+struct RepeatingTimer {
+	float max;
+	float t;
+
+	construct(float max_t) -> { .max = max_t, .t = max_t };
+	bool DidRepeatWhileUpdating() {
+		t = t - rl.GetFrameTime(); // TODO: deltaTime?
+		defer {
+			if (t <= 0) { t = max; }
+		}
+
+		return t <= 0;
+	}
+}
+
+RepeatingTimer check_code_timer = .(0.25);
+
+int main() {
+	code_man.Load();
+	defer code_man.Unload();
+
+	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
+
+	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags?
+	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+
+	window.Init(window_width, window_height, "zZ-edit");
+	defer window.Close();
+
+	canvas = make_render_texture(1200, 900);
+
+	images = List<Image>();
+	images.reserve(max_frames);
+
+	elements.add(make_interesting_element());
+	elements.add(make_cool_fn_element());
+
+	// temp_inputs.add(TextInput.make("a"));
+	// temp_inputs.add(TextInput.make("what"));
+	// temp_inputs.add(TextInput.make(""));
+	for (let p in temp_inputs.pairs()) {
+		p.value.Layout(v2(10, 100 + 30 * p.key), 200);
+	}
+
+    c:SetTargetFPS(300);
+	while (!window.ShouldClose()) {
+		d.Begin();
+		GameTick();
+		d.End();
+		tfree(); // not thread safe (don't use temp-alloc from other threads!)
+    }
+
+    return 0;
+}
+
+bool look_at_controls = false;
+
+void LeftPanelUI() {
+	int panel_width = 100;
+	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
+	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
+
+	Vec2 btn_dimens = v2(panel_width - 20, 40);
+	for (int i = 0; i != elements.size; i++;) {
+		Vec2 tl = v2(10, 10 + 50 * i);
+		if (ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered())) {
+			println(t"Elem {i} selected");
+			selected_elem_i = i;
+		}
+		if (selected_elem_i == i) {
+			d.RectOutline(tl, btn_dimens, theme.active);
+		}
+	}
+
+	Vec2 tl = v2(10, window_height - 50);
+	if (Button(tl, btn_dimens, "+")) {
+		elements.add(make_element());
+		selected_elem_i = elements.size - 1;
+	}
+
+	for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
+		input.Do();
+	}
+}
+
+bool timeline_dragging = false;
+void KeyframeTimelineUI() {
+	int width = window_width - 100; // panel_width
+	int height = 150;
+	Vec2 tl = v2(100 + 1, window_height - height);
+	Vec2 dimens = v2(width, height);
+
+	d.Rect(tl, dimens, theme.panel);
+	d.Rect(tl, v2(dimens.x, 1), theme.panel_border);
+
+	d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
+
+	int i = 0;
+
+	let selected_elem = elements.get(selected_elem_i);
+
+	int kl_height = height / 5;
+	Vec2 kl_dimens = v2(dimens.x, kl_height);
+	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
+	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
+	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
+	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
+	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
+
+
+	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
+		timeline_dragging = true;
+	}
+
+	if (mouse.LeftClickDown() && timeline_dragging) {
+		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		if (new_time <= 0) { new_time = 0; }
+		if (new_time >= max_time) { new_time = max_time; }
+		SetTime(new_time); // TODO: add snap-to-frame-set-time
+		SetFrame(current_frame);
+	}
+
+	if (!mouse.LeftClickDown()) {
+		timeline_dragging = false;
+	}
+}
+
+void SetFrame(int frame) {
+	current_time = time_per_frame * frame;
+	current_frame = frame;
+	UpdateState();
+}
+
+void SetTime(float new_time) {
+	current_time = new_time;
+	current_frame = c:float_to_int(current_time / time_per_frame);
+	UpdateState();
+}
+
+void UpdateState() {
+	for (int i = 0; i < elements.size; i++;) {
+		elements.get(i).UpdateState(current_time);
+	}
+}
+
+void DrawFrameToCanvas() {
+	canvas.Begin();
+	d.ClearBackground(theme.bg);
+	for (let elem in elements) {
+		elem.Draw();
+	}
+
+	canvas.End();
+}
+
+void ExportVideoThread() {
+	ExportVideo(frame_rate, "edit/out/frames", "edit/out/capture");
+
+	mode = MODE_PAUSED;
+	SetFrame(0);
+}
+
+void DrawProgressBar(Vec2 tl, Vec2 dimens, Color bg, Color fg, float amount) {
+	d.Rect(tl, dimens, bg);
+	d.Rect(tl, dimens * v2(amount, 1), fg);
+}
+
+void DrawExportProgressOverlay() {
+	Color shadow = hex("00000077");
+	d.Rect(v2(0, 0), window_dimens, shadow);
+
+	float width = 0.5 * window_width;
+	float height = 20 * 5 + 2 * 10;
+	Vec2 tl = window_dimens * v2(0.25, 0.5) - v2(0, height / 2);
+	Vec2 dimens = v2(width, height);
+	d.Rect(tl - v2(4, -1), dimens + v2(8, 3), hex("00000033"));
+	d.Rect(tl - v2(1, 1), dimens + v2(2, 2), Colors.Black);
+	d.Rect(tl, dimens, theme.panel);
+
+	Color progress_bg = hex("262626"); // gray
+	Color progress_fg = hex("afc7af"); // green
+
+	Vec2 pbar_tl = v2(tl.x + 20, tl.y + 20);
+	Vec2 pbar_dimens = v2(width - 40, 20);
+
+	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, c:int_to_float(export_state.frames_rendered) / export_state.total_frames);
+
+	pbar_tl.y = pbar_tl.y + 30;
+	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, c:int_to_float(export_state.frames_written) / export_state.total_frames);
+
+	pbar_tl.y = pbar_tl.y + 30;
+	Color ffmpeg_load_pulse_color = 
+		export_state.is_ffmpegging
+			? ColorLerp(progress_bg, progress_fg, Sin01((rl.GetTime() - export_state.start_ffmpeg_time) * 5) * 0.7)
+			| progress_bg;
+	d.Rect(pbar_tl, pbar_dimens, ffmpeg_load_pulse_color);
+}
+
+bool is_dvorak = true;
+struct HotKey {
+	int key_code;
+	// TODO: modifiers
+
+	bool IsPressed() -> key.IsPressed(key_code);
+
+	static Self DvoKey(int keycode_qwerty, int keycode_dvorak) -> {
+		.key_code = is_dvorak ? keycode_dvorak | keycode_qwerty 
+	};
+	static Self Key(int keycode) -> Self.DvoKey(keycode, keycode);
+}
+
+struct HotKeys {
+	// :hotkey
+
+	static HotKey PlayPause = HotKey.Key(KEY.SPACE);
+
+	static HotKey ExportMovie = HotKey.DvoKey(KEY.E, KEY.D);
+
+	// key as in keyframe
+	static HotKey KeyAtCurrentPosition  = HotKey.DvoKey(KEY.K, KEY.V);
+
+	static HotKey ToggleHideUIFullscreenPlayback  = HotKey.DvoKey(KEY.H, KEY.J);
+
+	static HotKey QuickCut = HotKey.DvoKey(KEY.X, KEY.B); // contextual delete? like blender? // AT LEAST: remove Keys at current pos?
+
+	// :hotkey:temp
+	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
+	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.B, KEY.N);
+	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O);
+
+	static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
+	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
+}
+
+bool init = false;
+void GameTick() {
+	if (check_code_timer.DidRepeatWhileUpdating()) {
+		code_man.CheckModifiedTimeAndReloadIfNecessary();
+	}
+
+	d.ClearBackground(theme.bg);
+
+	if (HotKeys.PlayPause.IsPressed()) {
+		if (is_running()) {
+			mode = MODE_PAUSED;
+			SetFrame(current_frame);
+		} else if (is_paused()) {
+			mode = MODE_RUNNING;
+		}
+	}
+
+	// export movie
+	if (HotKeys.ExportMovie.IsPressed()) { // NOTE: E (export)
+		mode = MODE_EXPORTING;
+		export_state = make_export_state();
+		SetFrame(0);
+
+		system("mkdir edit/out/frames");
+	}
+
+	if (HotKeys.ToggleHideUIFullscreenPlayback.IsPressed()) {
+		ui_hidden = !ui_hidden;
+	}
+
+	if (elements.size > 1 && HotKeys.Temp_DeleteElement.IsPressed()) {
+		elements.remove_at(selected_elem_i);
+		if (selected_elem_i == elements.size) { selected_elem_i--; }
+	}
+
+	if (HotKeys.Temp_ClearTimeline.IsPressed()) {
+		elements.get(selected_elem_i).ClearTimelinesCompletely();
+	}
+
+	if (HotKeys.Temp_ReloadCode.IsPressed()) {
+		code_man.Reload();
+	}
+
+	if (HotKeys.Temp_AddElementCool.IsPressed()) {
+		elements.add(make_cool_fn_element());
+	}
+
+	if (HotKeys.Temp_AddElementCircle.IsPressed()) {
+		elements.add(make_element());
+	}
+
+	// :hotkey:use:global
+
+	// if (!is_paused()) {
+	UpdateState();
+	// }
+
+	DrawFrameToCanvas();
+
+	if (is_running()) {
+		float new_time = current_time + rl.GetFrameTime();
+		if (new_time > max_time) { new_time = 0; }
+		SetTime(new_time);
+	} else if (is_exporting()) {
+		if (images.size < max_frames) {
+			Image img = c:LoadImageFromTexture(canvas.texture);
+			images.add(img);
+			export_state.frames_rendered++;
+			int^ ip = malloc(sizeof<int>);
+			*ip = images.size - 1;
+			go_with(ExportFrameThread, ip);
+			SetFrame(current_frame + 1);
+		}
+		if (!export_state.is_ffmpegging && export_state.frames_written == export_state.total_frames) {
+			export_state.is_ffmpegging = true;
+			export_state.start_ffmpeg_time = c:GetTime();
+			go(ExportVideoThread);
+		}
+	}
+
+	d.Texture(canvas, Vec2_zero);
+
+	if (!is_exporting()) {
+		if (mouse.LeftClickPressed()) {
+			for (int i = elements.size - 1; i >= 0; i--;) {
+				if (elements.get(i).Hovered()) {
+					selected_elem_i = i;
+					break;
+				}
+			}
+		}
+
+		elements.get(selected_elem_i).DrawGizmos();
+
+		if (HotKeys.KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
+			elements.get(selected_elem_i).kl_pos_x.Insert({
+				.time = current_time,
+				.value = mouse.GetPos().x
+			});
+			elements.get(selected_elem_i).kl_pos_y.Insert({
+				.time = current_time,
+				.value = mouse.GetPos().y
+			});
+		}
+	}
+
+	if (!ui_hidden) {
+		LeftPanelUI();
+		KeyframeTimelineUI();
+	}
+
+	if (is_exporting()) {
+		DrawExportProgressOverlay();
+	}
+}
+
+void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
+	char^ video_name = t"{output_file_name_no_path}.mp4";
+	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
+}

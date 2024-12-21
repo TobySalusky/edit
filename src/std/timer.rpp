@@ -1,0 +1,18 @@
+c:import <"time.h">;
+
+struct timer { 
+	int start;
+
+	float time() {
+		float f = (c:clock() - start);
+		return f / c:CLOCKS_PER_SEC;
+	}
+
+	void print(char^ name) {
+		println("%s took %f seconds", name, this.time());
+	}
+}
+
+timer start_timer() -> {
+	.start = c:clock()
+};

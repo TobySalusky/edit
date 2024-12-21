@@ -1,0 +1,90 @@
+import std;
+import map;
+
+import dylib;
+
+c:`typedef void(*CustomScriptSetupFn)(void);`;
+
+struct CodeManager {
+	Path code_folder_path; // unused currently
+	Path out_folder_path;
+	Path dylib_path;
+
+	Opt<DyLib> code_handle;
+	StrMap<void^> fn_handles;
+
+	Opt<long> dylib_last_modified_time;
+
+	construct(char^ code_folder_path_str, char^ out_folder_path_str) {
+		Path code_folder_path = .(code_folder_path_str);
+		Path out_folder_path = .(out_folder_path_str);
+		return {
+			:code_folder_path,
+			:out_folder_path,
+			.dylib_path = out_folder_path/t"build/libscript.{dynamic_lib_extension()}",
+
+			.code_handle = none,
+			.fn_handles = .(),
+
+			.dylib_last_modified_time = none,
+		};
+	}
+
+	void Load() {
+		code_handle = DyLib.LoadOrPanic(dylib_path);
+
+		// reload function pointers!
+		for (int i in 0..fn_handles.size) {
+			let fn_name = fn_handles.keys[i];
+			fn_handles.values[i] = this.Lib().SymOrPanic(fn_name);
+		}
+
+		c:CustomScriptSetupFn setup_fn = this.GetFn("script_setup"); 
+		setup_fn();
+
+		dylib_last_modified_time = io.stat(dylib_path).st_mtime;
+	}
+
+	void CheckModifiedTimeAndReloadIfNecessary() {
+		if (!io.file_exists(dylib_path)) { return; }
+		long mod_time = io.stat(dylib_path).st_mtime;
+		
+		if (dylib_last_modified_time is long && mod_time > (dylib_last_modified_time as long)) {
+			dylib_last_modified_time = mod_time;
+			this.Reload();
+		}
+	}
+
+	DyLib& Lib() {
+		switch (code_handle) {
+			DyLib lib -> { DyLib^ l = ^lib; return *l; },
+			else -> panic("Lib() failed - not loaded!"),
+		}
+		return (code_handle as DyLib);
+	}
+
+	void Reload() {
+		this.Lib().Unload();
+		this.Load();
+	}
+
+	void Unload() {
+		this.Lib().Unload();
+		code_handle = none;
+		fn_handles.delete();
+	}
+
+	void^ GetFn(char^ fn_name) {
+		if (fn_handles.has(fn_name)) {
+			return fn_handles.get(fn_name);
+		}
+
+		void^ ptr = this.Lib().SymOrPanic(fn_name);
+		fn_handles.put(fn_name, ptr);
+
+		return ptr;
+	}
+}
+
+// NOTE: assumes program is run from git repo root (`edit/`)
+CodeManager code_man = .("./test_src", "./test_out");

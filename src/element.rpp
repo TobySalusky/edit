@@ -1,0 +1,222 @@
+import rl;
+import keyframing;
+import maths;
+import theming;
+import std;
+import code_manager;
+
+interface ElementImpl {
+	void Draw(Element^ e);
+}
+struct RectElement : ElementImpl {
+	void Draw(Element^ e) {
+		d.RectRot(e#pos, e#scale, e#rotation, e#color);
+	}
+}
+RectElement^ make_rect() -> malloc(sizeof<RectElement>);
+
+struct CircleElement : ElementImpl {
+	void Draw(Element^ e) {
+		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
+	}
+}
+CircleElement^ make_circle() -> malloc(sizeof<CircleElement>);
+
+struct ImageElement : ElementImpl {
+	char^ file_path;
+	
+	void Draw(Element^ e) {
+		d.RectRot(e#pos, e#scale, e#rotation, e#color);
+	}
+}
+ImageElement^ make_image(char^ file_path) {
+	ImageElement^ it = malloc(sizeof<ImageElement>);
+	it#file_path = file_path;
+	return it;
+}
+
+c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
+
+struct CustomPureFnElement : ElementImpl {
+	char^ fn_name;
+
+	void Draw(Element^ e) {
+		// d.RectRot(e#pos, e#scale, e#rotation, e#color);
+		c:CustomPureFn fn = code_man.GetFn(fn_name);
+		fn(e#pos, e#scale, e#rotation, e#color);
+	}
+
+	static Self^ new(char^ fn_name) -> Box<Self>.Make({ :fn_name });
+}
+
+struct Element {
+	static int num_elements_created = 0; // TODO: make per-project!
+	static char^ NextElementName() -> f"Elem {Self.num_elements_created++}";
+
+	ElementImpl^ content_impl;
+
+	char^ name;
+	
+	Vec2 pos;
+	KeyframeLayer kl_pos_x;
+	KeyframeLayer kl_pos_y;
+
+	Vec2 scale;
+	KeyframeLayer kl_scale;
+	bool uniform_scale; // TODO:
+
+	float rotation;
+	KeyframeLayer kl_rotation;
+
+	float opacity;
+	KeyframeLayer kl_opacity;
+
+	Color color;
+	// TODO: content type: rectangle, ellipse, image, text, etc
+	// IDEA: text -> keyframe the text, morph between
+
+
+	bool Hovered() {
+		return mouse.GetPos().Between(pos, pos + scale);
+	}
+
+	void DrawGizmos() {
+		let gizmoColor = Color{.r=255,.g=0,.b=255,.a=50};
+		// d.RectRot(pos, scale, rotation, gizmoColor);
+		d.RectOutline(pos, scale, hex("00000088"));
+		d.Circle(pos + scale * v2(0.5, 0.5), 10, hex("9999FF55"));
+	}
+
+	void Draw() {
+		content_impl#Draw(^this);
+		// d.RectRot(pos, scale, rotation, color);
+	}
+
+	void UpdateState(float t) {
+		kl_pos_x.SetFloat(^pos.x, t);
+		kl_pos_y.SetFloat(^pos.y, t);
+
+		kl_scale.SetFloat(^scale.x, t);
+		kl_scale.SetFloat(^scale.y, t);
+
+		kl_rotation.SetFloat(^rotation, t);
+		kl_opacity.SetFloat(^opacity, t);
+
+		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
+		// pos = v2(300, 200) * v2(t, t);
+		// scale = v2(100, 100) * v2(1.0 + t, t * 2);
+	}
+
+	void ClearTimelinesCompletely() {
+		kl_pos_x.Clear();
+		kl_pos_y.Clear();
+		kl_scale.Clear();
+		kl_rotation.Clear();
+		kl_opacity.Clear();
+	}
+}
+
+KeyframeLayer make_interesting_layer_x() {
+	let layer = make_keyframe_layer();
+	for (int i = 0; i != 6 * 4; i++;) {
+		layer.keyframes.add({
+			.time = c:int_to_float(i) / 4,
+			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
+		});
+	}
+	return layer;
+}
+
+KeyframeLayer make_interesting_layer_y() {
+	let layer = make_keyframe_layer();
+	for (int i = 0; i != 36; i++;) {
+		layer.keyframes.add({
+			.time = c:int_to_float(i) / 6,
+			.value = Sin01(0.5 * i) * 600
+		});
+	}
+	return layer;
+}
+
+KeyframeLayer make_rotation() {
+	let layer = make_keyframe_layer();
+	layer.keyframes.add({
+		.time = 0,
+		.value = 0
+	});
+	layer.keyframes.add({
+		.time = 5,
+		.value = 360
+	});
+	return layer;
+}
+
+KeyframeLayer make_cool_layer_x() {
+	let layer = make_keyframe_layer();
+	for (int i = 0; i != 3 * 4; i++;) {
+		layer.keyframes.add({
+			.time = c:int_to_float(i) / 4 * 2,
+			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
+		});
+	}
+	return layer;
+}
+
+KeyframeLayer make_cool_layer_y() {
+	let layer = make_keyframe_layer();
+	for (int i = 0; i != 18; i++;) {
+		layer.keyframes.add({
+			.time = c:int_to_float(i) / 3,
+			.value = Sin01(0.5 * i) * 600
+		});
+	}
+	return layer;
+}
+
+Element make_cool_fn_element() -> {
+	.content_impl = CustomPureFnElement.new("cool_effect"),
+	.name = Element.NextElementName(),
+	.pos = v2(0, 0),
+	.scale = v2(20, 20),
+	.uniform_scale = true,
+	.rotation = 0,
+	.opacity = 1,
+	.color = Colors.Orange,
+	.kl_pos_x = make_cool_layer_x(),
+	.kl_pos_y = make_cool_layer_y(),
+	.kl_rotation = make_rotation(),
+	.kl_opacity = make_keyframe_layer(),
+	.kl_scale = make_keyframe_layer(),
+};
+
+Element make_interesting_element() -> {
+	.content_impl = make_rect(),
+	.name = Element.NextElementName(),
+	.pos = v2(0, 0),
+	.scale = v2(200, 200),
+	.uniform_scale = true,
+	.rotation = 0,
+	.opacity = 1,
+	.color = c:BLUE,
+	.kl_pos_x = make_interesting_layer_x(),
+	.kl_pos_y = make_interesting_layer_y(),
+	.kl_rotation = make_rotation(),
+	.kl_opacity = make_keyframe_layer(),
+	.kl_scale = make_keyframe_layer(),
+};
+
+Element make_element() -> {
+	.content_impl = make_circle(),
+	.name = Element.NextElementName(),
+	.pos = v2(400, 400),
+	.scale = v2(150, 150),
+	.uniform_scale = true,
+	.rotation = 0,
+	.opacity = 1,
+	.color = c:GREEN,
+	.kl_pos_x = make_keyframe_layer(),
+	.kl_pos_y = make_keyframe_layer(),
+	.kl_rotation = make_keyframe_layer(),
+	.kl_opacity = make_keyframe_layer(),
+	.kl_scale = make_keyframe_layer(),
+};

@@ -1,0 +1,765 @@
+c:c:`
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers" // issue w/ do_file_tree_dir_visit
+`;
+
+c:import <"stdlib.h">;
+c:import <"string.h">;
+// TODO: split into <string> <core> ... etc?
+
+c:import <"unistd.h">;
+c:import <"dirent.h">;
+c:import <"errno.h">;
+
+c:import <"sys/stat.h">;
+c:import <"ftw.h">;
+
+c:`extern char c_null_term;`
+c:c:`char c_null_term = '\0';`
+
+import list;
+
+@extern c:void^ NULL; // TODO: make just void^ or something else? (need conversion) / make special `null` parsed?
+@extern int errno;
+// core-core ---------------
+// * core-core: things necessary for base language features working!
+struct IndexRangeIter {
+	int i;
+	int endExclusive;
+
+	bool has_next() -> endExclusive > i;
+	int next() -> i++;
+}
+
+@extern struct IndexRange {
+	int startInclusive;
+	int endExclusive;
+
+	IndexRangeIter iter() -> { .i = startInclusive, :endExclusive };
+}
+
+// memory ------------------
+@extern void free(c:void^ ptr);
+@extern c:void^ malloc(int n_bytes);
+
+// string ------------------
+struct string {
+	char^ str;
+
+	int len() -> strlen(str);
+
+	char^ into() -> str;
+
+	bool operator:==(string other) -> str_eq(str, other.str);
+	string operator:+(string other) -> s(str_concat(str, other.str));
+
+	// TODO: address what this points to once we have non-this methods! (need specifier for global namespace? ::split type beats?)
+	Strings split(char^ on) -> split(str, on);
+	Strings trim_split(char^ on) -> trim_split(str, on);
+
+	bool contains(char^ contained) -> str_contains(str, contained);
+
+	string trim() -> s(trim(this)); // TODO: need global namespace-ing
+
+	bool starts_with(char^ starts_with_str) -> str_starts_with(this, starts_with_str);
+	bool ends_with(char^ ends_with_str) -> str_ends_with(this, ends_with_str);
+
+	bool is_empty() -> strlen(str) == 0;
+
+	int index_of(char^ searched_str) {
+		char^ res = strstr(this, searched_str);
+
+		if (res == NULL) { return -1; }
+
+		c:int index = res - str;
+		return index;
+	}
+
+	string substr(int start_i, int length) {
+		if (start_i + length > this.len()) {
+			panic(t"string substr i+length={start_i}+{length}={start_i + length} exceeds length={this.len()}");
+		}
+		char^ substr_str = malloc(sizeof<char> * (length + 1));
+		for (int i = 0; i != length; i++;) {
+			substr_str[i] = str[start_i + i];
+		}
+
+		return s(substr_str);
+	}
+
+	string substr_til(int exclusive_i) -> this.substr(0, exclusive_i);
+
+	string substr_from(int inclusive_i) -> this.substr(inclusive_i, this.len() - inclusive_i);
+
+	string repeat(int n) {
+		int s_len = this.len();
+		char^ out = malloc((s_len * n + 1) * sizeof<char>);
+
+		for (int iter = 0; iter != n; iter++;) {
+			for (int i = 0; i != s_len; i++;) {
+				out[iter * s_len + i] = str[i];
+			}
+		}
+
+		c:char nullterm = 0;
+		out[(s_len * n)] = nullterm;
+		return s(out);
+	}
+
+	// char parse_char() -> c:atoi(str);
+	short parse_short() -> c:atoi(str);
+	int parse_int() -> c:atoi(str);
+	long parse_long() -> c:atol(str);
+
+	float parse_float() -> c:atof(str);
+	double parse_double() -> c:atof(str);
+}
+string s(char^ str) -> { :str };
+
+@extern int strlen(char^ str);
+@extern int strcmp(char^ str1, char^ str2);
+@extern int strncmp(char^ str1, char^ str2, int n);
+@extern char^ strdup(char^ str);
+@extern char^ strndup(char^ str, int n);
+@extern char^ strstr(char^ str, char^ contains);
+bool str_contains(char^ str, char^ contains) -> strstr(str, contains) != NULL; // TODO: includes vs contains
+
+bool str_eq(char^ str1, char^ str2) -> strcmp(str1, str2) == 0;
+bool strn_eq(char^ str1, char^ str2, int n) -> strncmp(str1, str2, n) == 0;
+
+Strings str_lines(char^ str) {
+	return split(str, "\n");
+}
+
+Strings str_contentful_lines(char^ str) { // lines that are not just whitespace
+	Strings lines = str_lines(str);
+	defer lines.delete();
+
+	return lines;
+}
+
+// result is malloc'ed--args are untouched
+char^ str_concat(char^ str1, char^ str2) {
+	int str1_len = strlen(str1);
+	char^ res = malloc(sizeof<char> * (str1_len + strlen(str2)));
+	c:strcpy(res, str1);
+	c:strcpy(^res[str1_len], str2);
+
+	return res;
+}
+
+char^ str_concat3(char^ str1, char^ str2, char^ str3) {
+	int str1_len = strlen(str1);
+	int str2_len = strlen(str2);
+	char^ res = malloc(sizeof<char> * (str1_len + str2_len + strlen(str3) + 1));
+
+	c:strcpy(res, str1);
+	c:strcpy(^res[str1_len], str2);
+	c:strcpy(^res[str1_len + str2_len], str3);
+
+	return res;
+}
+
+bool str_starts_with(char^ str, char^ starts_with) -> strn_eq(str, starts_with, strlen(starts_with));
+bool str_ends_with(char^ str, char^ ends_with) {
+	int len = strlen(str);
+	int end_len = strlen(ends_with);
+
+	if (len < end_len) { return false; }
+
+	return strn_eq(^str[len - end_len], ends_with, end_len);
+}
+
+char^ trim(char^ str) {
+	let is_whitespace_char = (char c):bool -> c == '\t' || c == '\n' || c == ' ';
+	while (*str != c:c_null_term && is_whitespace_char(*str)) { str++; }
+
+	int len = strlen(str);
+
+	int first_non_whitespace = -1;
+	for (int i = len - 1; i >= 0; i--;) {
+		if (!is_whitespace_char(str[i])) {
+			first_non_whitespace = i;
+			break;
+		}
+	}
+
+	return strndup(str, first_non_whitespace + 1);
+}
+
+Strings split(char^ str, char^ delim) {
+	int delim_len = strlen(delim);
+
+	char^ tmp = str;
+	int n_delim = 0;
+	for (int i = 0; i < strlen(str); i++;) {
+		if (strn_eq(^str[i], delim, delim_len)) { n_delim++; }
+	}
+
+	char^^ strs = c:malloc(sizeof<char^> * (n_delim + 1));
+
+	char^ to_free;
+	char^ s;
+
+	to_free = strdup(str);
+	s = to_free;
+
+	int i = 0;
+	while (true) {
+		char^ token = c:strsep(^s, delim);
+		if (token == NULL) { break; }
+
+		strs[i++] = strdup(token);
+	}
+
+	free(to_free);
+
+	return {
+		.n = n_delim + 1,
+		:strs
+	};
+}
+
+Strings trim_split(char^ str, char^ delim) {
+	int delim_len = strlen(delim);
+
+	char^ tmp = str;
+	int n_delim = 0;
+	for (int i = 0; i < strlen(str); i++;) {
+		if (strn_eq(^str[i], delim, delim_len)) { n_delim++; }
+	}
+
+	char^^ strs = c:malloc(sizeof<char^> * (n_delim + 1));
+
+	char^ to_free;
+	char^ s;
+
+	to_free = strdup(str);
+	s = to_free;
+
+	int i = 0;
+	while (true) {
+		char^ token = c:strsep(^s, delim);
+		if (token == NULL) { break; }
+
+		strs[i++] = trim(token);
+	}
+
+	free(to_free);
+
+	return {
+		.n = n_delim + 1,
+		:strs
+	};
+}
+
+// opts ---------------------
+// TODO: makes args list just args after arg[0]!
+struct ProgramOpts {
+	int argc;
+	char^^ argv;
+
+	bool has(char^ opt) {
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(opt, argv[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// eg: opt = "-b", returns -> "/<some>/<given>/<path>"
+	char^ get(char^ opt) {
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(opt, argv[i]) && i + 1 < argc) {
+				return argv[i + 1];
+			}
+		}
+		return NULL;
+	}
+
+	char^ getDashed(char^ full_opt_name) {
+		char^ full = f"--{full_opt_name}";
+		defer free(full);
+
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(full, argv[i]) && i + 1 < argc) {
+				return argv[i + 1];
+			}
+		}
+		return NULL;
+	}
+
+	char^ getDashedWithAlias(char^ full_opt_name, char^ short_alias) {
+		char^ full_opt = f"--{full_opt_name}";
+		char^ short_opt = f"-{short_alias}";
+		defer free(full_opt);
+		defer free(short_opt);
+
+		for (int i = 1; i < argc; i++;) {
+			if ((str_eq(full_opt, argv[i]) || str_eq(short_opt, argv[i])) && i + 1 < argc) {
+				return argv[i + 1];
+			}
+		}
+		return NULL;
+	}
+
+	bool hasDashed(char^ full_opt_name) {
+		char^ full = f"--{full_opt_name}";
+		defer free(full);
+
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(full, argv[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool hasDashedWithAlias(char^ full_opt_name, char^ short_alias) {
+		char^ full_opt = f"--{full_opt_name}";
+		char^ short_opt = f"-{short_alias}";
+		defer free(full_opt);
+		defer free(short_opt);
+
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(full_opt, argv[i]) || str_eq(short_opt, argv[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	int index_of(char^ opt) { // TODO: should we start indices at 0?
+		for (int i = 1; i < argc; i++;) {
+			if (str_eq(opt, argv[i])) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	char^ get_or_panic_with(char^ opt, char^ panic_msg) {
+		let it = this.get(opt);
+		if (it == NULL) { panic(panic_msg); }
+
+		return it;
+	}
+
+	char^ get_or_panic(char^ opt) -> this.get_or_panic_with(opt, f"get opt {opt} failed");
+
+	char^ at(int i) {
+		if (i < 0 || i >= argc) { panic(f"index i={i} OOB for opts of length={argc}"); }
+		return argv[i];
+	}
+}
+
+ProgramOpts make_opts(int argc, char^^ argv) -> { :argc, :argv };
+
+// io ---------------------------
+@extern struct FILE {
+	// ...
+	void close() { c:fclose(^this); }
+
+	// does not consume
+	void reset_consumption() {
+		c:fseek(^this, 0, c:SEEK_SET);
+	}
+
+	void println(char^ str) {
+		c:fprintf(^this, "%s\n", str);
+	}
+
+	// TODO: this is kinda incorrect? - edge case, no newline on last?
+	int num_lines() {
+		int n = 0;
+
+		for (;;) {
+			c:int c = c:fgetc(^this);
+
+			if (c == '\n') { n++; }
+			else if (c == c:EOF) { break; }
+		}
+
+		this.reset_consumption();
+		return n;
+	}
+
+	// consumes
+	char^^ lines() {
+		int n_lines = this.num_lines();
+
+		char^^ l = c:malloc(sizeof<char^> * n_lines);
+
+		char^ line = c:NULL;
+		for (int i = 0; i < n_lines; i++;) {
+			c:size_t n = 0;
+			if (c:getline(^line, ^n, ^this) == -1) {
+				panic("getline failed");
+			}
+
+			l[i] = c:strndup(line, strlen(line) - 1); // remove \n
+		}
+		if (line != c:NULL) {
+			c:free(line);
+		}
+
+		return l;
+		// TODO: should it close?
+	}
+}
+
+struct Strings {
+	int n;
+	char^^ strs;
+
+	void delete() {
+		for (int i = 0; i < n; i++;) {
+			c:free(strs[i]);
+		}
+		c:free(strs);
+	}
+
+	Strings non_whitespace_only() {
+		let is_whitespace_str = (char^ str):bool -> {
+			let is_whitespace_char = (char c):bool -> c == '\t' || c == '\n' || c == ' ';
+			for (int i = 0; i != strlen(str); i++;) {
+				if (!is_whitespace_char(str[i])) { return false; }
+			}
+			return true;
+		};
+
+		int count = 0;
+		for (char^ str in this) {
+			if (!is_whitespace_str(str)) {
+				count++;
+			}
+		}
+
+		char^^ good_strs = malloc(sizeof<char^> * count);
+		int i = 0;
+		for (char^ str in this) {
+			if (!is_whitespace_str(str)) {
+				good_strs[i++] = strdup(str);
+			}
+		}
+
+		return {
+			.n = count,
+			.strs = good_strs
+		};
+	}
+
+	char^ at(int i) {
+		if (i < 0 || i >= n) { panic(f"index OOB at i={i}, for length={n}"); }
+		return strs[i];
+	}
+
+	List<char^> to_cstr_list() { // NOTE: careful: do not free/delete when using this!
+		List<char^> l = List<char^>();
+
+		for (char^ cstr in this) {
+			l.add(cstr);
+		}
+
+		return l;
+	}
+
+	StringsIterator iter() -> { .i = 0, .lines = ^this };
+}
+struct StringsIterator {
+	int i;
+	Strings^ lines;
+
+	bool has_next() -> (lines#n > i);
+
+	char^ next() {
+		char^ elem = lines#strs[i];
+		i = i + 1;
+		return elem;
+	}
+}
+
+@extern struct DIR {
+	// ...
+}
+
+// TODO: think about ownership etc... rn leaks like crazyyy
+struct Path {
+	char^ str;
+
+	construct(char^ str) -> { :str };
+
+	char^ into() -> str;
+	
+	Path operator:/(char^ append) {
+		if (str_starts_with(append, "/")) {
+			panic(f"path operator:/ append should not start with '/': but was '{append}'");
+		}
+
+		char^ new_path_str;
+		int s_len = strlen(str);
+		int a_len = strlen(append);
+		return str_ends_with(str, "/")
+			? Path{ .str = str_concat(str, append) }
+			| Path{ .str = str_concat3(str, "/", append) };
+	}
+}
+
+Path make_path(char^ str) {
+	// TODO: do some checking/modifying?
+	return { :str };
+}
+
+c:`extern int rm_dir_nftw_callback(const char* path, const struct stat* sb, int tflag, struct FTW* ftw_ptr);`
+c:c:`int rm_dir_nftw_callback(const char* path, const struct stat* sb, int tflag, struct FTW* ftw_ptr) {
+	if (tflag == FTW_F) {
+		remove(path);
+	} else if (tflag == FTW_DP) {
+		rmdir(path);
+	} else if (tflag == FTW_SL) { // symbolic link
+		remove(path);
+	} else {
+		printf("[tpp-std-error]: rm_dir_nftw_callback encountered unexpected tflag=%d\n", tflag);
+		return 999;
+	}
+	return 0;
+}`
+
+interface FileTreeWalker {
+	void visit_file(char^ file_path);
+	void visit_dir(char^ dir_path);
+}
+
+struct FileTreeWalkOptions {}
+
+// global state - NOTE: NOT THREAD SAFE RN!!!
+struct FileTreeWalkState {
+	FileTreeWalker^ active_visitor;
+}
+FileTreeWalkState file_tree_walk_state;
+
+// TODO: hidden/private - allow _ at start of names too!
+void do_file_tree_file_visit(char^ file_path) {
+	file_tree_walk_state.active_visitor#visit_file(file_path);
+}
+void do_file_tree_dir_visit(char^ dir_path) {
+	file_tree_walk_state.active_visitor#visit_dir(dir_path);
+}
+
+c:`extern int file_tree_walk_callback(const char* path, const struct stat* sb, int tflag, struct FTW* ftw_ptr);`
+c:c:`int file_tree_walk_callback(const char* path, const struct stat* sb, int tflag, struct FTW* ftw_ptr) {
+	if (tflag == FTW_F) {
+		do_file_tree_file_visit(path);
+	} else if (tflag == FTW_DP) {
+		do_file_tree_dir_visit(path);
+	} else if (tflag == FTW_SL) { // symbolic link
+	} else {
+	}
+	return 0;
+}`
+
+void WalkFileTree(char^ dir_path, FileTreeWalker^ visitor, FileTreeWalkOptions opts) {
+	file_tree_walk_state.active_visitor = visitor;
+	if (!io.dir_exists(dir_path)) { panic(f"can not walk directory that does not exist: `{dir_path}`"); }
+
+	// TODO: fd_limit = 128?
+	int nftw_res = c:nftw(dir_path, c:file_tree_walk_callback, 128, c:FTW_DEPTH ~| c:FTW_PHYS ~| c:FTW_MOUNT);
+	if (nftw_res != 0) { panic(f"WalkFileTree's nftw failed with code {nftw_res}"); }
+}
+
+void WalkFileTreeBasic(char^ dir_path, FileTreeWalker^ visitor) {
+	WalkFileTree(dir_path, visitor, {});
+}
+
+
+// stat  ----------------
+c:`typedef struct stat file_stat;`
+@extern
+struct file_stat {
+	long st_atime; // last access time
+	long st_mtime; // last modification time
+	long st_ctime; // last change time
+}
+// /stat ----------------
+
+struct IO_lib {
+	file_stat stat(char^ file_path) {
+		file_stat stat_obj;
+		if (c:stat(file_path, ^stat_obj) != 0) {
+			char^ reason = match (errno) {
+				c:ENOENT -> "[ENOENT] File does not exist",
+				c:EACCES -> "[EACCES] Permission denied",
+				c:ENOTDIR -> "[ENOTDIR] Path of path prefix is not a directory",
+				c:ELOOP -> "[ELOOP] Too many symbolic links encountered while resolving path",
+				c:EFAULT -> "[EFAULT] pointer to stat structure is invalid",
+				c:ENOMEM -> "[ENOMEM] Insufficient kernel memory available",
+				c:EOVERFLOW -> "[EOVERFLOW] File size is too large to be represented in the stat structure",
+				else -> "Unknown"
+			};
+			if (errno == c:ENOENT) {
+				panic(t"stat('{file_path}') failed - Reason: {reason}");
+			}
+		}
+
+		return stat_obj;
+	}
+
+	// false on failure
+	// DOES NOT APPEND \n
+	bool write_file_text(char^ file_path, char^ contents) {
+		FILE^ f = io.open(file_path, "w"); // TODO: errors... don't?
+		defer f#close();
+
+		if (c:fprintf(f, "%s", contents) < 0) {
+			return false;
+		}
+		
+		return true;
+	}
+
+	// DOES NOT APPEND \n
+	bool append_file_text(char^ file_path, char^ contents) {
+		FILE^ f = io.open(file_path, "a"); // TODO: errors... don't?
+		defer f#close();
+
+		if (c:fprintf(f, "%s", contents) < 0) {
+			return false;
+		}
+		
+		return true;
+	}
+
+	bool write_file_lines(char^ file_path, Strings lines) {
+		FILE^ f = io.open(file_path, "w");
+		defer f#close();
+
+		for (int i = 0; i < lines.n; i++;) {
+			// TODO: check that they fprintf's succeed...
+			c:fprintf(f, "%s", lines.at(i));
+			c:fprintf(f, "\n");
+		}
+		
+		return true;
+	}
+
+	bool append_file_lines(char^ file_path, Strings lines) {
+		FILE^ f = io.open(file_path, "a");
+		defer f#close();
+
+		for (int i = 0; i < lines.n; i++;) {
+			c:fprintf(f, "%s", lines.at(i));
+			c:fprintf(f, "\n");
+		}
+		
+		return true;
+	}
+
+	bool dir_exists(char^ dir_path) { // TODO: rename of param -> rename of method!!!
+		DIR^ dir = c:opendir(dir_path); // changing name of param changes name of function!
+		if (dir != NULL) {
+			c:closedir(dir);
+			return true;
+		} else if (c:ENOENT == c:errno) {
+			return false;
+		} else {
+			println("[tpp-std-warn]: dir_exsists failed to open dir for some other reason... it may exist");
+			return false;
+		}
+	}
+
+	// false on failure
+	bool mkdir(char^ dir_path) {
+		if (c:mkdir(dir_path, 511) == -1) { return false; }
+		return true;
+	}
+
+	// false on failure
+	bool mkdir_if_nonexistent(char^ dir_path) {
+		if (!this.dir_exists(dir_path)) { return this.mkdir(dir_path); }
+		return true;
+	}
+
+	void touch_if_nonexistent(char^ file_path) {
+		if (!io.file_exists(file_path)) {
+			io.write_file_text(file_path, "");
+		}
+	}
+
+	bool file_exists(char^ file_path) {
+		return c:access(file_path, c:F_OK) == 0;
+	}
+	
+	int rm(char^ file_path) -> c:remove(file_path);
+
+	void rmrf_if_existent(char^ dir_path) {
+		if (this.dir_exists(dir_path)) {
+			this.rmrf(dir_path); // inefficient..
+		}
+	}
+
+	void rmrf(char^ dir_path) {
+		if (!this.dir_exists(dir_path)) { panic(f"can not remove directory that does not exist: `{dir_path}`"); }
+
+		// TODO: fd_limit = 128?
+		int nftw_res = c:nftw(dir_path, c:rm_dir_nftw_callback, 128, c:FTW_DEPTH ~| c:FTW_PHYS ~| c:FTW_MOUNT);
+		if (nftw_res != 0) { panic(f"rm_dir's nftw failed with code {nftw_res}"); }
+	}
+
+	FILE^ open(char^ file_path, char^ mode) {
+		FILE^ it = c:fopen(file_path, mode); 
+		if (it == NULL) {
+			panic(f"failed to open {file_path} with mode {mode}");
+		}
+		return it;
+	}
+	void close(FILE^ f) { c:fclose(f); }
+
+	Strings lines(char^ file_path) {
+		FILE^ f = this.open(file_path, "r");
+		defer this.close(f);
+
+		return {
+			.n = f#num_lines(),
+			.strs = f#lines()
+		};
+	}
+
+	char^ cwd() {
+		// TODO: danger - long (but possibly not long enough path length?!!)
+		return c:getcwd(c:NULL, 1024);
+	}
+}
+IO_lib io;
+
+struct Box<T> {
+	static T^ Make(T val) {
+		T^ it = malloc(sizeof<T>);
+		*it = val;
+
+		return it;
+	}
+
+	T^ make(T val) -> Self.Make(val);
+}
+
+
+
+struct None {}
+choice Opt<T> {
+	 T, None;
+
+	 static Opt<T> Some(T val) -> val;
+}
+None none = {};
+
+choice Err<TRes, TErr> {
+	TRes, TErr;
+}
+
+
+
+
+c:c:`
+#pragma GCC diagnostic pop
+`;

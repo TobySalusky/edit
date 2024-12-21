@@ -1,0 +1,10 @@
+import std;
+import rl;
+import script;
+
+int main() {
+	println("script.rpp setup!");
+	return 0;
+}
+
+void script_setup() { main(); }

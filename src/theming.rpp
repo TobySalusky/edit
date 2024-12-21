@@ -1,0 +1,62 @@
+import rl;
+c:import <"string.h">;
+
+Color rgb(int r, int g, int b) -> {
+	:r, :g, :b, .a = 255
+};
+Color rgba(int r, int g, int b, int a) -> {
+	:r, :g, :b, :a
+};
+
+int hex_char(char c) {
+	c:int res = c;
+	if (res >= 48 && res <= 57) { // numbers 0-9
+		res = res - 48;
+	} else if (res >= 65 && res <= 70) { // characters A-F
+		res = res - 65 + 10;
+	} else if (res >= 97 && res <= 102) { // characters a-f
+		res = res - 97 + 10;
+	}
+	return res;
+}
+
+// NOTE: hex_str should be WITHOUT leading #
+Color hex(char^ hex_str) {
+	int r = hex_char(hex_str[0]) * 16 + hex_char(hex_str[1]);
+	int g = hex_char(hex_str[2]) * 16 + hex_char(hex_str[3]);
+	int b = hex_char(hex_str[4]) * 16 + hex_char(hex_str[5]);
+	int a = 255;
+	if (c:strlen(hex_str) >= 8) {
+		a = hex_char(hex_str[6]) * 16 + hex_char(hex_str[7]);
+	}
+
+	return rgba(r, g, b, a);
+}
+
+struct Theme {
+	Color bg;
+	Color canvas_bg;
+	Color panel;
+	Color panel_border;
+	Color button;
+	Color active;
+}
+
+Theme MakeDarkTheme() -> {
+	// TODO: hex"..."
+	// .bg = hex("616161"),
+	.bg = hex("333333"),
+	.canvas_bg = hex("CCCCCC"),
+	.panel = hex("4f4f4f"),
+	.panel_border = hex("6b6b6b"),
+	.button = hex("333333"),
+	.active = hex("FFAA00AA")
+};
+
+Theme theme = MakeDarkTheme();
+
+Color black = c:BLACK;
+Color red = c:RED;
+Color blue = c:BLUE;
+Color green = c:GREEN;
+Color transparent = Color{.r=0,.g=0,.b=0,.a=0};
