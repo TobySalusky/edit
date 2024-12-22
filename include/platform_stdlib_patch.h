@@ -120,6 +120,7 @@ static inline size_t getline(char** line, size_t* len, FILE* fp) {
 
 
 #else // MAC ====================================
+#include <sys/stat.h>
 
 static inline int rpp_std_mkdir(const char* f) {
 	return mkdir(f, 511); // 511 for flags we want :)
