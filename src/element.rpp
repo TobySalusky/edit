@@ -41,7 +41,6 @@ struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
 
 	void Draw(Element^ e) {
-		// d.RectRot(e#pos, e#scale, e#rotation, e#color);
 		c:CustomPureFn fn = code_man.GetFn(fn_name);
 		fn(e#pos, e#scale, e#rotation, e#color);
 	}

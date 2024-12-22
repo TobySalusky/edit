@@ -28,7 +28,7 @@ void cool_effect(Vec2 pos, Vec2 scale, float rotation, Color color) {
 	Vec2 center = pos + scale.divide(2);
 
 	for (let p in points) {
-		d.Line(p, center, 3, Colors.Purple);
+		d.Line(p, center, 3, Colors.Red);
 	}
 
 	d.Circle(center, 11, Colors.Black);

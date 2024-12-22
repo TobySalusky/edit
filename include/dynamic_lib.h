@@ -8,7 +8,7 @@ extern "C" {
 
 struct HINSTANCE__ { int unused; };
 struct HINSTANCE__* LoadLibraryA(const char* file_path);
-extern "C" int FreeLibrary(struct HINSTANCE__* lib_handle);
+int FreeLibrary(struct HINSTANCE__* lib_handle);
 long long (*GetProcAddress(struct HINSTANCE__* lib_handle, const char* fn_name))();
 
 #ifdef __cplusplus
@@ -99,14 +99,12 @@ static inline dynamic_lib_result dynamic_lib_load_fn(void* lib_handle, const cha
 }
 
 // returns: dll|dylib|so
-static inline const char* dynamic_lib_extension(void) {
 #ifdef _WIN32
-	return "dll";
+#define DYNAMIC_LIB_EXTENSION "dll"
 #elif __APPLE__
-	return "dylib";
+#define DYNAMIC_LIB_EXTENSION "dylib"
 #elif __linux
-	return "so";
+#define DYNAMIC_LIB_EXTENSION "so"
 #else
-	return 0;
+#define DYNAMIC_LIB_EXTENSION 0
 #endif
-}

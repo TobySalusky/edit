@@ -6,27 +6,22 @@ import dylib;
 c:`typedef void(*CustomScriptSetupFn)(void);`;
 
 struct CodeManager {
-	Path code_folder_path; // unused currently
-	Path out_folder_path;
 	Path dylib_path;
+	Path old_dylib_path;
+	Path new_dylib_path;
 
 	Opt<DyLib> code_handle;
 	StrMap<void^> fn_handles;
 
-	Opt<long> dylib_last_modified_time;
-
-	construct(char^ code_folder_path_str, char^ out_folder_path_str) {
-		Path code_folder_path = .(code_folder_path_str);
-		Path out_folder_path = .(out_folder_path_str);
+	construct(char^ result_dir) {
+		Path dir = .(result_dir);
 		return {
-			:code_folder_path,
-			:out_folder_path,
-			.dylib_path = out_folder_path/t"build/libscript.{dynamic_lib_extension()}",
+			.dylib_path =     dir/t"libscript.{DYNAMIC_LIB_EXTENSION}",
+			.old_dylib_path = dir/t"oldlibscript.{DYNAMIC_LIB_EXTENSION}",
+			.new_dylib_path = dir/t"newlibscript.{DYNAMIC_LIB_EXTENSION}",
 
 			.code_handle = none,
 			.fn_handles = .(),
-
-			.dylib_last_modified_time = none,
 		};
 	}
 
@@ -41,18 +36,18 @@ struct CodeManager {
 
 		c:CustomScriptSetupFn setup_fn = this.GetFn("script_setup"); 
 		setup_fn();
-
-		dylib_last_modified_time = io.stat(dylib_path).st_mtime;
 	}
 
 	void CheckModifiedTimeAndReloadIfNecessary() {
-		if (!io.file_exists(dylib_path)) { return; }
-		long mod_time = io.stat(dylib_path).st_mtime;
+		if (!io.file_exists(new_dylib_path)) { return; }
+
+		this.Lib().Unload();
+
+		io.rm_if_existent(old_dylib_path);
+		io.mv(dylib_path, old_dylib_path);
+		io.mv(new_dylib_path, dylib_path);
 		
-		if (dylib_last_modified_time is long && mod_time > (dylib_last_modified_time as long)) {
-			dylib_last_modified_time = mod_time;
-			this.Reload();
-		}
+		this.Load();
 	}
 
 	DyLib& Lib() {
@@ -60,14 +55,16 @@ struct CodeManager {
 			DyLib lib -> { DyLib^ l = ^lib; return *l; },
 			else -> panic("Lib() failed - not loaded!"),
 		}
-		return (code_handle as DyLib);
+		// unreachable
+		DyLib^ blah = NULL;
+		return *blah;
 	}
 
-	void Reload() {
-		this.Lib().Unload();
-		this.Load();
-	}
-
+	// void Reload() {
+	// 	this.Lib().Unload();
+	// 	this.Load();
+	// }
+	//
 	void Unload() {
 		this.Lib().Unload();
 		code_handle = none;
@@ -87,4 +84,4 @@ struct CodeManager {
 }
 
 // NOTE: assumes program is run from git repo root (`edit/`)
-CodeManager code_man = .("./test_src", "./test_out");
+CodeManager code_man = .("test_resource");

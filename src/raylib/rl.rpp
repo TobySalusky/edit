@@ -3,10 +3,13 @@ c:import "raymath.h";
 
 c:c:`
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#ifdef _WIN32
+	#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers" // issue w/ do_file_tree_dir_visit
+#else
+	#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers" // issue w/ do_file_tree_dir_visit
+#endif
 #pragma GCC diagnostic ignored "-Wpointer-sign" // TODO: <--- should really fix this
 `;
-
 
 import list;
 
@@ -834,18 +837,8 @@ struct Keyboard {
 	bool IsUp(int keycode) -> !c:IsKeyDown(keycode);
 }
 
-Color ColorLerp(Color from, Color to, float t) {
-	if (t > 1) { t = 1; }
-	if (t < 0) { t = 0; }
-
-	float it = 1.0 - t;
-	return {
-		.r = c:float_to_int(t * from.r + it * to.r),
-		.b = c:float_to_int(t * from.b + it * to.b),
-		.g = c:float_to_int(t * from.g + it * to.g),
-		.a = c:float_to_int(t * from.a + it * to.a),
-	};
-}
+@extern
+Color ColorLerp(Color from, Color to, float t);
 
 // shaders ---
 @extern struct Shader {

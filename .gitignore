@@ -11,5 +11,4 @@ test_src/external/
 out/
 test_out/
 
-**/rae-run.sh
-**/rae-run.bat
+build/

@@ -1,11 +1,18 @@
 c:c:`
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers" // issue w/ do_file_tree_dir_visit
+#ifdef _WIN32
+	#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers" // issue w/ do_file_tree_dir_visit
+#else
+	#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers" // issue w/ do_file_tree_dir_visit
+#endif
 `;
 
+c:import <"stdio.h">;
 c:import <"stdlib.h">;
 c:import <"string.h">;
 // TODO: split into <string> <core> ... etc?
+
+c:import "platform_stdlib_patch.h";
 
 c:import <"unistd.h">;
 c:import <"dirent.h">;
@@ -670,7 +677,7 @@ struct IO_lib {
 
 	// false on failure
 	bool mkdir(char^ dir_path) {
-		if (c:mkdir(dir_path, 511) == -1) { return false; }
+		if (c:rpp_std_mkdir(dir_path) == -1) { return false; }
 		return true;
 	}
 
@@ -681,16 +688,27 @@ struct IO_lib {
 	}
 
 	void touch_if_nonexistent(char^ file_path) {
-		if (!io.file_exists(file_path)) {
-			io.write_file_text(file_path, "");
+		if (!this.file_exists(file_path)) {
+			this.write_file_text(file_path, "");
 		}
 	}
 
 	bool file_exists(char^ file_path) {
 		return c:access(file_path, c:F_OK) == 0;
 	}
+
+	// false on failure
+	bool mv(char^ old_file_name, char^ new_file_name) {
+		return c:rename(old_file_name, new_file_name) == 0;
+	}
 	
 	int rm(char^ file_path) -> c:remove(file_path);
+
+	void rm_if_existent(char^ file_path) {
+		if (this.file_exists(file_path)) {
+			this.rm(file_path);
+		}
+	}
 
 	void rmrf_if_existent(char^ dir_path) {
 		if (this.dir_exists(dir_path)) {
@@ -729,6 +747,8 @@ struct IO_lib {
 		// TODO: danger - long (but possibly not long enough path length?!!)
 		return c:getcwd(c:NULL, 1024);
 	}
+
+	
 }
 IO_lib io;
 

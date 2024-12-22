@@ -151,7 +151,7 @@ void LeftPanelUI() {
 	for (int i = 0; i != elements.size; i++;) {
 		Vec2 tl = v2(10, 10 + 50 * i);
 		if (ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered())) {
-			println(t"Elem {i} selected");
+			println(t"[DEBUG]: Elem {i} selected");
 			selected_elem_i = i;
 		}
 		if (selected_elem_i == i) {
@@ -313,7 +313,7 @@ struct HotKeys {
 	// :hotkey:temp
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
 	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.B, KEY.N);
-	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O);
+	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
 
 	static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
@@ -358,9 +358,9 @@ void GameTick() {
 		elements.get(selected_elem_i).ClearTimelinesCompletely();
 	}
 
-	if (HotKeys.Temp_ReloadCode.IsPressed()) {
-		code_man.Reload();
-	}
+	// if (HotKeys.Temp_ReloadCode.IsPressed()) {
+	// 	code_man.Reload();
+	// }
 
 	if (HotKeys.Temp_AddElementCool.IsPressed()) {
 		elements.add(make_cool_fn_element());
