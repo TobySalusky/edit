@@ -76,7 +76,7 @@ void ExportFrameThread(void^ arg) {
 	while (images.size <= i) { }
 	Image img = images.get(i);
 	c:ImageFlipVertical(^img); // TODO: flip vertical
-	char^ name = f"edit/out/frames/{i %d05}.png"; // t"" not thread safe!
+	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
 	defer free(name);
 	img.ExportTo(name);
 	img.delete();
@@ -241,7 +241,7 @@ void DrawFrameToCanvas() {
 }
 
 void ExportVideoThread() {
-	ExportVideo(frame_rate, "edit/out/frames", "edit/out/capture");
+	ExportVideo(frame_rate, "out/frames", "out/capture");
 
 	mode = MODE_PAUSED;
 	SetFrame(0);
@@ -342,7 +342,7 @@ void GameTick() {
 		export_state = make_export_state();
 		SetFrame(0);
 
-		system("mkdir edit/out/frames");
+		io.mkdir("out/frames");
 	}
 
 	if (HotKeys.ToggleHideUIFullscreenPlayback.IsPressed()) {
