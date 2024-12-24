@@ -5,6 +5,7 @@ Editing software with a mixed approach to video consisting of graphical programm
 Notable Structure:
 * `install/`           - everything you need to work with R++ (rpp exe w/ lsp support & vscode extension)
 * `scripts/`           - important setup & run scripts
+* `docs/`              - learning materials (e.g. for R++) - more to come
 * `src/`               - .rpp code for edit program
 * `test_src/`          - .rpp code for user-loaded script in edit program (see: `cool_effect` in `script.rpp`)
 * `test_src/external/` - files copied from `src/`'s raylib & std sub-modules (DO NOT EDIT, since changes will be overriden)
@@ -93,3 +94,7 @@ Currently, the lsp (which provides the errors), only works correctly when your r
 > this is because it will currently recognize both src & test_src as belonging to the same code-base, which causes errors since they 
 
 > I plan to address this as soon as I reasonably can, but for now I recommend keeping 2 VSCode's open: in `src/` & `test_src/`
+
+## Next Up
+
+check out `intro.md` and `syntax-guide.md` in `docs/`
