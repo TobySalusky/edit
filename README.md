@@ -41,7 +41,7 @@ CMAKE_GENERATOR=`MinGW Makefiles`
 ### Install
 add to PATH: `<path-to-this-repo>\install\win\bin`
 add environment variable
-RPP_INSTALL_PATH=`<path-to-this-repo>\install\win\bin`
+RPP_INSTALL_PATH=`<path-to-this-repo>\install`
 
 ---
 
