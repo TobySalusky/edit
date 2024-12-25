@@ -49,7 +49,7 @@ RPP_INSTALL_PATH=`<path-to-this-repo>\install\win\bin`
 * Open VSCode to Extensions Tab
 * At top-right, hit 3-dots...
 * "Install from .VSIX" (bottom option)
-* Select `install\vscode\rpp-0.0.1.vsix`
+* Select `<path-to-this-repo>\install\vscode\rpp-0.0.1.vsix`
 
 If your `rpp` is installed correctly, you should be good to go! :DDD
 
