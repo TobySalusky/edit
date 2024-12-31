@@ -35,6 +35,7 @@
 (choice_declaration name: (ident) @type)
 (enum_declaration name: (ident) @type)
 (interface_declaration name: (ident) @type)
+(extend_declaration name: (ident) @type)
 
 (struct_body
   (block
@@ -54,6 +55,7 @@
  "interface"
  "choice"
  "enum"
+ "extend"
  "match"
  "switch"
  "if"
@@ -231,25 +233,25 @@
 ((ident) @_name @function.builtin (#eq? @_name "assert"))
 ((ident) @_name @function.builtin (#eq? @_name "panic"))
 
-(html_attribute 
+(html_attribute
   name: (html_attribute_ident) @_name
   value: (string) @string.special.url
   (#offset! @string.special.url 0 1 0 -1)
   (#eq? @_name "href"))
 
-; (html_attribute 
+; (html_attribute
 ;   name: (html_attribute_ident) @_name
 ;   value: (interpolated_string) @string.special.url
 ;   (#offset! @string.special.url 0 1 0 -1)
 ;   (#eq? @_name "href"))
 
-(html_attribute 
+(html_attribute
   name: (html_attribute_ident) @_name
   value: (string) @string.special.url
   (#offset! @string.special.url 0 1 0 -1)
   (#eq? @_name "src"))
 
-; (html_attribute 
+; (html_attribute
 ;   name: (html_attribute_ident) @_name
 ;   value: (interpolated_string) @string.special.url
 ;   (#offset! @string.special.url 0 1 0 -1)

@@ -71,6 +71,8 @@ struct Element {
 	KeyframeLayer kl_opacity;
 
 	Color color;
+
+	bool visible;
 	// TODO: content type: rectangle, ellipse, image, text, etc
 	// IDEA: text -> keyframe the text, morph between
 
@@ -119,7 +121,7 @@ KeyframeLayer make_interesting_layer_x() {
 	let layer = make_keyframe_layer();
 	for (int i = 0; i != 6 * 4; i++;) {
 		layer.keyframes.add({
-			.time = c:int_to_float(i) / 4,
+			.time = i as float / 4,
 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
 		});
 	}
@@ -130,7 +132,7 @@ KeyframeLayer make_interesting_layer_y() {
 	let layer = make_keyframe_layer();
 	for (int i = 0; i != 36; i++;) {
 		layer.keyframes.add({
-			.time = c:int_to_float(i) / 6,
+			.time = i as float / 6,
 			.value = Sin01(0.5 * i) * 600
 		});
 	}
@@ -154,7 +156,7 @@ KeyframeLayer make_cool_layer_x() {
 	let layer = make_keyframe_layer();
 	for (int i = 0; i != 3 * 4; i++;) {
 		layer.keyframes.add({
-			.time = c:int_to_float(i) / 4 * 2,
+			.time = i as float / 4 * 2.0,
 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
 		});
 	}
@@ -165,7 +167,7 @@ KeyframeLayer make_cool_layer_y() {
 	let layer = make_keyframe_layer();
 	for (int i = 0; i != 18; i++;) {
 		layer.keyframes.add({
-			.time = c:int_to_float(i) / 3,
+			.time = i as float / 3,
 			.value = Sin01(0.5 * i) * 600
 		});
 	}
@@ -174,7 +176,7 @@ KeyframeLayer make_cool_layer_y() {
 
 Element make_cool_fn_element() -> {
 	.content_impl = CustomPureFnElement.new("cool_effect"),
-	.name = Element.NextElementName(),
+	.name = "cool_fn",
 	.pos = v2(0, 0),
 	.scale = v2(20, 20),
 	.uniform_scale = true,
@@ -186,7 +188,26 @@ Element make_cool_fn_element() -> {
 	.kl_rotation = make_rotation(),
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
+	.visible = true,
 };
+
+Element make_field_fn_element() -> {
+	.content_impl = CustomPureFnElement.new("perlin_field"),
+	.name = "perlin_field",
+	.pos = v2(400, 400),
+	.scale = v2(150, 150),
+	.uniform_scale = true,
+	.rotation = 0,
+	.opacity = 1,
+	.color = c:GREEN,
+	.kl_pos_x = make_keyframe_layer(),
+	.kl_pos_y = make_keyframe_layer(),
+	.kl_rotation = make_keyframe_layer(),
+	.kl_opacity = make_keyframe_layer(),
+	.kl_scale = make_keyframe_layer(),
+	.visible = true,
+};
+
 
 Element make_interesting_element() -> {
 	.content_impl = make_rect(),
@@ -202,6 +223,7 @@ Element make_interesting_element() -> {
 	.kl_rotation = make_rotation(),
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
+	.visible = true,
 };
 
 Element make_element() -> {
@@ -218,4 +240,5 @@ Element make_element() -> {
 	.kl_rotation = make_keyframe_layer(),
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
+	.visible = true,
 };

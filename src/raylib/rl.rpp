@@ -532,17 +532,17 @@ struct Drawer {
 	}
 	void RectRot(Vec2 tl, Vec2 dimens, float rot, Color color) {
 		Rectangle rect = {
-			.x = c:float_to_int(tl.x + dimens.x / 2), // adding half here to make up for origin offsetting
-			.y = c:float_to_int(tl.y + dimens.y / 2),
-			.width = c:float_to_int(dimens.x),
-			.height = c:float_to_int(dimens.y),
+			.x = (tl.x + dimens.x / 2) as int, // adding half here to make up for origin offsetting
+			.y = (tl.y + dimens.y / 2) as int,
+			.width = (dimens.x) as int,
+			.height = (dimens.y) as int,
 		};
 		Vec2 origin = dimens * v2(0.5, 0.5); // by default, center!
 		return c:DrawRectanglePro(rect, origin.v(), rot, color);
 	}
 
 	void TextV(char^ text, Vec2 pos, int font_size, Color color) {
-		this.Text(text, c:float_to_int(pos.x), c:float_to_int(pos.y), font_size, color);
+		this.Text(text, (pos.x) as int, (pos.y) as int, font_size, color);
 	}
 	void TextTemp(char^ text, Vec2 pos) {
 		this.TextV(text, pos, 16, c:BLACK);
@@ -616,17 +616,17 @@ struct ColorUtil {
 	}
 
 	Color rgb_f(float r, float g, float b) -> {
-		.r = c:float_to_int(255.0 * r),
-		.g = c:float_to_int(255.0 * b),
-		.b = c:float_to_int(255.0 * b),
+		.r = (255.0 * r) as int,
+		.g = (255.0 * b) as int,
+		.b = (255.0 * b) as int,
 		.a = 255,
 	};
 
 	Color rgba_f(float r, float g, float b, float a) -> {
-		.r = c:float_to_int(255.0 * r),
-		.g = c:float_to_int(255.0 * b),
-		.b = c:float_to_int(255.0 * b),
-		.a = c:float_to_int(255.0 * a),
+		.r = (255.0 * r) as int,
+		.g = (255.0 * b) as int,
+		.b = (255.0 * b) as int,
+		.a = (255.0 * a) as int,
 	};
 
 	Color rgb(int r, int g, int b) -> {
