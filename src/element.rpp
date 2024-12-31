@@ -129,7 +129,7 @@ struct Element {
 }
 
 KeyframeLayer make_interesting_layer_x() {
-	let layer = make_keyframe_layer();
+	KeyframeLayer layer = .();
 	for (int i = 0; i != 6 * 4; i++;) {
 		layer.keyframes.add({
 			.time = i as float / 4,
@@ -140,7 +140,7 @@ KeyframeLayer make_interesting_layer_x() {
 }
 
 KeyframeLayer make_interesting_layer_y() {
-	let layer = make_keyframe_layer();
+	KeyframeLayer layer = .();
 	for (int i = 0; i != 36; i++;) {
 		layer.keyframes.add({
 			.time = i as float / 6,
@@ -151,7 +151,7 @@ KeyframeLayer make_interesting_layer_y() {
 }
 
 KeyframeLayer make_rotation() {
-	let layer = make_keyframe_layer();
+	KeyframeLayer layer = .();
 	layer.keyframes.add({
 		.time = 0,
 		.value = 0
@@ -164,7 +164,7 @@ KeyframeLayer make_rotation() {
 }
 
 KeyframeLayer make_cool_layer_x() {
-	let layer = make_keyframe_layer();
+	KeyframeLayer layer = .();
 	for (int i = 0; i != 3 * 4; i++;) {
 		layer.keyframes.add({
 			.time = i as float / 4 * 2.0,
@@ -175,7 +175,7 @@ KeyframeLayer make_cool_layer_x() {
 }
 
 KeyframeLayer make_cool_layer_y() {
-	let layer = make_keyframe_layer();
+	KeyframeLayer layer = .();
 	for (int i = 0; i != 18; i++;) {
 		layer.keyframes.add({
 			.time = i as float / 3,
@@ -197,9 +197,9 @@ Element make_cool_fn_element() -> {
 	.kl_pos_x = make_cool_layer_x(),
 	.kl_pos_y = make_cool_layer_y(),
 	.kl_rotation = make_rotation(),
-	.kl_opacity = make_keyframe_layer(),
-	.kl_scale = make_keyframe_layer(),
-	.visible = true,
+	.kl_opacity = .(),
+	.kl_scale = .(),
+	.visible = false,
 	.err_msg = NULL
 };
 
@@ -212,15 +212,47 @@ Element make_custom_effect_element(char^ effect_name) -> {
 	.rotation = 0,
 	.opacity = 1,
 	.color = c:GREEN,
-	.kl_pos_x = make_keyframe_layer(),
-	.kl_pos_y = make_keyframe_layer(),
-	.kl_rotation = make_keyframe_layer(),
-	.kl_opacity = make_keyframe_layer(),
-	.kl_scale = make_keyframe_layer(),
+	.kl_pos_x = .(),
+	.kl_pos_y = .(),
+	.kl_rotation = .(),
+	.kl_opacity = .(),
+	.kl_scale = .(),
 	.visible = true,
 	.err_msg = NULL
 };
 
+Element make_perlin_element() {
+	let it = make_custom_effect_element("perlin_field");
+
+	it.kl_pos_x.Insert({
+		.time = 0,
+		.value = 0,
+	});
+	it.kl_pos_y.Insert({
+		.time = 0,
+		.value = 200,
+	});
+
+	it.kl_pos_x.Insert({
+		.time = 2.5,
+		.value = 500,
+	});
+	it.kl_pos_y.Insert({
+		.time = 2.5,
+		.value = 400,
+	});
+
+	it.kl_pos_x.Insert({
+		.time = 5,
+		.value = 1000,
+	});
+	it.kl_pos_y.Insert({
+		.time = 5,
+		.value = 200,
+	});
+
+	return it;
+}
 
 Element make_interesting_element() -> {
 	.content_impl = make_rect(),
@@ -234,9 +266,9 @@ Element make_interesting_element() -> {
 	.kl_pos_x = make_interesting_layer_x(),
 	.kl_pos_y = make_interesting_layer_y(),
 	.kl_rotation = make_rotation(),
-	.kl_opacity = make_keyframe_layer(),
-	.kl_scale = make_keyframe_layer(),
-	.visible = true,
+	.kl_opacity = .(),
+	.kl_scale = .(),
+	.visible = false,
 	.err_msg = NULL
 };
 
@@ -249,11 +281,11 @@ Element make_element() -> {
 	.rotation = 0,
 	.opacity = 1,
 	.color = c:GREEN,
-	.kl_pos_x = make_keyframe_layer(),
-	.kl_pos_y = make_keyframe_layer(),
-	.kl_rotation = make_keyframe_layer(),
-	.kl_opacity = make_keyframe_layer(),
-	.kl_scale = make_keyframe_layer(),
+	.kl_pos_x = .(),
+	.kl_pos_y = .(),
+	.kl_rotation = .(),
+	.kl_opacity = .(),
+	.kl_scale = .(),
 	.visible = true,
 	.err_msg = NULL
 };

@@ -11,6 +11,8 @@ struct KeyframeLayer {
 	List<Keyframe> keyframes;
 	// bool activated;
 
+	construct() -> { .keyframes = .() };
+
 	bool HasValue() {
 		return 
 		// activated && 
@@ -97,8 +99,3 @@ struct KeyframeLayer {
 		keyframes = .();
 	}
 }
-
-KeyframeLayer make_keyframe_layer() -> {
-	.keyframes = .(),
-	// .activated = false
-};

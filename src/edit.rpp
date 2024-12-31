@@ -108,7 +108,7 @@ RepeatingTimer check_code_timer = .(0.25);
 
 void debug_print_env_config() {
 	if (is_dvorak) {
-		println("Found `SILLY_DVORAK_USER` env var--using dvorak!");
+		println("Setting keyboard to Dvorak (via env var)");
 	}
 }
 
@@ -145,8 +145,10 @@ int main() {
 
 	elements.add(make_interesting_element());
 	elements.add(make_cool_fn_element());
-	elements.add(make_custom_effect_element("perlin_field"));
-	elements.add(make_custom_effect_element("missing"));
+	elements.add(make_perlin_element());
+	elements.add(make_custom_effect_element("missing_fn"));
+
+	selected_elem_i = 2; // select perlin_field
 
 	// temp_inputs.add(TextInput.make("a"));
 	// temp_inputs.add(TextInput.make("what"));
@@ -362,6 +364,7 @@ struct HotKeys {
 
 	// key as in keyframe
 	static HotKey KeyAtCurrentPosition  = HotKey.DvoKey(KEY.K, KEY.V);
+	static HotKey Alternative_KeyAtCurrentPosition  = HotKey.DvoKey(KEY.A, KEY.A);
 
 	static HotKey ToggleHideUIFullscreenPlayback  = HotKey.DvoKey(KEY.H, KEY.J);
 
@@ -470,7 +473,7 @@ void GameTick() {
 
 		elements.get(selected_elem_i).DrawGizmos();
 
-		if (HotKeys.KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
+		if (HotKeys.KeyAtCurrentPosition.IsPressed() || HotKeys.Alternative_KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
 			elements.get(selected_elem_i).kl_pos_x.Insert({
 				.time = current_time,
 				.value = mouse.GetPos().x

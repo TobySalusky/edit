@@ -39,15 +39,16 @@ void cool_effect(Vec2 pos, Vec2 scale, float rotation, Color color) {
 void perlin_field(Vec2 pos, Vec2 scale, float rotation, Color color) {
 	float factor = 0.1;
 	float pos_factor = 0.01;
-	Vec2 stride = .(CANVAS_WIDTH / 100, CANVAS_HEIGHT / 100);
+	int dot_size = 120;
+	Vec2 stride = .(CANVAS_WIDTH / dot_size, CANVAS_HEIGHT / dot_size);
 
-	for (int col in 0..100) {
-		for (int row in 0..100) {
+	for (int col in 0..dot_size) {
+		for (int row in 0..dot_size) {
 			float x = pos.x * pos_factor + factor * col;
 			float y = pos.y * pos_factor + factor * row;
 			float z = pos.x * pos_factor - pos.y * pos_factor / 2;
 
-			float noise = stb.perlin.ridge_noise3(x, y, z, 2, 0.5, 1, 6);
+			float noise = stb.perlin.turbulence_noise3(x, y, z, 2, 0.5, 6);
 			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, color, noise));
 		}
 	}
