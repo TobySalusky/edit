@@ -12,7 +12,7 @@ typedef struct dirent dirent;
 
 extern FILE* html_out_target;
 
-void println(const char* fmt, ...);
+void println(const char* ln_str);
 void html_out(const char* file); // callable
 void html_f(const char* fmt, ...); // prob shouldn't be callable?
 
@@ -31,10 +31,6 @@ void __tpp_panic(char* msg);
 void __tpp_assert(bool panic_condition, char* panic_msg);
 
 typedef void* tpp_void_star;
-
-
-int float_to_int(float f);
-float int_to_float(int i);
 
 typedef struct IndexRange { // TODO: include as .tpp impl
 	int startInclusive; int endExclusive;

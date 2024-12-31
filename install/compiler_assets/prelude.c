@@ -24,14 +24,8 @@ void system_f(const char* fmt, ...) { // danger!
    free(cmd);
 }
 
-void println(const char* fmt, ...) {
-	va_list args;
-
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-
-	printf("\n");
+void println(const char* ln_str) {
+	printf("%s\n", ln_str);
 }
 
 void panic_f(const char* fmt, ...) {
@@ -141,15 +135,6 @@ void tfree() {
 char* __tpp_internal_bool_to_string(bool b) {
 	return b ? "true" : "false";
 }
-
-int float_to_int(float f) {
-	return (int) f;
-}
-
-float int_to_float(int i) {
-	return i;
-}
-
 
 void __tpp_panic(char* msg) {
 	printf("\e[31m%s\e[0m\n", msg);
