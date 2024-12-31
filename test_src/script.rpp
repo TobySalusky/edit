@@ -1,10 +1,12 @@
 import std;
 import rl;
+import perlin;
 
 int CANVAS_WIDTH = 1200;
 int CANVAS_HEIGHT = 900;
 
 List<Vec2> GenPoints() {
+	println("points genned");
 	List<Vec2> points = .();
 
 	int pixels_per = 60;
@@ -28,9 +30,26 @@ void cool_effect(Vec2 pos, Vec2 scale, float rotation, Color color) {
 	Vec2 center = pos + scale.divide(2);
 
 	for (let p in points) {
-		d.Line(p, center, 3, Colors.Red);
+		d.Line(p, center, 3, Colors.Orange);
 	}
 
 	d.Circle(center, 11, Colors.Black);
 	d.Circle(center, 10, color);
+}
+
+void perlin_field(Vec2 pos, Vec2 scale, float rotation, Color color) {
+	float factor = 0.1;
+	float pos_factor = 0.01;
+	Vec2 stride = .(CANVAS_WIDTH / 100, CANVAS_HEIGHT / 100);
+
+	for (int col in 0..100) {
+		for (int row in 0..100) {
+			float x = pos.x * pos_factor + factor * col;
+			float y = pos.y * pos_factor + factor * row;
+			float z = pos.x * pos_factor - pos.y * pos_factor / 2;
+
+			float noise = stb.perlin.ridge_noise3(x, y, z, 2, 0.5, 1, 6);
+			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, color, noise));
+		}
+	}
 }

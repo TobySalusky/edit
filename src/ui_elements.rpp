@@ -16,17 +16,17 @@ bool Button(Vec2 tl, Vec2 dimens, char^ text) {
 
 	float text_width = c:MeasureText(text, fontSize);
 	float center_x = tl.x + dimens.x / 2;
-	int tx = c:float_to_int(center_x - text_width / 2);
-	int ty = c:float_to_int(tl.y + dimens.y / 2 - fontSize / 2);
+	int tx = (center_x - text_width / 2) as int;
+	int ty = (tl.y + dimens.y / 2 - fontSize / 2) as int;
 	d.Text(text, tx, ty, fontSize, c:WHITE);
 
 	return mouse.LeftClickPressed() && hovered;
 }
 
-bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover) {
+bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover, Color button_bg) {
 	Vec2 br = tl + dimens;
 
-	d.RectBetween(tl, br, theme.button);
+	d.RectBetween(tl, br, button_bg);
 	bool hovered = mouse.GetPos().Between(tl, br);
 
 	if (hovered || force_hover) { // hover overlay-lighten
@@ -37,8 +37,8 @@ bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover) {
 
 	float text_width = c:MeasureText(text, fontSize);
 	float center_x = tl.x + dimens.x / 2;
-	int tx = c:float_to_int(center_x - text_width / 2);
-	int ty = c:float_to_int(tl.y + dimens.y / 2 - fontSize / 2);
+	int tx = (center_x - text_width / 2) as int;
+	int ty = (tl.y + dimens.y / 2 - fontSize / 2) as int;
 	d.Text(text, tx, ty, fontSize, Colors.White);
 
 	return mouse.LeftClickPressed() && hovered;

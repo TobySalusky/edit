@@ -20,6 +20,9 @@ Vec2 window_dimens = v2(window_width, window_height);
 
 RenderTexture canvas;
 
+Texture eye_open;
+Texture eye_closed;
+
 List<Image> images;
 int max_images;
 
@@ -28,7 +31,7 @@ int frame_rate = 60;
 int current_frame = 0;
 float current_time = 0;
 float max_time = 5;
-int max_frames = c:float_to_int(max_time * frame_rate);
+int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
 
 
@@ -83,7 +86,7 @@ void ExportFrameThread(void^ arg) {
 	export_state.frames_written++;
 }
 
-List<TextInput> temp_inputs = .();
+// List<TextInput> temp_inputs = .();
 
 struct RepeatingTimer {
 	float max;
@@ -102,13 +105,21 @@ struct RepeatingTimer {
 
 RepeatingTimer check_code_timer = .(0.25);
 
+void debug_print_env_config() {
+	if (is_dvorak) {
+		println("Found `SILLY_DVORAK_USER` env var--using dvorak!");
+	}
+}
+
 int main() {
+	debug_print_env_config();
+
 	code_man.Load();
 	defer code_man.Unload();
 
 	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
 
-	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags?
+	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
 	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
 	window.Init(window_width, window_height, "zZ-edit");
@@ -116,25 +127,29 @@ int main() {
 
 	canvas = make_render_texture(1200, 900);
 
+	eye_open = c:LoadTexture(t"assets/eye_open.png");
+	eye_closed = c:LoadTexture(t"assets/eye_closed.png");
+
 	images = List<Image>();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
 	elements.add(make_cool_fn_element());
+	elements.add(make_field_fn_element());
 
 	// temp_inputs.add(TextInput.make("a"));
 	// temp_inputs.add(TextInput.make("what"));
 	// temp_inputs.add(TextInput.make(""));
-	for (let p in temp_inputs.pairs()) {
-		p.value.Layout(v2(10, 100 + 30 * p.key), 200);
-	}
+	// for (let p in temp_inputs.pairs()) {
+	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
+	// }
 
-    c:SetTargetFPS(300);
+	rl.SetTargetFPS(300);
 	while (!window.ShouldClose()) {
 		d.Begin();
 		GameTick();
 		d.End();
-		tfree(); // not thread safe (don't use temp-alloc from other threads!)
+		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
     }
 
     return 0;
@@ -142,18 +157,30 @@ int main() {
 
 bool look_at_controls = false;
 
+int panel_width = 160;
 void LeftPanelUI() {
-	int panel_width = 100;
 	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
 	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
 
 	Vec2 btn_dimens = v2(panel_width - 20, 40);
 	for (int i = 0; i != elements.size; i++;) {
 		Vec2 tl = v2(10, 10 + 50 * i);
-		if (ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered())) {
+		bool hit_button = ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered(), theme.button);
+		bool hit_visibility = ButtonForceHover(tl + v2(btn_dimens.x - 20, 0), v2(20, 40), "", false, Colors.Gray);
+		Element& elem = elements.get(i);
+
+		if (hit_visibility) {
+			println(t"[DEBUG]: Toggled visibility for Element {i}");
+			elem.visible = !elem.visible;
+		} else if (hit_button) {
 			println(t"[DEBUG]: Elem {i} selected");
 			selected_elem_i = i;
 		}
+
+		if (elem.visible) {
+			d.TextureAtSizeV(eye_open, tl + v2(btn_dimens.x - 18, 12), v2(16, 16));
+		}
+
 		if (selected_elem_i == i) {
 			d.RectOutline(tl, btn_dimens, theme.active);
 		}
@@ -165,16 +192,16 @@ void LeftPanelUI() {
 		selected_elem_i = elements.size - 1;
 	}
 
-	for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
-		input.Do();
-	}
+	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
+	// 	input.Do();
+	// }
 }
 
 bool timeline_dragging = false;
 void KeyframeTimelineUI() {
-	int width = window_width - 100; // panel_width
+	int width = window_width - panel_width;
 	int height = 150;
-	Vec2 tl = v2(100 + 1, window_height - height);
+	Vec2 tl = v2(panel_width + 1, window_height - height);
 	Vec2 dimens = v2(width, height);
 
 	d.Rect(tl, dimens, theme.panel);
@@ -220,7 +247,7 @@ void SetFrame(int frame) {
 
 void SetTime(float new_time) {
 	current_time = new_time;
-	current_frame = c:float_to_int(current_time / time_per_frame);
+	current_frame = (current_time / time_per_frame) as int;
 	UpdateState();
 }
 
@@ -234,7 +261,9 @@ void DrawFrameToCanvas() {
 	canvas.Begin();
 	d.ClearBackground(theme.bg);
 	for (let elem in elements) {
-		elem.Draw();
+		if (elem.visible) {
+			elem.Draw();
+		}
 	}
 
 	canvas.End();
@@ -270,10 +299,10 @@ void DrawExportProgressOverlay() {
 	Vec2 pbar_tl = v2(tl.x + 20, tl.y + 20);
 	Vec2 pbar_dimens = v2(width - 40, 20);
 
-	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, c:int_to_float(export_state.frames_rendered) / export_state.total_frames);
+	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_rendered) as float / export_state.total_frames);
 
 	pbar_tl.y = pbar_tl.y + 30;
-	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, c:int_to_float(export_state.frames_written) / export_state.total_frames);
+	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_written) as float / export_state.total_frames);
 
 	pbar_tl.y = pbar_tl.y + 30;
 	Color ffmpeg_load_pulse_color = 
@@ -283,7 +312,7 @@ void DrawExportProgressOverlay() {
 	d.Rect(pbar_tl, pbar_dimens, ffmpeg_load_pulse_color);
 }
 
-bool is_dvorak = true;
+bool is_dvorak = c:getenv("SILLY_DVORAK_USER") != NULL;
 struct HotKey {
 	int key_code;
 	// TODO: modifiers

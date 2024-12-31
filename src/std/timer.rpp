@@ -9,7 +9,7 @@ struct timer {
 	}
 
 	void print(char^ name) {
-		println("%s took %f seconds", name, this.time());
+		printf("%s took %f seconds\n", name, this.time());
 	}
 }
 
