@@ -144,7 +144,7 @@ int main() {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
 
-	rl.SetTargetFPS(300);
+	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
 		d.Begin();
 		GameTick();

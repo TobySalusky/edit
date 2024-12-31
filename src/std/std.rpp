@@ -51,6 +51,14 @@ struct IndexRangeIter {
 
 // string ------------------
 struct string {
+	static bool is_whitespace_char(char c) -> c == '\t' || c == '\n' || c == ' ';
+	static bool is_whitespace_str(char^ str) {
+		for (int i = 0; i != strlen(str); i++;) {
+			if (!string.is_whitespace_char(str[i])) { return false; }
+		}
+		return true;
+	}
+
 	char^ str;
 
 	int len() -> strlen(str);
@@ -178,14 +186,13 @@ bool str_ends_with(char^ str, char^ ends_with) {
 }
 
 char^ trim(char^ str) {
-	let is_whitespace_char = (char c):bool -> c == '\t' || c == '\n' || c == ' ';
-	while (*str != c:c_null_term && is_whitespace_char(*str)) { str++; }
+	while (*str != c:c_null_term && string.is_whitespace_char(*str)) { str++; }
 
 	int len = strlen(str);
 
 	int first_non_whitespace = -1;
 	for (int i = len - 1; i >= 0; i--;) {
-		if (!is_whitespace_char(str[i])) {
+		if (!string.is_whitespace_char(str[i])) {
 			first_non_whitespace = i;
 			break;
 		}
@@ -428,17 +435,9 @@ struct Strings {
 	}
 
 	Strings non_whitespace_only() {
-		let is_whitespace_str = (char^ str):bool -> {
-			let is_whitespace_char = (char c):bool -> c == '\t' || c == '\n' || c == ' ';
-			for (int i = 0; i != strlen(str); i++;) {
-				if (!is_whitespace_char(str[i])) { return false; }
-			}
-			return true;
-		};
-
 		int count = 0;
 		for (char^ str in this) {
-			if (!is_whitespace_str(str)) {
+			if (!string.is_whitespace_str(str)) {
 				count++;
 			}
 		}
@@ -446,7 +445,7 @@ struct Strings {
 		char^^ good_strs = malloc(sizeof<char^> * count);
 		int i = 0;
 		for (char^ str in this) {
-			if (!is_whitespace_str(str)) {
+			if (!string.is_whitespace_str(str)) {
 				good_strs[i++] = strdup(str);
 			}
 		}
