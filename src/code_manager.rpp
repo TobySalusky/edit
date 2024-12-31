@@ -11,7 +11,7 @@ struct CodeManager {
 	Path new_dylib_path;
 
 	Opt<DyLib> code_handle;
-	StrMap<void^> fn_handles;
+	StrMap<Result<void^, char^>> fn_handles;
 
 	construct(char^ result_dir) {
 		Path dir = .(result_dir);
@@ -31,11 +31,19 @@ struct CodeManager {
 		// reload function pointers!
 		for (int i in 0..fn_handles.size) {
 			let fn_name = fn_handles.keys[i];
-			fn_handles.values[i] = this.Lib().SymOrPanic(fn_name);
+			fn_handles.values[i] = this.Lib().Sym(fn_name);
 		}
 
-		c:CustomScriptSetupFn setup_fn = this.GetFn("script_setup"); 
-		setup_fn();
+		let setup_fn_res = this.GetFn("script_setup"); 
+		switch (setup_fn_res) {
+			void^ fn_ptr -> {
+				c:CustomScriptSetupFn setup_fn = fn_ptr;
+				setup_fn();
+			},
+			char^ err -> {
+				panic(t"Error loading `script_setup` function. Make sure this is correctly named in script_main.rpp! Error: {err}");
+			}
+		}
 	}
 
 	void CheckModifiedTimeAndReloadIfNecessary() {
@@ -51,10 +59,10 @@ struct CodeManager {
 	}
 
 	DyLib& Lib() {
-		switch (code_handle) {
-			DyLib lib -> { DyLib^ l = ^lib; return *l; },
-			else -> panic("Lib() failed - not loaded!"),
+		if (code_handle is Some) {
+			return code_handle as Some;
 		}
+		panic("Lib() failed - not loaded!");
 		// unreachable
 		DyLib^ blah = NULL;
 		return *blah;
@@ -71,15 +79,15 @@ struct CodeManager {
 		fn_handles.delete();
 	}
 
-	void^ GetFn(char^ fn_name) {
+	Result<void^, char^> GetFn(char^ fn_name) {
 		if (fn_handles.has(fn_name)) {
 			return fn_handles.get(fn_name);
 		}
 
-		void^ ptr = this.Lib().SymOrPanic(fn_name);
-		fn_handles.put(fn_name, ptr);
+		let res = this.Lib().Sym(fn_name);
+		fn_handles.put(fn_name, res);
 
-		return ptr;
+		return res;
 	}
 }
 

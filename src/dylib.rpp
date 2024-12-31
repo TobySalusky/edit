@@ -62,7 +62,7 @@ struct DyLib {
 	// 	return it as DyLib;
 	// }
 
-	Err<void^, char^> Sym(char^ fn_name) {
+	Result<void^, char^> Sym(char^ fn_name) {
 		let res = dynamic_lib_load_fn(handle, fn_name);
 		if (res.handle == NULL) {
 			return res.error;
@@ -74,11 +74,11 @@ struct DyLib {
 	void^ SymOrPanic(char^ fn_name) {
 		let it = this.Sym(fn_name);
 
-		if (it is char^) {
-			panic(t"SymOrPanic({fn_name}) failed: {it as char^}");
+		if (it is Err) {
+			panic(t"SymOrPanic({fn_name}) failed: {it as Err}");
 		}
 
-		return it as void^;
+		return it as Ok;
 	}
 
 	void Unload() {

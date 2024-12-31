@@ -766,14 +766,14 @@ struct Box<T> {
 
 struct None {}
 choice Opt<T> {
-	 T, None;
+	 T as Some, None;
 
 	 static Opt<T> Some(T val) -> val;
 }
 None none = {};
 
-choice Err<TRes, TErr> {
-	TRes, TErr;
+choice Result<TRes, TErr> {
+	TRes as Ok, TErr as Err;
 }
 
 

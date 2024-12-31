@@ -40,6 +40,7 @@ struct Theme {
 	Color panel;
 	Color panel_border;
 	Color button;
+	Color button_err;
 	Color active;
 }
 
@@ -51,6 +52,7 @@ Theme MakeDarkTheme() -> {
 	.panel = hex("4f4f4f"),
 	.panel_border = hex("6b6b6b"),
 	.button = hex("333333"),
+	.button_err = hex("765941"),
 	.active = hex("FFAA00AA")
 };
 

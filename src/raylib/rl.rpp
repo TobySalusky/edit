@@ -524,6 +524,7 @@ struct Drawer {
 	void RectBetween(Vec2 tl, Vec2 rb, Color color) -> c:DrawRectangleV(tl.v(), (rb - tl).v(), color);
 	void RectOutlineBetween(Vec2 tl, Vec2 rb, Color color) -> this.RectOutline(tl, rb - tl, color);
 	void Rect(Vec2 tl, Vec2 dimens, Color color) -> c:DrawRectangleV(tl.v(), dimens.v(), color);
+	void RectR(Rectangle rect, Color color) -> c:DrawRectangleV(rect.tl(), rect.dimen(), color);
 	void RectOutline(Vec2 tl, Vec2 dimens, Color color) {
 		this.Rect(tl, v2(1, dimens.y), color);
 		this.Rect(tl, v2(dimens.x, 1), color);
@@ -698,6 +699,15 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 	float y;
 	float width;
 	float height;
+
+	static Rectangle FromV(Vec2 tl, Vec2 dims) {
+		return {
+			.x = tl.x,
+			.y = tl.y,
+			.width = dims.x,
+			.height = dims.y,
+		};
+	}
 
 	Vec2 tl() -> { :x, :y };
 	Vec2 br() -> { .x = x + width, .y = y + height };

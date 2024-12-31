@@ -41,8 +41,17 @@ struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
 
 	void Draw(Element^ e) {
-		c:CustomPureFn fn = code_man.GetFn(fn_name);
-		fn(e#pos, e#scale, e#rotation, e#color);
+		let fn_res = code_man.GetFn(fn_name);
+		switch (fn_res) {
+			void^ ok -> {
+				c:CustomPureFn fn = ok;
+				fn(e#pos, e#scale, e#rotation, e#color);
+				e#err_msg = NULL;
+			},
+			char^ err -> {
+				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp! Error: {err}";
+			}
+		}
 	}
 
 	static Self^ new(char^ fn_name) -> Box<Self>.Make({ :fn_name });
@@ -73,6 +82,8 @@ struct Element {
 	Color color;
 
 	bool visible;
+	char^ err_msg;
+
 	// TODO: content type: rectangle, ellipse, image, text, etc
 	// IDEA: text -> keyframe the text, morph between
 
@@ -189,11 +200,12 @@ Element make_cool_fn_element() -> {
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
 	.visible = true,
+	.err_msg = NULL
 };
 
-Element make_field_fn_element() -> {
-	.content_impl = CustomPureFnElement.new("perlin_field"),
-	.name = "perlin_field",
+Element make_custom_effect_element(char^ effect_name) -> {
+	.content_impl = CustomPureFnElement.new(effect_name),
+	.name = effect_name,
 	.pos = v2(400, 400),
 	.scale = v2(150, 150),
 	.uniform_scale = true,
@@ -206,6 +218,7 @@ Element make_field_fn_element() -> {
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
 	.visible = true,
+	.err_msg = NULL
 };
 
 
@@ -224,6 +237,7 @@ Element make_interesting_element() -> {
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
 	.visible = true,
+	.err_msg = NULL
 };
 
 Element make_element() -> {
@@ -241,4 +255,5 @@ Element make_element() -> {
 	.kl_opacity = make_keyframe_layer(),
 	.kl_scale = make_keyframe_layer(),
 	.visible = true,
+	.err_msg = NULL
 };

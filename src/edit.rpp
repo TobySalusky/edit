@@ -20,8 +20,9 @@ Vec2 window_dimens = v2(window_width, window_height);
 
 RenderTexture canvas;
 
-Texture eye_open;
-Texture eye_closed;
+Texture eye_open_icon;
+Texture eye_closed_icon;
+Texture warning_icon;
 
 List<Image> images;
 int max_images;
@@ -111,6 +112,14 @@ void debug_print_env_config() {
 	}
 }
 
+Texture LoadIcon(char^ path) {
+	Image img = c:LoadImage(path);
+	c:ImageFlipVertical(^img); // TODO: flip vertical
+	defer img.delete();
+
+	return c:LoadTextureFromImage(img);
+}
+
 int main() {
 	debug_print_env_config();
 
@@ -127,15 +136,17 @@ int main() {
 
 	canvas = make_render_texture(1200, 900);
 
-	eye_open = c:LoadTexture(t"assets/eye_open.png");
-	eye_closed = c:LoadTexture(t"assets/eye_closed.png");
+	eye_open_icon = LoadIcon(t"assets/eye_open.png");
+	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
+	warning_icon = LoadIcon(t"assets/warning.png");
 
 	images = List<Image>();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
 	elements.add(make_cool_fn_element());
-	elements.add(make_field_fn_element());
+	elements.add(make_custom_effect_element("perlin_field"));
+	elements.add(make_custom_effect_element("missing"));
 
 	// temp_inputs.add(TextInput.make("a"));
 	// temp_inputs.add(TextInput.make("what"));
@@ -165,9 +176,13 @@ void LeftPanelUI() {
 	Vec2 btn_dimens = v2(panel_width - 20, 40);
 	for (int i = 0; i != elements.size; i++;) {
 		Vec2 tl = v2(10, 10 + 50 * i);
-		bool hit_button = ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered(), theme.button);
-		bool hit_visibility = ButtonForceHover(tl + v2(btn_dimens.x - 20, 0), v2(20, 40), "", false, Colors.Gray);
 		Element& elem = elements.get(i);
+
+		bool has_err = elem.err_msg != NULL;
+		bool hovering = mouse.GetPos().Between(tl, tl + btn_dimens);
+		bool hit_button = ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered(), 
+							has_err ? theme.button_err | theme.button);
+		bool hit_visibility = ButtonForceHover(tl + v2(btn_dimens.x - 20, 0), v2(20, 40), "", false, Colors.Gray);
 
 		if (hit_visibility) {
 			println(t"[DEBUG]: Toggled visibility for Element {i}");
@@ -178,11 +193,24 @@ void LeftPanelUI() {
 		}
 
 		if (elem.visible) {
-			d.TextureAtSizeV(eye_open, tl + v2(btn_dimens.x - 18, 12), v2(16, 16));
+			d.TextureAtSizeV(eye_open_icon, tl + v2(btn_dimens.x - 18, 12), v2(16, 16));
 		}
 
 		if (selected_elem_i == i) {
 			d.RectOutline(tl, btn_dimens, theme.active);
+		}
+
+		if (has_err) {
+			d.TextureAtSizeV(warning_icon, tl + v2(8, 12), v2(16, 16));
+
+			if (hovering) {
+				Vec2 tooltip_tl = mouse.GetPos() + v2(0, 10);
+				Vec2 tooltip_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+				d.RectR(Rectangle.FromV(tooltip_tl, tooltip_dims).PadOut(6), theme.button);
+				d.Text(elem.err_msg, tooltip_tl.x as.., tooltip_tl.y as.., 16, Colors.White);
+				
+				// d.Rect();
+			}
 		}
 	}
 
@@ -260,7 +288,7 @@ void UpdateState() {
 void DrawFrameToCanvas() {
 	canvas.Begin();
 	d.ClearBackground(theme.bg);
-	for (let elem in elements) {
+	for (let& elem in elements) {
 		if (elem.visible) {
 			elem.Draw();
 		}
