@@ -69,12 +69,12 @@ struct string {
 	string operator:+(string other) -> s(str_concat(str, other.str));
 
 	// TODO: address what this points to once we have non-this methods! (need specifier for global namespace? ::split type beats?)
-	Strings split(char^ on) -> split(str, on);
-	Strings trim_split(char^ on) -> trim_split(str, on);
+	Strings split(char^ on) -> ::split(str, on);
+	Strings trim_split(char^ on) -> ::trim_split(str, on);
 
 	bool contains(char^ contained) -> str_contains(str, contained);
 
-	string trim() -> s(trim(this)); // TODO: need global namespace-ing
+	string trim() -> s(::trim(this)); // TODO: need global namespace-ing
 
 	bool starts_with(char^ starts_with_str) -> str_starts_with(this, starts_with_str);
 	bool ends_with(char^ ends_with_str) -> str_ends_with(this, ends_with_str);

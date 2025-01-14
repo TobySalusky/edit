@@ -79,7 +79,7 @@ void ExportFrameThread(void^ arg) {
 
 	while (images.size <= i) { }
 	Image img = images.get(i);
-	c:ImageFlipVertical(^img); // TODO: flip vertical
+	c:ImageFlipVertical(^img);
 	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
 	defer free(name);
 	img.ExportTo(name);
@@ -114,7 +114,7 @@ void debug_print_env_config() {
 
 Texture LoadIcon(char^ path) {
 	Image img = c:LoadImage(path);
-	c:ImageFlipVertical(^img); // TODO: flip vertical
+	c:ImageFlipVertical(^img);
 	defer img.delete();
 
 	return c:LoadTextureFromImage(img);
@@ -131,7 +131,8 @@ int main() {
 	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
 	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
-	window.Init(window_width, window_height, "zZ-edit");
+	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
+	window.Init(window_width, window_height, "CodeComposite");
 	defer window.Close();
 
 	canvas = make_render_texture(1200, 900);
@@ -140,7 +141,7 @@ int main() {
 	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
 	warning_icon = LoadIcon(t"assets/warning.png");
 
-	images = List<Image>();
+	images = .();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
@@ -227,13 +228,28 @@ void LeftPanelUI() {
 	// }
 }
 
+void ElementTimelineUI() {
+
+}
+
 bool timeline_dragging = false;
 void KeyframeTimelineUI() {
-	int width = window_width - panel_width;
+	int info_width = 100;
+	int width = window_width - panel_width - info_width;
 	int height = 150;
-	Vec2 tl = v2(panel_width + 1, window_height - height);
+
+	Vec2 info_tl = v2(panel_width + 1, window_height - height);
+
+	Vec2 tl = v2(panel_width + 1 + info_width, window_height - height);
 	Vec2 dimens = v2(width, height);
 
+
+	//  info -------------------
+	d.Rect(info_tl, v2(info_width, height), theme.panel);
+	// d.Rect(tl + v2(info_width - 1, 0), v2(1, height), theme.panel_border);
+	// /info -------------------
+
+	//  ui -------------------
 	d.Rect(tl, dimens, theme.panel);
 	d.Rect(tl, v2(dimens.x, 1), theme.panel_border);
 
@@ -245,12 +261,11 @@ void KeyframeTimelineUI() {
 
 	int kl_height = height / 5;
 	Vec2 kl_dimens = v2(dimens.x, kl_height);
-	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-
+	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "x"); i++;
+	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "y"); i++;
+	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "scale"); i++;
+	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "angle"); i++;
+	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "opacity"); i++;
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		timeline_dragging = true;
@@ -267,6 +282,7 @@ void KeyframeTimelineUI() {
 	if (!mouse.LeftClickDown()) {
 		timeline_dragging = false;
 	}
+	//  /ui -------------------
 }
 
 void SetFrame(int frame) {
@@ -282,7 +298,7 @@ void SetTime(float new_time) {
 }
 
 void UpdateState() {
-	for (int i = 0; i < elements.size; i++;) {
+	for (int i in 0..elements.size) {
 		elements.get(i).UpdateState(current_time);
 	}
 }
