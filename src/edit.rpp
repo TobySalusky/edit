@@ -131,8 +131,15 @@ int main() {
 	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
 	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
+	// Window init and close
 	window.Init(window_width, window_height, "zZ-edit");
 	defer window.Close();
+
+	// Audio init and close
+	c:InitAudioDevice();
+	defer c:CloseAudioDevice();
+	c:Sound fxMP3 = c:LoadSound("assets/echo.mp3");
+	defer c:UnloadSound(fxMP3);
 
 	canvas = make_render_texture(1200, 900);
 
@@ -159,11 +166,15 @@ int main() {
 
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
+		if (c:IsKeyPressed(c:KEY_SPACE)) {
+			c:PlaySound(fxMP3);
+		}
 		d.Begin();
 		GameTick();
 		d.End();
 		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
     }
+
 
     return 0;
 }
