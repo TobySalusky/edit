@@ -13,6 +13,7 @@ import dylib;
 import code_manager;
 
 c:import "rlgl.h";
+c:import "tinyfiledialogs.h";
 
 int window_width = 1200;
 int window_height = 900;
@@ -120,6 +121,24 @@ Texture LoadIcon(char^ path) {
 	return c:LoadTextureFromImage(img);
 }
 
+char^ OpenFileDialog(char^ title, char^ filter) {
+	List<char^> fileTypes = .();
+	fileTypes.add("*.png");
+	fileTypes.add("*.jpg");
+	fileTypes.add("*.jpeg");
+	fileTypes.add("*.gif");
+
+    char^ filePath = c:tinyfd_openFileDialog(
+        "Select an image file",
+        "",
+        5,
+        NULL,
+        NULL,
+        0
+    );
+    return (filePath != NULL) ? filePath | "";
+}
+
 int main() {
 	debug_print_env_config();
 
@@ -180,12 +199,14 @@ int main() {
 }
 
 bool look_at_controls = false;
+bool show_add_element_options = false;
 
 int panel_width = 160;
 void LeftPanelUI() {
 	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
 	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
 
+	// Elements List
 	Vec2 btn_dimens = v2(panel_width - 20, 40);
 	for (int i = 0; i != elements.size; i++;) {
 		Vec2 tl = v2(10, 10 + 50 * i);
@@ -217,26 +238,57 @@ void LeftPanelUI() {
 			d.TextureAtSizeV(warning_icon, tl + v2(8, 12), v2(16, 16));
 
 			if (hovering) {
-				Vec2 tooltip_tl = mouse.GetPos() + v2(0, 10);
-				Vec2 tooltip_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
-				d.RectR(Rectangle.FromV(tooltip_tl, tooltip_dims).PadOut(6), theme.button);
-				d.Text(elem.err_msg, tooltip_tl.x as.., tooltip_tl.y as.., 16, Colors.White);
+				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
+				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+				d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
+				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
 				
 				// d.Rect();
 			}
 		}
 	}
 
+	// Add Element Button
 	Vec2 tl = v2(10, window_height - 50);
 	if (Button(tl, btn_dimens, "+")) {
-		elements.add(make_element());
-		selected_elem_i = elements.size - 1;
+		show_add_element_options = true;
+		//elements.add(make_element());
+		//selected_elem_i = elements.size - 1;
 	}
 
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
 	// 	input.Do();
 	// }
+
+	if (show_add_element_options) {
+		Vec2 options_tl = v2(10, window_height - 120);
+		Vec2 options_dims = v2(panel_width - 20, 50);
+		d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
+
+		// Add media fil
+		Vec2 icon_dimens = v2((panel_width - 40) / 2, 40);
+		Vec2 icon_tl = options_tl + v2(5, 5);
+		if (Button(icon_tl, icon_dimens, "")) {
+			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
+			if (file_path != NULL) {
+				Image img = c:LoadImage(file_path);
+				printf("[DEBUG]: Loaded image from {file_path}");
+				//elements.add(make_image_element(img));
+				//selected_elem_i = elements.size - 1;
+			}
+		}
+		d.TextureAtSizeV(eye_open_icon, icon_tl, icon_dimens);
+
+		// Add arbitrary element (Temporary)
+		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);
+		if (Button(plus_tl, v2((panel_width - 40) / 2, 40), "+")) {
+			elements.add(make_element());
+			selected_elem_i = elements.size - 1;
+		}
+	}
+
 }
+
 
 bool timeline_dragging = false;
 void KeyframeTimelineUI() {
