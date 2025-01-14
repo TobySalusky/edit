@@ -128,11 +128,13 @@ char^ OpenFileDialog(char^ title, char^ filter) {
 	filters[2] = "*.gif";
 	defer free(filters);
 
+	c:c:`char const* const* c_filters = (char const* const*) filters;`;
+
     char^ filePath = c:tinyfd_openFileDialog(
         "Select an image file",
         "",
         3,
-        filters,
+        c:c_filters,
         "image files",
         0
     );
