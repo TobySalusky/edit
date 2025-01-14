@@ -122,18 +122,18 @@ Texture LoadIcon(char^ path) {
 }
 
 char^ OpenFileDialog(char^ title, char^ filter) {
-	List<char^> fileTypes = .();
-	fileTypes.add("*.png");
-	fileTypes.add("*.jpg");
-	fileTypes.add("*.jpeg");
-	fileTypes.add("*.gif");
+	char^^ filters = malloc(sizeof<char^> * 3);
+	filters[0] = "*.png";
+	filters[1] = "*.jpg";
+	filters[2] = "*.gif";
+	defer free(filters);
 
     char^ filePath = c:tinyfd_openFileDialog(
         "Select an image file",
         "",
-        5,
-        NULL,
-        NULL,
+        3,
+        filters,
+        "image files",
         0
     );
     return (filePath != NULL) ? filePath | "";
