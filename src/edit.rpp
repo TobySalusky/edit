@@ -24,6 +24,7 @@ RenderTexture canvas;
 Texture eye_open_icon;
 Texture eye_closed_icon;
 Texture warning_icon;
+Texture image_icon;
 
 List<Image> images;
 int max_images;
@@ -167,16 +168,17 @@ int main() {
 	eye_open_icon = LoadIcon(t"assets/eye_open.png");
 	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
 	warning_icon = LoadIcon(t"assets/warning.png");
+	image_icon = LoadIcon(t"assets/image.png");
 
 	images = List<Image>();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
-	elements.add(make_cool_fn_element());
-	elements.add(make_perlin_element());
-	elements.add(make_custom_effect_element("missing_fn"));
+	//elements.add(make_cool_fn_element());
+	//elements.add(make_perlin_element());
+	//elements.add(make_custom_effect_element("missing_fn"));
 
-	selected_elem_i = 2; // select perlin_field
+	selected_elem_i = 0;
 
 	// temp_inputs.add(TextInput.make("a"));
 	// temp_inputs.add(TextInput.make("what"));
@@ -274,12 +276,12 @@ void LeftPanelUI() {
 			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
 			if (file_path != NULL) {
 				Image img = c:LoadImage(file_path);
-				printf("[DEBUG]: Loaded image from {file_path}");
-				//elements.add(make_image_element(img));
-				//selected_elem_i = elements.size - 1;
+				println(f"[DEBUG]: Loaded image from {file_path}");
+				elements.add(make_image_element(file_path));
+				selected_elem_i = elements.size - 1;
 			}
 		}
-		d.TextureAtSizeV(eye_open_icon, icon_tl, icon_dimens);
+		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
 
 		// Add arbitrary element (Temporary)
 		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);

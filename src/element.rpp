@@ -27,6 +27,7 @@ struct ImageElement : ElementImpl {
 	
 	void Draw(Element^ e) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
+		// TODO: Render image
 	}
 }
 ImageElement^ make_image(char^ file_path) {
@@ -274,6 +275,24 @@ Element make_interesting_element() -> {
 
 Element make_element() -> {
 	.content_impl = make_circle(),
+	.name = Element.NextElementName(),
+	.pos = v2(400, 400),
+	.scale = v2(150, 150),
+	.uniform_scale = true,
+	.rotation = 0,
+	.opacity = 1,
+	.color = c:GREEN,
+	.kl_pos_x = .(),
+	.kl_pos_y = .(),
+	.kl_rotation = .(),
+	.kl_opacity = .(),
+	.kl_scale = .(),
+	.visible = true,
+	.err_msg = NULL
+};
+
+Element make_image_element(char^ file_path) -> {
+	.content_impl = make_image(file_path),
 	.name = Element.NextElementName(),
 	.pos = v2(400, 400),
 	.scale = v2(150, 150),
