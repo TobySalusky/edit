@@ -26,14 +26,21 @@ struct ImageElement : ElementImpl {
 	char^ file_path;
 	
 	void Draw(Element^ e) {
-		d.RectRot(e#pos, e#scale, e#rotation, e#color);
-		// TODO: Render image
+		d.TextureAtSize(LoadTextureFromFile(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 }
+
 ImageElement^ make_image(char^ file_path) {
 	ImageElement^ it = malloc(sizeof<ImageElement>);
 	it#file_path = file_path;
 	return it;
+}
+
+Texture LoadTextureFromFile(char^ file_path) {
+	Image img = c:LoadImage(file_path);
+	c:ImageFlipVertical(^img); // TODO: flip vertical
+	defer img.delete();
+	return c:LoadTextureFromImage(img);
 }
 
 c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;

@@ -745,7 +745,7 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 	bool Contains(Vec2 v) -> v.Between(this.tl(), this.br()); 
 }
 
-struct Point{ // not a real raylib type, but is convenient
+struct Point { // not a real raylib type, but is convenient
 	int x; int y;
 	char^ to_string() -> f"({x}, {y})";
 
