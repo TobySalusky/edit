@@ -139,7 +139,7 @@ int main() {
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
-	c:Sound fxMP3 = c:LoadSound("assets/echo.mp3");
+	c:Sound fxMP3 = c:LoadSound("assets/Spain.mp3");
 	defer c:UnloadSound(fxMP3);
 
 	canvas = make_render_texture(1200, 900);
