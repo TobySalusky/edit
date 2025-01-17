@@ -10,6 +10,7 @@ c:c:`
 c:import <"stdio.h">;
 c:import <"stdlib.h">;
 c:import <"string.h">;
+c:import <"math.h">;
 // TODO: split into <string> <core> ... etc?
 
 c:import "platform_stdlib_patch.h";
@@ -776,6 +777,15 @@ choice Result<TRes, TErr> {
 	TRes as Ok, TErr as Err;
 }
 
+
+struct std {
+	static float max(float a, float b) -> c:fmax(a, b);
+	static float min(float a, float b) -> c:fmin(a, b);
+	static float clamp(float value, float min, float max) -> c:fmin(c:fmax(value, min), max);
+
+	static int maxi(int a, int b) -> a > b ? a | b;
+	static int mini(int a, int b) -> a > b ? b | a;
+}
 
 
 

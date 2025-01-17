@@ -20,12 +20,22 @@ int window_width = 1200;
 int window_height = 900;
 Vec2 window_dimens = v2(window_width, window_height);
 
+int canvas_width = 1200;
+int canvas_height = 900;
+
 RenderTexture canvas;
 
 Texture eye_open_icon;
 Texture eye_closed_icon;
 Texture warning_icon;
 Texture image_icon;
+
+Texture play_icon;
+Texture pause_icon;
+Texture muted_icon;
+Texture unmuted_icon;
+
+c:Sound fxMP3;
 
 List<Image> images = .();
 int max_images;
@@ -38,23 +48,20 @@ float max_time = 5;
 int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
 
+enum ApplicationMode {
+	Running, Exporting, Paused;
+	bool operator:==(Self other) -> this as int == other as int;
+}
 
-int MODE_RUNNING = 0;
-int MODE_EXPORTING = 1;
-int MODE_PAUSED = 2;
+ApplicationMode mode = .Running;
 
-int SOUND_MUTED = 0;
-int SOUND_UNMUTED = 1;
-
-int mode = MODE_RUNNING;
-int muted = SOUND_MUTED;
-
-int INIT_VOLUME = 0.6;
+float INIT_VOLUME = 0.6;
 float master_volume = INIT_VOLUME;
+bool muted = false;
 
-bool is_running() -> mode == MODE_RUNNING;
-bool is_exporting() -> mode == MODE_EXPORTING;
-bool is_paused() -> mode == MODE_PAUSED;
+bool is_running() -> mode == ApplicationMode.Running;
+bool is_exporting() -> mode == .Exporting;
+bool is_paused() -> mode == .Paused;
 
 bool ui_hidden = false;
 
@@ -82,6 +89,7 @@ ExportState export_state;
 List<Element> elements = .();
 
 List<Layer> layers = .(); // metadata stored per-layer (layers do not directly contain elements!)
+// TODO: vid_layers & audio_layers -> combined_layers (negative indices for audio? -> rendering ui purposes?)
 
 int selected_elem_i = 0;
 
@@ -169,20 +177,31 @@ int main() {
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
-	c:Sound fxMP3 = c:LoadSound("assets/Spain.mp3");
+	fxMP3 = c:LoadSound("assets/Spain.mp3");
 	defer c:UnloadSound(fxMP3);
+
+	c:SetMasterVolume(master_volume);
+	c:PlaySound(fxMP3);
+
+	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
 
 	canvas = make_render_texture(1200, 900);
 
 	eye_open_icon = LoadIcon(t"assets/eye_open.png");
 	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
-	warning_icon = LoadIcon(t"assets/warning.png");
+	warning_icon = LoadIcon(t"assets/warning_dark.png");
 	image_icon = LoadIcon(t"assets/image.png");
+
+	play_icon = LoadIcon(t"assets/play.png");
+	pause_icon = LoadIcon(t"assets/pause.png");
+	muted_icon = LoadIcon(t"assets/muted.png");
+	unmuted_icon = LoadIcon(t"assets/unmuted.png");
 
 	images.reserve(max_frames);
 
 	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
 	//elements.add(make_cool_fn_element());
 	//elements.add(make_perlin_element());
@@ -196,19 +215,9 @@ int main() {
 	// for (let p in temp_inputs.pairs()) {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
-	c:SetMasterVolume(master_volume);
-	c:PlaySound(fxMP3);
-	muted = SOUND_UNMUTED;
+
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
-
-		if (HotKeys.PlayPause.IsPressed()) {
-			if (is_running()) {
-				c:PauseSound(fxMP3);
-			} else if (is_paused()) {
-				c:ResumeSound(fxMP3);
-			}
-		}
 
 		// File drop listener
 		if (c:IsFileDropped()) {
@@ -226,12 +235,16 @@ int main() {
 
 // adds element, adding it's corresponding layer if necessary (NOTE: will create up to N layers, if placed at layer N...)
 // NOTE: direct use discouraged, generally use AddNewElementAt, since that won't cause overlap issues
-void AddNewElement(Element elem) {
-	while (elem.layer >= layers.size) {
+void AddLayersTill(int layer) {
+	while (layer >= layers.size) {
 		layers.add({
 			.visible = true
 		});
 	}
+}
+
+void AddNewElement(Element elem) {
+	AddLayersTill(elem.layer);
 	elements.add(elem);
 }
 
@@ -240,7 +253,7 @@ int FirstAvailableLayerAt(float start_time, float duration) {
 	for (int i in 0..layers.size) {
 		bool collision = false;
 		for (let& elem in elements) { // TODO: don't loop over all elements... (just the ones on the right layer pls :D)
-			if (elem.CollidesWith(start_time, duration)) {
+			if (elem.layer == i && elem.CollidesWith(start_time, duration)) {
 				collision = true;
 				break;
 			}
@@ -259,69 +272,29 @@ void SelectNewestElement() {
 	selected_elem_i = elements.size - 1;
 }
 
-float new_element_default_duration = 1.0 / frame_rate; // 1 frame
+float new_element_default_duration = 0.5;
 
 bool look_at_controls = false;
 bool show_add_element_options = false;
 
-int panel_width = 160;
+int panel_width = 300;
 void LeftPanelUI() {
 	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
 	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
 
 	// Elements List
 	Vec2 btn_dimens = v2(panel_width - 20, 40);
-	for (int i = 0; i != elements.size; i++;) {
-		Vec2 tl = v2(10, 10 + 50 * i);
-		Element& elem = elements.get(i);
-
-		bool has_err = elem.err_msg != NULL;
-		bool hovering = mouse.GetPos().Between(tl, tl + btn_dimens);
-		bool hit_button = ButtonForceHover(tl, btn_dimens, elements.get(i).name, elements.get(i).Hovered(), 
-							has_err ? theme.button_err | theme.button);
-		bool hit_visibility = ButtonForceHover(tl + v2(btn_dimens.x - 20, 0), v2(20, 40), "", false, Colors.Gray);
-
-		if (hit_visibility) {
-			println(t"[DEBUG]: Toggled visibility for Element {i}");
-			elem.visible = !elem.visible;
-		} else if (hit_button) {
-			println(t"[DEBUG]: Elem {i} selected");
-			selected_elem_i = i;
-		}
-
-		if (elem.visible) {
-			d.TextureAtSizeV(eye_open_icon, tl + v2(btn_dimens.x - 18, 12), v2(16, 16));
-		}
-
-		if (selected_elem_i == i) {
-			d.RectOutline(tl, btn_dimens, theme.active);
-		}
-
-		if (has_err) {
-			d.TextureAtSizeV(warning_icon, tl + v2(8, 12), v2(16, 16));
-
-			if (hovering) {
-				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
-				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
-				d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
-				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
-				
-				// d.Rect();
-			}
-		}
-	}
-
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
 	// 	input.Do();
 	// }
 
 	if (show_add_element_options) {
-		Vec2 options_tl = v2(10, window_height - 120);
-		Vec2 options_dims = v2(panel_width - 20, 50);
-		d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
+		Vec2 options_tl = v2(10, window_height - 170);
+		Vec2 options_dims = v2(panel_width - 20, 100);
+		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
 
 		// Add media fil
-		Vec2 icon_dimens = v2((panel_width - 40) / 2, 40);
+		Vec2 icon_dimens = v2((panel_width - 40) / 2, 80);
 		Vec2 icon_tl = options_tl + v2(5, 5);
 		if (Button(icon_tl, icon_dimens, "")) {
 			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
@@ -329,8 +302,8 @@ void LeftPanelUI() {
 				Image img = Image.Load(file_path);
 				defer img.Unload();
 
-				char^ img_name = c:GetFileNameWithoutExt(file_path); // static string, no need to free :)
-				AddNewElementAt(Element(ImageElement.Make(file_path), img_name, current_time, new_element_default_duration, -1, v2(0, 0), v2(img.width, img.height)));
+				char^ img_name = c:GetFileNameWithoutExt(file_path);
+				AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, v2(0, 0), v2(img.width, img.height)));
 				SelectNewestElement();
 				show_add_element_options = false;
 			}
@@ -339,7 +312,7 @@ void LeftPanelUI() {
 
 		// Add arbitrary element (Temporary)
 		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);
-		if (Button(plus_tl, v2((panel_width - 40) / 2, 40), "+")) {
+		if (Button(plus_tl, v2((panel_width - 40) / 2, 80), "+")) {
 			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
 			SelectNewestElement();
 		}
@@ -353,48 +326,198 @@ void LeftPanelUI() {
 		show_add_element_options = false;
 	}
 
+	d.RectR(.(0, 0, panel_width, 32), theme.button);
+	let& selected_elem = elements.get(selected_elem_i);
+	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
+	KeyframeTimelineUI();
 }
 
-bool timeline_dragging = false;
+struct TimelineState {
+	bool dragging_elem;
+	bool dragging_elem_start;
+	bool dragging_elem_end;
+
+	bool is_dragging_elem_any() -> dragging_elem || dragging_elem_end || dragging_elem_start;
+
+	float elem_drag_init_mouse_x;
+	float elem_drag_init_start;
+	float elem_drag_init_end;
+
+	bool dragging_caret;
+}
+TimelineState timeline = {
+	.dragging_elem = false,
+	.dragging_elem_start = false,
+	.dragging_elem_end = false,
+	.elem_drag_init_mouse_x = 0,
+	.elem_drag_init_start = 0,
+	.elem_drag_init_end = 0,
+	.dragging_caret = false,
+};
+
+int keyframe_timeline_ui_height = 100;
+int element_timeline_ui_height = 180;
 void ElementTimelineUI() {
-	Vec2 tl = v2(panel_width + 1, 0);
-	Vec2 dimens = v2(window_width - panel_width, 100);
-	Rectangle timeline_rect = Rectangle.FromV(tl, dimens);
+	float timeline_view_start = 0;
+	float timeline_view_duration = max_time;
 
-	d.RectR(timeline_rect, theme.panel);
+	int show_layers = std.maxi(layers.size + 1, 3);
+	float height = element_timeline_ui_height;
+	float layer_height = height / show_layers;
 
-	for (let& elem in elements) {
-		// elem.TimelineUI();
+	float whole_width = window_width - panel_width;
+	Vec2 whole_tl = v2(panel_width + 1, window_height as float - height);
+	Vec2 whole_dimens = v2(whole_width, height);
+	Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
+	d.RectR(whole_rect, theme.panel);
+
+	float info_width = 32;
+
+	for (int i in 0..show_layers) { // empty skeleton for layers
+		float x = whole_tl.x;
+		float y = whole_rect.b() - (i + 1) as float * layer_height;
+		Rectangle r = .(x, y, info_width, layer_height);
+
+		d.RectR(r.Inset(1), theme.button);
+		d.RectR(.(x, y, whole_width, 1), theme.panel_border);
+
+		if (layers.size > i) {
+			// layer info ui -------
+			let& layer = layers.get(i);
+
+			if (Button(r.tl(), r.dimen(), "")) {
+				layer.visible = !layer.visible;
+			}
+
+			d.Text(t"L{i}", x as int + 6, y as int + 6, 12, theme.timeline_layer_info_gray);
+
+			if (layer.visible) {
+				d.TextureAtRect(eye_open_icon, r.Inset(6).FitIntoSelfWithAspectRatio(1, 1));
+			}
+			// ---------------------
+		}
 	}
+
+	Vec2 tl = whole_tl + v2(info_width, 0);
+	Vec2 dimens = whole_dimens - v2(info_width, 0);
+
+	bool pressed_inside = mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens);
+
+	float width = dimens.x;
+
+	for (int i in 0..elements.size) {
+		let& elem = elements.get(i);
+		// elem.TimelineUI();
+		float x = tl.x + (elem.start_time - timeline_view_start) / timeline_view_duration * width;
+		float y = whole_rect.b() - (elem.layer + 1) as float * layer_height;
+
+		float w = elem.duration / timeline_view_duration * width;
+
+		Rectangle r = .(x, y, w, layer_height);
+
+		bool has_err = elem.err_msg != NULL;
+		TimelineElementColorSet color_set = (selected_elem_i == i) ? theme.elem_ui_blue | 
+			(has_err ? theme.elem_ui_yellow | theme.elem_ui_pink);
+		// selected -> blue
+		// warning -> yellow
+		// otherwise -> pink
+
+		d.RectR(r, color_set.border);
+		d.RectR(r.Inset(1), color_set.bg);
+
+		d.Text(elem.name, x as int + 6, y as int + 6, 12, color_set.text);
+		d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
+
+		bool hovering = mouse.GetPos().Between(r.tl(), r.br());
+		if (has_err) {
+			Vec2 warning_dimen = v2(16, 16);
+			d.TextureAtSizeV(warning_icon, r.br() - warning_dimen - v2(6, 6), warning_dimen);
+
+			if (hovering) {
+				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
+				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+				d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
+				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
+			}
+		}
+
+		if (hovering && mouse.LeftClickPressed()) {
+			selected_elem_i = i;
+
+			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+				timeline.dragging_elem_start = true;
+			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+				timeline.dragging_elem_end = true;
+			} else {
+				timeline.dragging_elem = true;
+			}
+			timeline.elem_drag_init_mouse_x = mouse.GetPos().x;
+			timeline.elem_drag_init_start = elem.start_time;
+			timeline.elem_drag_init_end = elem.end_time();
+		}
+	}
+
+	d.Rect(whole_rect.bl(), v2(dimens.x, 1), theme.panel_border); // TODO: change
+
+	d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
 
 	// mouse interactions --------------------
-	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
-		timeline_dragging = true;
+	if (pressed_inside && !timeline.is_dragging_elem_any()) {
+		timeline.dragging_caret = true;
 	}
 
-	if (mouse.LeftClickDown() && timeline_dragging) {
-		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
-		if (new_time <= 0) { new_time = 0; }
-		if (new_time >= max_time) { new_time = max_time; }
-		SetTime(new_time); // TODO: add snap-to-frame-set-time
-		SetFrame(current_frame);
+	if (mouse.LeftClickDown()) {
+		float t_on_timeline_unbounded = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		float t_on_timeline_bounded = std.clamp(t_on_timeline_unbounded, 0, max_time);
+		if (timeline.dragging_caret) {
+			float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+			if (new_time <= 0) { new_time = 0; }
+			if (new_time >= max_time) { new_time = max_time; }
+			SetTime(new_time); // TODO: add snap-to-frame-set-time
+			SetFrame(current_frame);
+		} else if (timeline.dragging_elem) {
+			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+			let& selected_elem = elements.get(selected_elem_i);
+			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+			selected_elem.start_time = std.max(0, selected_elem.start_time);
+
+			selected_elem.layer = (((whole_rect.b() - mouse.GetPos().y) / layer_height) as int);
+			AddLayersTill(selected_elem.layer);
+		} else if (timeline.dragging_elem_start) {
+			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+			let& selected_elem = elements.get(selected_elem_i);
+			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+			selected_elem.start_time = std.max(0, selected_elem.start_time);
+			selected_elem.duration = (timeline.elem_drag_init_end - timeline.elem_drag_init_start) - (selected_elem.start_time - timeline.elem_drag_init_start);
+		} else if (timeline.dragging_elem_end) {
+			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+			let& selected_elem = elements.get(selected_elem_i);
+			selected_elem.duration = SnapToNearestFramesTime((timeline.elem_drag_init_end - timeline.elem_drag_init_start) + (t_on_timeline_unbounded - og_t_on_timeline));
+		}
 	}
 
 	if (!mouse.LeftClickDown()) {
-		timeline_dragging = false;
+		timeline.dragging_caret = false;
+		timeline.dragging_elem = false;
+		timeline.dragging_elem_start = false;
+		timeline.dragging_elem_end = false;
+
+		CullEmptyLayers();
 	}
 }
 
 bool keyframe_timeline_dragging = false;
 void KeyframeTimelineUI() {
 	int info_width = 100;
-	int width = window_width - panel_width - info_width;
-	int height = 150;
+	// int width = window_width - panel_width - info_width;
+	int width = panel_width;
+	int height = keyframe_timeline_ui_height;
 
-	Vec2 info_tl = v2(panel_width + 1, window_height - height);
+	int y_start = 32;
+	Vec2 info_tl = v2(0, y_start);
 
-	Vec2 tl = v2(panel_width + 1 + info_width, window_height - height);
-	Vec2 dimens = v2(width, height);
+	Vec2 tl = v2(info_width, y_start);
+	Vec2 dimens = v2(width - info_width, height);
 
 
 	//  info -------------------
@@ -406,26 +529,28 @@ void KeyframeTimelineUI() {
 	d.Rect(tl, dimens, theme.panel);
 	d.Rect(tl, v2(dimens.x, 1), theme.panel_border);
 
-	d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
+	let& selected_elem = elements.get(selected_elem_i);
+
+	d.Rect(tl + v2(dimens.x * std.clamp((current_time - selected_elem.start_time) / selected_elem.duration, 0, 1), 0), v2(1, dimens.y), theme.active);
 
 	int i = 0;
 
-	let selected_elem = elements.get(selected_elem_i);
 
 	int kl_height = height / 5;
 	Vec2 kl_dimens = v2(dimens.x, kl_height);
-	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "x"); i++;
-	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "y"); i++;
-	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "scale"); i++;
-	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "angle"); i++;
-	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "opacity"); i++;
+	float max_elem_time = selected_elem.duration;
+	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "x"); i++;
+	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "y"); i++;
+	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "scale"); i++;
+	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "angle"); i++;
+	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "opacity"); i++;
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		keyframe_timeline_dragging = true;
 	}
 
 	if (mouse.LeftClickDown() && keyframe_timeline_dragging) {
-		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		float new_time = std.clamp(((mouse.GetPos().x - tl.x) / dimens.x), 0, 1) * selected_elem.duration + selected_elem.start_time;
 		if (new_time <= 0) { new_time = 0; }
 		if (new_time >= max_time) { new_time = max_time; }
 		SetTime(new_time); // TODO: add snap-to-frame-set-time
@@ -437,6 +562,8 @@ void KeyframeTimelineUI() {
 	}
 	//  /ui -------------------
 }
+
+float SnapToNearestFramesTime(float time) -> ((time / time_per_frame) as int) as float / frame_rate;
 
 void SetFrame(int frame) {
 	current_time = time_per_frame * frame;
@@ -473,13 +600,17 @@ void DrawFrameToCanvas() {
 		}
 	}
 
+	if (!is_exporting()) {
+		elements.get(selected_elem_i).DrawGizmos();
+	}
+
 	canvas.End();
 }
 
 void ExportVideoThread() {
 	ExportVideo(frame_rate, "out/frames", "out/capture");
 
-	mode = MODE_PAUSED;
+	SetMode(.Paused);
 	SetFrame(0);
 }
 
@@ -547,45 +678,79 @@ struct HotKeys {
 
 	static HotKey ToggleHideUIFullscreenPlayback  = HotKey.DvoKey(KEY.H, KEY.J);
 
-	static HotKey QuickCut = HotKey.DvoKey(KEY.X, KEY.B); // contextual delete? like blender? // AT LEAST: remove Keys at current pos?
+	static HotKey QuickCut = HotKey.DvoKey(KEY.B, KEY.N); // contextual delete? like blender? // AT LEAST: remove Keys at current pos?
 
 	// :hotkey:temp
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
-	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.B, KEY.N);
+	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.X, KEY.B);
 	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
 
 	static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
 }
 
+void SetMute(bool mute) {
+	if (mute) {
+		c:SetMasterVolume(0.0);
+	} else {
+		c:SetMasterVolume(master_volume);
+	}
+	muted = mute;
+}
+
+void SetMode(ApplicationMode new_mode) {
+	mode = new_mode;
+	switch (new_mode) { // mode change side effects
+		.Running -> {
+			c:ResumeSound(fxMP3);
+		},
+		else -> {
+			c:PauseSound(fxMP3);
+		},
+	}
+}
+
+void CullEmptyLayers() {
+	for (int i = layers.size - 1; i >= 0; i--;) {
+		for (let& elem in elements) {
+			if (elem.layer == i) { return; }
+		}
+		layers.pop_back();
+	}
+}
+
+Vec2 GetMousePosWorldSpace() {
+	let canvas_rect = CanvasRect();
+	return (mouse.GetPos() - canvas_rect.tl()) / (canvas_rect.dimen() / window_dimens);
+}
+
 bool init = false;
 void GameTick() {
+	mp_world_space = GetMousePosWorldSpace();
+
 	if (check_code_timer.DidRepeatWhileUpdating()) {
 		code_man.CheckModifiedTimeAndReloadIfNecessary();
 	}
 
-	d.ClearBackground(theme.bg);
+	// d.ClearBackground(theme.bg);
+	d.ClearBackground(Colors.Black);
 
 	if (HotKeys.PlayPause.IsPressed()) {
 		if (is_running()) {
-			mode = MODE_PAUSED;
+			SetMode(.Paused);
 			SetFrame(current_frame);
 		} else if (is_paused()) {
-			mode = MODE_RUNNING;
+			SetMode(.Running);
 		}
 	}
 
-	if (HotKeys.Mute.IsPressed() && muted == SOUND_MUTED) {
-		muted = SOUND_UNMUTED;
-		c:SetMasterVolume(master_volume);
-	} else if (HotKeys.Mute.IsPressed() && muted == SOUND_UNMUTED) {
-		muted = SOUND_MUTED;
-		c:SetMasterVolume(0.0);
+	if (HotKeys.Mute.IsPressed()) {
+		SetMute(!muted);
 	}
 
 	// export movie
 	if (HotKeys.ExportMovie.IsPressed()) { // NOTE: E (export)
-		mode = MODE_EXPORTING;
+		SetMode(.Exporting);
 		export_state = make_export_state();
 		SetFrame(0);
 
@@ -598,6 +763,7 @@ void GameTick() {
 
 	if (elements.size > 1 && HotKeys.Temp_DeleteElement.IsPressed()) {
 		elements.remove_at(selected_elem_i);
+		CullEmptyLayers();
 		if (selected_elem_i == elements.size) { selected_elem_i--; }
 	}
 
@@ -646,40 +812,66 @@ void GameTick() {
 		}
 	}
 
-	d.Texture(canvas, Vec2_zero);
+	let canvas_rect = CanvasRect();
+	d.TextureAtRect(canvas, canvas_rect);
+	d.RectOutlineR(canvas_rect, theme.bg);
 
 	if (!is_exporting()) {
 		if (mouse.LeftClickPressed()) {
+			// TODO:(toby) go down in layer!!!, not by i
 			for (int i = elements.size - 1; i >= 0; i--;) {
-				if (elements.get(i).Hovered()) {
+				if (ElementIsVisibleNow(elements.get(i)) && elements.get(i).Hovered()) {
 					selected_elem_i = i;
 					break;
 				}
 			}
 		}
 
-		elements.get(selected_elem_i).DrawGizmos();
-
 		if (HotKeys.KeyAtCurrentPosition.IsPressed() || HotKeys.Alternative_KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
-			elements.get(selected_elem_i).kl_pos_x.Insert({
-				.time = current_time,
-				.value = mouse.GetPos().x
+			let& elem = elements.get(selected_elem_i);
+			float keyframe_t = std.clamp(current_time - elem.start_time, 0, elem.duration);
+			elem.kl_pos_x.Insert({
+				.time = keyframe_t,
+				.value = mp_world_space.x
 			});
-			elements.get(selected_elem_i).kl_pos_y.Insert({
-				.time = current_time,
-				.value = mouse.GetPos().y
+			elem.kl_pos_y.Insert({
+				.time = keyframe_t,
+				.value = mp_world_space.y
 			});
 		}
 	}
 
 	if (!ui_hidden) {
 		LeftPanelUI();
-		KeyframeTimelineUI();
 		ElementTimelineUI();
 	}
+	VideoPlayPauseMuteUI(PlaceVideoPlayPauseMuteUI()); // TODO: fade out when non-interacted in ui-hidden mode!
 
 	if (is_exporting()) {
 		DrawExportProgressOverlay();
+	}
+}
+
+float video_play_pause_mute_ui_height = 32;
+
+Vec2 PlaceVideoPlayPauseMuteUI() {
+	let canvas_rect = CanvasRect();
+	return v2(canvas_rect.center().x, canvas_rect.b() - (video_play_pause_mute_ui_height / 2 + 10));
+}
+
+void VideoPlayPauseMuteUI(Vec2 center_pos) {
+	// play/pause (center) | mute
+	float b_size = video_play_pause_mute_ui_height;
+	Vec2 b_dim = v2(b_size, b_size);
+	Vec2 ref = center_pos - b_dim.divide(2);
+	Vec2 x_delta = v2(b_size + 10, 0);
+	
+	if (ButtonIcon(ref, b_dim, mode == .Paused ? play_icon | pause_icon)) {
+		SetMode((mode == .Paused) ? ApplicationMode.Running | ApplicationMode.Paused);
+	}
+
+	if (ButtonIcon(ref + x_delta, b_dim, muted ? muted_icon | unmuted_icon)) {
+		SetMute(!muted);
 	}
 }
 
@@ -700,8 +892,18 @@ void OnFileDropped() {
 		Image img = Image.Load(file_path);
 		defer img.Unload();
 
-		char^ img_name = c:GetFileNameWithoutExt(file_path); // static string, no need to free :)
-		AddNewElementAt(Element(ImageElement.Make(file_path), img_name, current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
+		char^ img_name = c:GetFileNameWithoutExt(file_path);
+		AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
 		SelectNewestElement();
 	}
 }
+
+Rectangle UnCoveredArea() {
+	if (ui_hidden) {
+		return .(0, 0, window_width, window_height);
+	}
+
+	return .(panel_width, 0, window_width - panel_width, window_height - (element_timeline_ui_height));
+}
+
+Rectangle CanvasRect() -> UnCoveredArea().Inset(ui_hidden ? 0 | 10).FitIntoSelfWithAspectRatio(canvas_width, canvas_height);

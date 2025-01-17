@@ -40,6 +40,12 @@ Color hex(char^ hex_str) {
 	return rgba(r, g, b, a);
 }
 
+struct TimelineElementColorSet {
+	Color bg;
+	Color border;
+	Color text;
+}
+
 struct Theme {
 	Color bg;
 	Color canvas_bg;
@@ -49,16 +55,18 @@ struct Theme {
 	Color button_err;
 	Color active;
 
-	Color elem_ui_pink;
-	Color elem_ui_pink_border;
-	Color elem_ui_pink_text_color;
+	TimelineElementColorSet elem_ui_pink; // normal
+	TimelineElementColorSet elem_ui_yellow; // warning
+	TimelineElementColorSet elem_ui_blue; // selected
+
+	Color timeline_layer_info_gray;
 	// Color elem_ui_yellow;
 }
 
 Theme MakeDarkTheme() -> {
 	// TODO: hex"..."
 	// .bg = hex("616161"),
-	.bg = hex("333333"),
+	.bg = hex("222222"),
 	.canvas_bg = hex("CCCCCC"),
 	.panel = hex("4f4f4f"),
 	.panel_border = hex("6b6b6b"),
@@ -67,9 +75,22 @@ Theme MakeDarkTheme() -> {
 	.active = hex("FFAA00AA"),
 
 	// .elem_ui_yellow = hex("CFAE55"),
-	.elem_ui_pink = hex("D6BCD6"),
-	.elem_ui_pink_border = hex("BFA6BF"),
-	.elem_ui_pink_text_color = hex("3D353D"),
+	.elem_ui_pink = {
+		.bg = hex("D6BCD6"),
+		.border = hex("BFA6BF"),
+		.text = hex("3D353D"),
+	},
+	.elem_ui_yellow = {
+		.bg = hex("#eddd95"),
+		.border = hex("#ccbe7e"),
+		.text = hex("#302e21"),
+	},
+	.elem_ui_blue = {
+		.bg = hex("#86a5d1"),
+		.border = hex("#768fb3"),
+		.text = hex("#20252b"),
+	},
+	.timeline_layer_info_gray = hex("AAAAAA"),
 };
 
 Theme theme = MakeDarkTheme();

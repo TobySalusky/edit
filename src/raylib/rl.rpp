@@ -1,3 +1,5 @@
+import std;
+
 c:import "raylib.h";
 c:import "raymath.h";
 
@@ -531,8 +533,11 @@ struct Drawer {
 
 	void RectBetween(Vec2 tl, Vec2 br, Color color) -> c:DrawRectangleV(tl.v(), (br - tl).v(), color);
 	void RectOutlineBetween(Vec2 tl, Vec2 br, Color color) -> this.RectOutline(tl, br - tl, color);
+	void RectOutlineR(Rectangle rect, Color color) -> this.RectOutline(rect.tl(), rect.dimen(), color);
 	void Rect(Vec2 tl, Vec2 dimens, Color color) -> c:DrawRectangleV(tl.v(), dimens.v(), color);
 	void RectR(Rectangle rect, Color color) -> c:DrawRectangleV(rect.tl(), rect.dimen(), color);
+
+	// draws outline ON border, not around size (pad rect by one for exterior!)
 	void RectOutline(Vec2 tl, Vec2 dimens, Color color) {
 		this.Rect(tl, v2(1, dimens.y), color);
 		this.Rect(tl, v2(dimens.x, 1), color);
@@ -721,10 +726,16 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		};
 	}
 
+	static Rectangle Centered(Vec2 center, Vec2 dims) -> FromV(center - dims.divide(2), dims);
+
 	Vec2 tl() -> { :x, :y };
+	Vec2 tr() -> { .x = x + width, :y };
+	Vec2 bl() -> { :x, .y = y + height };
 	Vec2 br() -> { .x = x + width, .y = y + height };
 	Vec2 dimen() -> { .x = width, .y = height };
 	Vec2 center() -> this.tl() + this.dimen().divide(2);
+	float b() -> y + height; // bottom
+	float r() -> x + width; // right
 
 	Rectangle operator:+(Vec2 translate) -> {
 		.x = x + translate.x,
@@ -740,19 +751,25 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		.height = height * scale.y
 	};
 
-	Rectangle PadIn(float amount) -> {
+	Rectangle Inset(float amount) -> {
 		.x = x + amount,
 		.y = y + amount,
 		.width = width - amount*2,
 		.height = height - amount*2,
 	};
 
-	Rectangle PadOut(float amount) -> {
+	Rectangle Pad(float amount) -> {
 		.x = x - amount,
 		.y = y - amount,
 		.width = width + amount*2,
 		.height = height + amount*2,
 	};
+
+	// 16:9 (x_component = 16, y_component = 9)
+	Rectangle FitIntoSelfWithAspectRatio(float x_component, float y_component) {
+		float ratio = std.min(width / x_component, height / y_component);
+		return Centered(center(), v2(x_component, y_component).scale(ratio));
+	}
 
 	bool Contains(Vec2 v) -> v.Between(this.tl(), this.br()); 
 }
@@ -964,3 +981,8 @@ c:c:`
 #pragma GCC diagnostic pop
 `;
 
+
+// PROGRAM GLOBALS (CONVENIENT, WELL-INCLUDED LOCATION...) ------------------
+// these are not raylib things, they are for edit!!!!! but because of non-cyclic file includes, it's easiest to put here!
+// NOTE: these should not remain in rl.rpp for external use!!!
+Vec2 mp_world_space; // mouse-pos-world-space

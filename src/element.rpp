@@ -7,11 +7,15 @@ import code_manager;
 
 interface ElementImpl {
 	void Draw(Element^ e);
+
+	char^ ImplTypeStr();
 }
 struct RectElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
+
+	char^ ImplTypeStr() -> "rect";
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -20,6 +24,8 @@ struct CircleElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
+
+	char^ ImplTypeStr() -> "circle";
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -49,6 +55,7 @@ struct ImageElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
+	char^ ImplTypeStr() -> "img";
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
@@ -71,6 +78,7 @@ struct CustomPureFnElement : ElementImpl {
 			}
 		}
 	}
+	char^ ImplTypeStr() -> "fx";
 
 	static Self^ Make(char^ fn_name) -> Box<Self>.Make({ :fn_name });
 }
@@ -150,7 +158,8 @@ struct Element {
 	bool ActiveAtTime(float time) -> time >= start_time && end_time() > time;
 
 	bool Hovered() {
-		return mouse.GetPos().Between(pos, pos + scale);
+		// TODO:(worldspace)
+		return mp_world_space.Between(pos, pos + scale);
 	}
 
 	void DrawGizmos() {
@@ -166,14 +175,15 @@ struct Element {
 	}
 
 	void UpdateState(float t) {
-		kl_pos_x.SetFloat(^pos.x, t);
-		kl_pos_y.SetFloat(^pos.y, t);
+		float lt = t - start_time;
+		kl_pos_x.SetFloat(^pos.x, lt);
+		kl_pos_y.SetFloat(^pos.y, lt);
 
-		kl_scale.SetFloat(^scale.x, t);
-		kl_scale.SetFloat(^scale.y, t);
+		kl_scale.SetFloat(^scale.x, lt);
+		kl_scale.SetFloat(^scale.y, lt);
 
-		kl_rotation.SetFloat(^rotation, t);
-		kl_opacity.SetFloat(^opacity, t);
+		kl_rotation.SetFloat(^rotation, lt);
+		kl_opacity.SetFloat(^opacity, lt);
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
 		// pos = v2(300, 200) * v2(t, t);

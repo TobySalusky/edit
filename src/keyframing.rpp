@@ -59,7 +59,7 @@ struct KeyframeLayer {
 		*f_setter = this.GetValue(time);
 	}
 
-	void UI(Vec2 tl, Vec2 dimens, float max_time, char^ name) {
+	void UI(Vec2 tl, Vec2 dimens, float max_elem_time, char^ name) {
 		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
 		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
 
@@ -67,7 +67,7 @@ struct KeyframeLayer {
 		Vec2 to = from + v2(dimens.x, 0);
 		for (int i = 0; i != keyframes.size; i++;) {
 			let keyframe = keyframes.get(i);
-			float t = keyframe.time / max_time;
+			float t = keyframe.time / max_elem_time;
 			float it = 1.0 - t;
 
 			Vec2 circle_v = from * v2(it, it) + to * v2(t, t);

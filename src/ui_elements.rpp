@@ -23,6 +23,22 @@ bool Button(Vec2 tl, Vec2 dimens, char^ text) {
 	return mouse.LeftClickPressed() && hovered;
 }
 
+bool ButtonIcon(Vec2 tl, Vec2 dimens, Texture icon_texture) {
+	Vec2 br = tl + dimens;
+
+	// d.RectBetween(tl, br, theme.button);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	// if (hovered) { // hover overlay-lighten
+	// 	d.RectBetween(tl, br, hex("FFFFFF11"));
+	// }
+
+	// TODO: highlight w/ color on `hovered`
+	d.TextureAtSizeV(icon_texture, tl, dimens);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
 bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover, Color button_bg) {
 	Vec2 br = tl + dimens;
 
