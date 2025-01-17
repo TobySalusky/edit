@@ -13,6 +13,7 @@ import dylib;
 import code_manager;
 
 c:import "rlgl.h";
+c:import "libavcodec/avcodec.h";
 
 int window_width = 1200;
 int window_height = 900;
@@ -163,11 +164,14 @@ int main() {
 	// for (let p in temp_inputs.pairs()) {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
-
+	c:PlaySound(fxMP3);
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
-		if (c:IsKeyPressed(c:KEY_SPACE)) {
-			c:PlaySound(fxMP3);
+		if (is_paused()) {
+			c:PauseSound(fxMP3);
+		}
+		if (is_running()) {
+			c:ResumeSound(fxMP3);
 		}
 		d.Begin();
 		GameTick();
