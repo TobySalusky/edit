@@ -116,7 +116,7 @@ void debug_print_env_config() {
 }
 
 Texture LoadIcon(char^ path) {
-	return c:LoadTextureFromFile(path);
+	return LoadTextureFromFile(path);
 }
 
 char^ OpenFileDialog(char^ title, char^ filter) {

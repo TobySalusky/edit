@@ -26,7 +26,7 @@ struct ImageElement : ElementImpl {
 	char^ file_path;
 	
 	void Draw(Element^ e) {
-		d.TextureAtSize(c:LoadTextureFromFile(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 }
 
@@ -37,6 +37,25 @@ ImageElement^ make_image(char^ file_path) {
 }
 
 c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
+
+struct ImageCache {
+	static StrMap<Texture> cache;
+
+	static Texture Get(char^ file_path) {
+		if (Self.cache.has(file_path)) {
+			return Self.cache.get(file_path);
+		}
+		Texture tex = LoadTextureFromFile(file_path);
+		Self.cache.put(file_path, tex);
+		return tex;
+	}
+	
+	static void Unload() {
+		for (let pair in Self.cache) {
+			pair.value.delete();
+		}
+	}
+}
 
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
