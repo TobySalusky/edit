@@ -190,10 +190,9 @@ int main() {
 		}
 
 		// File drop listener
-		if(c:IsFileDropped()) {
+		if (c:IsFileDropped()) {
 			OnFileDropped();
 		}
-
 
 		d.Begin();
 		GameTick();
@@ -254,12 +253,6 @@ void LeftPanelUI() {
 		}
 	}
 
-	// Add Element Button
-	Vec2 tl = v2(10, window_height - 50);
-	if (Button(tl, btn_dimens, "+")) {
-		show_add_element_options = true;
-	}
-
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
 	// 	input.Do();
 	// }
@@ -276,9 +269,11 @@ void LeftPanelUI() {
 			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
 			if (file_path != NULL) {
 				Image img = c:LoadImage(file_path);
-				println(f"[DEBUG]: Loaded image from {file_path}");
-				elements.add(make_image_element(file_path));
+				elements.add(make_image_element(file_path) with {
+					scale = v2(img.width, img.height)
+				});
 				selected_elem_i = elements.size - 1;
+				show_add_element_options = false;
 			}
 		}
 		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
@@ -290,6 +285,15 @@ void LeftPanelUI() {
 			selected_elem_i = elements.size - 1;
 		}
 	}
+	
+	// Add Element Button
+	Vec2 tl = v2(10, window_height - 50);
+	if (Button(tl, btn_dimens, "+")) {
+		show_add_element_options = true;
+	} else if (mouse.LeftClickPressed()) {
+		show_add_element_options = false;
+	}
+
 }
 
 
