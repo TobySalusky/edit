@@ -20,19 +20,6 @@ if (NOT raylib_FOUND) # If there's none, fetch and build raylib
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # don't build the supplied examples
   endif()
 endif()
-
-
-set(FFMPEG_DIR "C:/Users/data/ffmpeg-dev")
-include_directories("${FFMPEG_DIR}/include")
-
-set(FFMPEG_LIBS
-    "${FFMPEG_DIR}/lib/avcodec.lib"
-    "${FFMPEG_DIR}/lib/avformat.lib"
-    "${FFMPEG_DIR}/lib/avutil.lib"
-    "${FFMPEG_DIR}/lib/swscale.lib"
-)
-
-
 # ----------------------------------------------------------
 
 # Our Project
@@ -41,7 +28,7 @@ file(GLOB EDIT_C_SOURCES "out/*.c")
 file(GLOB SCRIPT_C_SOURCES "test_out/*.c")
 
 add_executable(edit ${EDIT_C_SOURCES})
-target_link_libraries(edit raylib ${FFMPEG_LIBS})
+target_link_libraries(edit raylib)
 target_include_directories(edit PUBLIC include)
 
 add_library(script SHARED ${SCRIPT_C_SOURCES})

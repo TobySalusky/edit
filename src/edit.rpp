@@ -13,7 +13,6 @@ import dylib;
 import code_manager;
 
 c:import "rlgl.h";
-c:import "libavcodec/avcodec.h";
 
 int window_width = 1200;
 int window_height = 900;
@@ -133,17 +132,14 @@ int main() {
 	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
 	// Window init and close
-	window.Init(window_width, window_height, "zZ-edit"); 
+	window.Init(window_width, window_height, "zZ-edit");
 	defer window.Close();
-
 
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
 	c:Sound fxMP3 = c:LoadSound("assets/echo.mp3");
 	defer c:UnloadSound(fxMP3);
-
-	c:AVPacket ^pkt = c:av_packet_alloc();
 
 	canvas = make_render_texture(1200, 900);
 
