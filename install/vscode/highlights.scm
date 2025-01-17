@@ -26,6 +26,10 @@
   name: (ident) @method))
 
 (invocation
+ (global_ident_expr
+  name: (ident) @method))
+
+(invocation
  (ident) @method)
 
 
@@ -127,7 +131,15 @@
 
 (number) @number
 (string) @string
-(interpolated_string) @string
+; (interpolated_string) @string ---- (some clients will highlight with outter colour [VSCode {or rather, VSCode TS wrapper?}]), so we don't want that!
+[
+ "\""
+ "f\""
+ "t\""
+ "$\""
+] @string
+(non_escape_interpolated_string_frag) @string
+; ----------------------------------
 (escape_sequence) @string.escape
 (char) @character
 
@@ -167,6 +179,10 @@
  "*"
  "/"
  "%"
+
+ "++"
+ "--"
+ ".."
  ; "<<"
  ; ">>"
  ; ">>>"

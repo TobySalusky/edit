@@ -504,18 +504,18 @@ struct Drawer {
 		float spacing = 2;
 		Vec2 pos = pin_pos;
 
-		Vec2 text_dims = c:MeasureTextEx(font, text, font_size, spacing);
+		Vec2 text_dimens = c:MeasureTextEx(font, text, font_size, spacing);
 
 		Vec2 origin = match (pin_location_kind) {
-			.TopLeft      -> text_dims * v2(0.0, 0.0),
-			.TopMiddle    -> text_dims * v2(0.5, 0.0),
-			.TopRight     -> text_dims * v2(1.0, 0.0),
-			.MiddleLeft   -> text_dims * v2(0.0, 0.5),
-			.Middle       -> text_dims * v2(0.5, 0.5),
-			.MiddleRight  -> text_dims * v2(1.0, 0.5),
-			.BottomLeft   -> text_dims * v2(0.0, 1.0),
-			.BottomMiddle -> text_dims * v2(0.5, 1.0),
-			.BottomRight  -> text_dims * v2(1.0, 1.0),
+			.TopLeft      -> text_dimens * v2(0.0, 0.0),
+			.TopMiddle    -> text_dimens * v2(0.5, 0.0),
+			.TopRight     -> text_dimens * v2(1.0, 0.0),
+			.MiddleLeft   -> text_dimens * v2(0.0, 0.5),
+			.Middle       -> text_dimens * v2(0.5, 0.5),
+			.MiddleRight  -> text_dimens * v2(1.0, 0.5),
+			.BottomLeft   -> text_dimens * v2(0.0, 1.0),
+			.BottomMiddle -> text_dimens * v2(0.5, 1.0),
+			.BottomRight  -> text_dimens * v2(1.0, 1.0),
 		};
 
 		this.TextPro(font, text, pos, origin, rotation, font_size, spacing, tint);
@@ -526,8 +526,8 @@ struct Drawer {
 
 	void Line(Vec2 p1, Vec2 p2, float thickness, Color color) -> c:DrawLineEx(p1.v(), p2.v(), thickness, color);
 
-	void RectBetween(Vec2 tl, Vec2 rb, Color color) -> c:DrawRectangleV(tl.v(), (rb - tl).v(), color);
-	void RectOutlineBetween(Vec2 tl, Vec2 rb, Color color) -> this.RectOutline(tl, rb - tl, color);
+	void RectBetween(Vec2 tl, Vec2 br, Color color) -> c:DrawRectangleV(tl.v(), (br - tl).v(), color);
+	void RectOutlineBetween(Vec2 tl, Vec2 br, Color color) -> this.RectOutline(tl, br - tl, color);
 	void Rect(Vec2 tl, Vec2 dimens, Color color) -> c:DrawRectangleV(tl.v(), dimens.v(), color);
 	void RectR(Rectangle rect, Color color) -> c:DrawRectangleV(rect.tl(), rect.dimen(), color);
 	void RectOutline(Vec2 tl, Vec2 dimens, Color color) {
