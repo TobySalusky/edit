@@ -13,6 +13,7 @@ import dylib;
 import code_manager;
 
 c:import "rlgl.h";
+c:import "tinyfiledialogs.h";
 c:import "libavcodec/avcodec.h";
 
 int window_width = 1200;
@@ -24,6 +25,7 @@ RenderTexture canvas;
 Texture eye_open_icon;
 Texture eye_closed_icon;
 Texture warning_icon;
+Texture image_icon;
 
 List<Image> images;
 int max_images;
@@ -114,11 +116,27 @@ void debug_print_env_config() {
 }
 
 Texture LoadIcon(char^ path) {
-	Image img = c:LoadImage(path);
-	c:ImageFlipVertical(^img);
-	defer img.delete();
+	return LoadTextureFromFile(path);
+}
 
-	return c:LoadTextureFromImage(img);
+char^ OpenFileDialog(char^ title, char^ filter) {
+	char^^ filters = malloc(sizeof<char^> * 3);
+	filters[0] = "*.png";
+	filters[1] = "*.jpg";
+	filters[2] = "*.gif";
+	defer free(filters);
+
+	c:c:`char const* const* c_filters = (char const* const*) filters;`;
+
+    char^ filePath = c:tinyfd_openFileDialog(
+        "Select an image file",
+        "",
+        3,
+        c:c_filters,
+        "image files",
+        0
+    );
+    return (filePath != NULL) ? filePath | "";
 }
 
 int main() {
@@ -147,16 +165,17 @@ int main() {
 	eye_open_icon = LoadIcon(t"assets/eye_open.png");
 	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
 	warning_icon = LoadIcon(t"assets/warning.png");
+	image_icon = LoadIcon(t"assets/image.png");
 
 	images = .();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
-	elements.add(make_cool_fn_element());
-	elements.add(make_perlin_element());
-	elements.add(make_custom_effect_element("missing_fn"));
+	//elements.add(make_cool_fn_element());
+	//elements.add(make_perlin_element());
+	//elements.add(make_custom_effect_element("missing_fn"));
 
-	selected_elem_i = 2; // select perlin_field
+	selected_elem_i = 0;
 
 	// temp_inputs.add(TextInput.make("a"));
 	// temp_inputs.add(TextInput.make("what"));
@@ -173,23 +192,30 @@ int main() {
 		if (is_running()) {
 			c:ResumeSound(fxMP3);
 		}
+
+		// File drop listener
+		if (c:IsFileDropped()) {
+			OnFileDropped();
+		}
+
 		d.Begin();
 		GameTick();
 		d.End();
 		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
     }
 
-
     return 0;
 }
 
 bool look_at_controls = false;
+bool show_add_element_options = false;
 
 int panel_width = 160;
 void LeftPanelUI() {
 	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
 	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
 
+	// Elements List
 	Vec2 btn_dimens = v2(panel_width - 20, 40);
 	for (int i = 0; i != elements.size; i++;) {
 		Vec2 tl = v2(10, 10 + 50 * i);
@@ -221,25 +247,57 @@ void LeftPanelUI() {
 			d.TextureAtSizeV(warning_icon, tl + v2(8, 12), v2(16, 16));
 
 			if (hovering) {
-				Vec2 tooltip_tl = mouse.GetPos() + v2(0, 10);
-				Vec2 tooltip_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
-				d.RectR(Rectangle.FromV(tooltip_tl, tooltip_dims).PadOut(6), theme.button);
-				d.Text(elem.err_msg, tooltip_tl.x as.., tooltip_tl.y as.., 16, Colors.White);
+				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
+				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+				d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
+				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
 				
 				// d.Rect();
 			}
 		}
 	}
 
-	Vec2 tl = v2(10, window_height - 50);
-	if (Button(tl, btn_dimens, "+")) {
-		elements.add(make_element());
-		selected_elem_i = elements.size - 1;
-	}
-
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
 	// 	input.Do();
 	// }
+
+	if (show_add_element_options) {
+		Vec2 options_tl = v2(10, window_height - 120);
+		Vec2 options_dims = v2(panel_width - 20, 50);
+		d.RectR(Rectangle.FromV(options_tl, options_dims).PadOut(6), theme.button);
+
+		// Add media fil
+		Vec2 icon_dimens = v2((panel_width - 40) / 2, 40);
+		Vec2 icon_tl = options_tl + v2(5, 5);
+		if (Button(icon_tl, icon_dimens, "")) {
+			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
+			if (file_path != NULL) {
+				Image img = c:LoadImage(file_path);
+				elements.add(make_image_element(file_path) with {
+					scale = v2(img.width, img.height)
+				});
+				selected_elem_i = elements.size - 1;
+				show_add_element_options = false;
+			}
+		}
+		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
+
+		// Add arbitrary element (Temporary)
+		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);
+		if (Button(plus_tl, v2((panel_width - 40) / 2, 40), "+")) {
+			elements.add(make_element());
+			selected_elem_i = elements.size - 1;
+		}
+	}
+	
+	// Add Element Button
+	Vec2 tl = v2(10, window_height - 50);
+	if (Button(tl, btn_dimens, "+")) {
+		show_add_element_options = true;
+	} else if (mouse.LeftClickPressed()) {
+		show_add_element_options = false;
+	}
+
 }
 
 void ElementTimelineUI() {
@@ -528,4 +586,16 @@ void GameTick() {
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
 	char^ video_name = t"{output_file_name_no_path}.mp4";
 	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
+}
+
+void OnFileDropped() {
+	FilePathList dropped_file_path_list = c:LoadDroppedFiles();
+	defer c:UnloadDroppedFiles(dropped_file_path_list);
+	char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
+	Image img = c:LoadImage(first_img_path);
+	elements.add(make_image_element(first_img_path) with {
+		pos = mouse.GetPos(),
+		scale = v2(img.width, img.height)
+	});
+	selected_elem_i = elements.size - 1;
 }

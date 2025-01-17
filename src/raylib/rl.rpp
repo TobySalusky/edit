@@ -27,7 +27,11 @@ typedef Vector4 Vec4;
 @extern struct SaveFileDataCallback {}
 @extern struct LoadFileTextCallback {}
 @extern struct SaveFileTextCallback {}
-@extern struct FilePathList {}
+@extern struct FilePathList {
+	uint capacity;
+	uint count;
+	char^^ paths;
+}
 @extern struct AutomationEvent {}
 @extern struct AutomationEventList{}
 @extern struct Ray{}
@@ -84,6 +88,7 @@ struct Raylib {
     char^ GetClipboardText() -> c:GetClipboardText();                         // Get clipboard text content
     void EnableEventWaiting() -> c:EnableEventWaiting();                              // Enable waiting for events on EndDrawing(), no automatic event polling
     void DisableEventWaiting() -> c:DisableEventWaiting();                             // Disable waiting for events on EndDrawing(), automatic events polling
+
 
     // Cursor-related functions
     void ShowCursor() -> c:ShowCursor();                                      // Shows cursor
@@ -745,7 +750,7 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 	bool Contains(Vec2 v) -> v.Between(this.tl(), this.br()); 
 }
 
-struct Point{ // not a real raylib type, but is convenient
+struct Point { // not a real raylib type, but is convenient
 	int x; int y;
 	char^ to_string() -> f"({x}, {y})";
 
@@ -889,6 +894,13 @@ struct ShaderLocationHandle { // stack/mem Shader must stay valid!
 }
 
 Shader make_shader(char^ fragFileName) -> c:LoadShader(0, fragFileName);
+
+Texture LoadTextureFromFile(char^ file_path) {
+	Image img = c:LoadImage(file_path);
+	c:ImageFlipVertical(^img); // TODO: flip vertical
+	defer img.delete();
+	return c:LoadTextureFromImage(img);
+}
 
 //  3D ---------------------------------
 @extern struct Camera {
