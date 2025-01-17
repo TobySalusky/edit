@@ -25,6 +25,10 @@ List<Vec2> GenPoints() {
 List<Vec2> points = GenPoints();
 
 // EFFECTS --------
+// void my_fx(ElementInfo& info, float ray_density, int some_custom_var) {
+// 	info.pos; info.scale; 
+// }
+
 void cool_effect(Vec2 pos, Vec2 scale, float rotation, Color color) {
 	Vec2 center = pos + scale.divide(2);
 

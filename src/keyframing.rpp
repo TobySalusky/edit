@@ -59,7 +59,8 @@ struct KeyframeLayer {
 		*f_setter = this.GetValue(time);
 	}
 
-	void UI(Vec2 tl, Vec2 dimens, float max_time) {
+	void UI(Vec2 tl, Vec2 dimens, float max_time, char^ name) {
+		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
 		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
 
 		Vec2 from = tl + v2(0, dimens.y / 2);

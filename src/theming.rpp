@@ -53,7 +53,7 @@ Theme MakeDarkTheme() -> {
 	.panel_border = hex("6b6b6b"),
 	.button = hex("333333"),
 	.button_err = hex("765941"),
-	.active = hex("FFAA00AA")
+	.active = hex("FFAA00AA"),
 };
 
 Theme theme = MakeDarkTheme();

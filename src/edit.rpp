@@ -14,6 +14,7 @@ import code_manager;
 
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
+c:import "libavcodec/avcodec.h";
 
 int window_width = 1200;
 int window_height = 900;
@@ -81,7 +82,7 @@ void ExportFrameThread(void^ arg) {
 
 	while (images.size <= i) { }
 	Image img = images.get(i);
-	c:ImageFlipVertical(^img); // TODO: flip vertical
+	c:ImageFlipVertical(^img);
 	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
 	defer free(name);
 	img.ExportTo(name);
@@ -149,14 +150,14 @@ int main() {
 	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
 	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
-	// Window init and close
-	window.Init(window_width, window_height, "zZ-edit");
+	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
+	window.Init(window_width, window_height, "CodeComposite");
 	defer window.Close();
 
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
-	c:Sound fxMP3 = c:LoadSound("assets/echo.mp3");
+	c:Sound fxMP3 = c:LoadSound("assets/Spain.mp3");
 	defer c:UnloadSound(fxMP3);
 
 	canvas = make_render_texture(1200, 900);
@@ -166,7 +167,7 @@ int main() {
 	warning_icon = LoadIcon(t"assets/warning.png");
 	image_icon = LoadIcon(t"assets/image.png");
 
-	images = List<Image>();
+	images = .();
 	images.reserve(max_frames);
 
 	elements.add(make_interesting_element());
@@ -182,11 +183,14 @@ int main() {
 	// for (let p in temp_inputs.pairs()) {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
-
+	c:PlaySound(fxMP3);
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
-		if (c:IsKeyPressed(c:KEY_SPACE)) {
-			c:PlaySound(fxMP3);
+		if (is_paused()) {
+			c:PauseSound(fxMP3);
+		}
+		if (is_running()) {
+			c:ResumeSound(fxMP3);
 		}
 
 		// File drop listener
@@ -296,14 +300,28 @@ void LeftPanelUI() {
 
 }
 
+void ElementTimelineUI() {
+
+}
 
 bool timeline_dragging = false;
 void KeyframeTimelineUI() {
-	int width = window_width - panel_width;
+	int info_width = 100;
+	int width = window_width - panel_width - info_width;
 	int height = 150;
-	Vec2 tl = v2(panel_width + 1, window_height - height);
+
+	Vec2 info_tl = v2(panel_width + 1, window_height - height);
+
+	Vec2 tl = v2(panel_width + 1 + info_width, window_height - height);
 	Vec2 dimens = v2(width, height);
 
+
+	//  info -------------------
+	d.Rect(info_tl, v2(info_width, height), theme.panel);
+	// d.Rect(tl + v2(info_width - 1, 0), v2(1, height), theme.panel_border);
+	// /info -------------------
+
+	//  ui -------------------
 	d.Rect(tl, dimens, theme.panel);
 	d.Rect(tl, v2(dimens.x, 1), theme.panel_border);
 
@@ -315,12 +333,11 @@ void KeyframeTimelineUI() {
 
 	int kl_height = height / 5;
 	Vec2 kl_dimens = v2(dimens.x, kl_height);
-	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time); i++;
-
+	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "x"); i++;
+	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "y"); i++;
+	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "scale"); i++;
+	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "angle"); i++;
+	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "opacity"); i++;
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		timeline_dragging = true;
@@ -337,6 +354,7 @@ void KeyframeTimelineUI() {
 	if (!mouse.LeftClickDown()) {
 		timeline_dragging = false;
 	}
+	//  /ui -------------------
 }
 
 void SetFrame(int frame) {
