@@ -43,7 +43,12 @@ int MODE_RUNNING = 0;
 int MODE_EXPORTING = 1;
 int MODE_PAUSED = 2;
 
+int SOUND_MUTED = 0;
+int SOUND_UNMUTED = 1;
+
 int mode = MODE_RUNNING;
+int muted = SOUND_MUTED;
+float master_volume = 0.5;
 
 bool is_running() -> mode == MODE_RUNNING;
 bool is_exporting() -> mode == MODE_EXPORTING;
@@ -184,13 +189,16 @@ int main() {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
 	c:PlaySound(fxMP3);
+	muted = SOUND_UNMUTED;
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
-		if (is_paused()) {
-			c:PauseSound(fxMP3);
-		}
-		if (is_running()) {
-			c:ResumeSound(fxMP3);
+
+		if (HotKeys.PlayPause.IsPressed()) {
+			if (is_running()) {
+				c:PauseSound(fxMP3);
+			} else if (is_paused()) {
+				c:ResumeSound(fxMP3);
+			}
 		}
 
 		// File drop listener
@@ -448,6 +456,8 @@ struct HotKeys {
 
 	static HotKey PlayPause = HotKey.Key(KEY.SPACE);
 
+	static HotKey Mute = HotKey.Key(KEY.M);
+
 	static HotKey ExportMovie = HotKey.DvoKey(KEY.E, KEY.D);
 
 	// key as in keyframe
@@ -482,6 +492,14 @@ void GameTick() {
 		} else if (is_paused()) {
 			mode = MODE_RUNNING;
 		}
+	}
+
+	if (HotKeys.Mute.IsPressed() && muted == SOUND_MUTED) {
+		muted = SOUND_UNMUTED;
+		c:SetMasterVolume(master_volume);
+	} else if (HotKeys.Mute.IsPressed() && muted == SOUND_UNMUTED) {
+		muted = SOUND_MUTED;
+		c:SetMasterVolume(0.0);
 	}
 
 	// export movie
