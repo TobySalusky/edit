@@ -13,6 +13,7 @@ import dylib;
 import code_manager;
 
 c:import "rlgl.h";
+c:import "libavcodec/avcodec.h";
 
 int window_width = 1200;
 int window_height = 900;
