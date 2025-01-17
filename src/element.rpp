@@ -12,28 +12,16 @@ struct RectElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
+
+	static Self^ Make() -> malloc(sizeof<Self>);
 }
-RectElement^ make_rect() -> malloc(sizeof<RectElement>);
 
 struct CircleElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
-}
-CircleElement^ make_circle() -> malloc(sizeof<CircleElement>);
 
-struct ImageElement : ElementImpl {
-	char^ file_path;
-	
-	void Draw(Element^ e) {
-		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
-	}
-}
-
-ImageElement^ make_image(char^ file_path) {
-	ImageElement^ it = malloc(sizeof<ImageElement>);
-	it#file_path = file_path;
-	return it;
+	static Self^ Make() -> malloc(sizeof<Self>);
 }
 
 struct ImageCache {
@@ -55,6 +43,16 @@ struct ImageCache {
 	}
 }
 
+struct ImageElement : ElementImpl {
+	char^ file_path;
+	
+	void Draw(Element^ e) {
+		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+	}
+
+	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
+}
+
 c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
 
 struct CustomPureFnElement : ElementImpl {
@@ -74,7 +72,13 @@ struct CustomPureFnElement : ElementImpl {
 		}
 	}
 
-	static Self^ new(char^ fn_name) -> Box<Self>.Make({ :fn_name });
+	static Self^ Make(char^ fn_name) -> Box<Self>.Make({ :fn_name });
+}
+
+// layer metadata
+// (elements are stored separately)
+struct Layer {
+	bool visible;
 }
 
 struct Element {
@@ -84,7 +88,16 @@ struct Element {
 	ElementImpl^ content_impl;
 
 	char^ name;
+
+	// temporal
+	float start_time; // inclusive
+	float duration;   // exclusive: i.e. at `start_time+duration`, this has just stopped playing
+	// ^ TODO: maybe use `int` as frame-counts for these..?
+
+	// layer
+	int layer;
 	
+	// transform-related/common args
 	Vec2 pos;
 	KeyframeLayer kl_pos_x;
 	KeyframeLayer kl_pos_y;
@@ -104,9 +117,37 @@ struct Element {
 	bool visible;
 	char^ err_msg;
 
+	// name: pass NULL for auto-generated name
+	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, int layer, Vec2 pos, Vec2 scale) -> {
+		:content_impl,
+		.name = (name != NULL) ? name | Element.NextElementName(),
+		:pos,
+		:scale,
+		.uniform_scale = true,
+		.rotation = 0,
+		.opacity = 1,
+		.color = c:GREEN,
+		.kl_pos_x = .(),
+		.kl_pos_y = .(),
+		.kl_rotation = .(),
+		.kl_opacity = .(),
+		.kl_scale = .(),
+		.visible = true,
+		.err_msg = NULL,
+		:start_time,
+		:duration,
+		:layer,
+	};
+
+	// TODO: make sure that inclusion/exclusion is done right here
+	bool CollidesWith(float other_start_time, float other_duration) -> end_time() > other_start_time && (other_start_time + other_duration) > start_time;
+
 	// TODO: content type: rectangle, ellipse, image, text, etc
 	// IDEA: text -> keyframe the text, morph between
 
+	float end_time() -> start_time + duration;
+	// bool IsVisibleAtTime(float time) -> visible && (time >= start_time && end_time() > time);
+	bool ActiveAtTime(float time) -> time >= start_time && end_time() > time;
 
 	bool Hovered() {
 		return mouse.GetPos().Between(pos, pos + scale);
@@ -148,182 +189,182 @@ struct Element {
 	}
 }
 
-KeyframeLayer make_interesting_layer_x() {
-	KeyframeLayer layer = .();
-	for (int i = 0; i != 6 * 4; i++;) {
-		layer.keyframes.add({
-			.time = i as float / 4,
-			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
-		});
-	}
-	return layer;
-}
-
-KeyframeLayer make_interesting_layer_y() {
-	KeyframeLayer layer = .();
-	for (int i = 0; i != 36; i++;) {
-		layer.keyframes.add({
-			.time = i as float / 6,
-			.value = Sin01(0.5 * i) * 600
-		});
-	}
-	return layer;
-}
-
-KeyframeLayer make_rotation() {
-	KeyframeLayer layer = .();
-	layer.keyframes.add({
-		.time = 0,
-		.value = 0
-	});
-	layer.keyframes.add({
-		.time = 5,
-		.value = 360
-	});
-	return layer;
-}
-
-KeyframeLayer make_cool_layer_x() {
-	KeyframeLayer layer = .();
-	for (int i = 0; i != 3 * 4; i++;) {
-		layer.keyframes.add({
-			.time = i as float / 4 * 2.0,
-			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
-		});
-	}
-	return layer;
-}
-
-KeyframeLayer make_cool_layer_y() {
-	KeyframeLayer layer = .();
-	for (int i = 0; i != 18; i++;) {
-		layer.keyframes.add({
-			.time = i as float / 3,
-			.value = Sin01(0.5 * i) * 600
-		});
-	}
-	return layer;
-}
-
-Element make_cool_fn_element() -> {
-	.content_impl = CustomPureFnElement.new("cool_effect"),
-	.name = "cool_fn",
-	.pos = v2(0, 0),
-	.scale = v2(20, 20),
-	.uniform_scale = true,
-	.rotation = 0,
-	.opacity = 1,
-	.color = Colors.Orange,
-	.kl_pos_x = make_cool_layer_x(),
-	.kl_pos_y = make_cool_layer_y(),
-	.kl_rotation = make_rotation(),
-	.kl_opacity = .(),
-	.kl_scale = .(),
-	.visible = false,
-	.err_msg = NULL
-};
-
-Element make_custom_effect_element(char^ effect_name) -> {
-	.content_impl = CustomPureFnElement.new(effect_name),
-	.name = effect_name,
-	.pos = v2(400, 400),
-	.scale = v2(150, 150),
-	.uniform_scale = true,
-	.rotation = 0,
-	.opacity = 1,
-	.color = c:GREEN,
-	.kl_pos_x = .(),
-	.kl_pos_y = .(),
-	.kl_rotation = .(),
-	.kl_opacity = .(),
-	.kl_scale = .(),
-	.visible = true,
-	.err_msg = NULL
-};
-
-Element make_perlin_element() {
-	let it = make_custom_effect_element("perlin_field");
-
-	it.kl_pos_x.Insert({
-		.time = 0,
-		.value = 0,
-	});
-	it.kl_pos_y.Insert({
-		.time = 0,
-		.value = 200,
-	});
-
-	it.kl_pos_x.Insert({
-		.time = 2.5,
-		.value = 500,
-	});
-	it.kl_pos_y.Insert({
-		.time = 2.5,
-		.value = 400,
-	});
-
-	it.kl_pos_x.Insert({
-		.time = 5,
-		.value = 1000,
-	});
-	it.kl_pos_y.Insert({
-		.time = 5,
-		.value = 200,
-	});
-
-	return it;
-}
-
-Element make_interesting_element() -> {
-	.content_impl = make_rect(),
-	.name = Element.NextElementName(),
-	.pos = v2(0, 0),
-	.scale = v2(200, 200),
-	.uniform_scale = true,
-	.rotation = 0,
-	.opacity = 1,
-	.color = c:BLUE,
-	.kl_pos_x = make_interesting_layer_x(),
-	.kl_pos_y = make_interesting_layer_y(),
-	.kl_rotation = make_rotation(),
-	.kl_opacity = .(),
-	.kl_scale = .(),
-	.visible = false,
-	.err_msg = NULL
-};
-
-Element make_element() -> {
-	.content_impl = make_circle(),
-	.name = Element.NextElementName(),
-	.pos = v2(400, 400),
-	.scale = v2(150, 150),
-	.uniform_scale = true,
-	.rotation = 0,
-	.opacity = 1,
-	.color = c:GREEN,
-	.kl_pos_x = .(),
-	.kl_pos_y = .(),
-	.kl_rotation = .(),
-	.kl_opacity = .(),
-	.kl_scale = .(),
-	.visible = true,
-	.err_msg = NULL
-};
-
-Element make_image_element(char^ file_path) -> {
-	.content_impl = make_image(file_path),
-	.name = Element.NextElementName(),
-	.pos = v2(400, 400),
-	.scale = v2(150, 150),
-	.uniform_scale = true,
-	.rotation = 0,
-	.opacity = 1,
-	.color = c:GREEN,
-	.kl_pos_x = .(),
-	.kl_pos_y = .(),
-	.kl_rotation = .(),
-	.kl_opacity = .(),
-	.kl_scale = .(),
-	.visible = true,
-	.err_msg = NULL
-};
+// KeyframeLayer make_interesting_layer_x() {
+// 	KeyframeLayer layer = .();
+// 	for (int i = 0; i != 6 * 4; i++;) {
+// 		layer.keyframes.add({
+// 			.time = i as float / 4,
+// 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
+// 		});
+// 	}
+// 	return layer;
+// }
+//
+// KeyframeLayer make_interesting_layer_y() {
+// 	KeyframeLayer layer = .();
+// 	for (int i = 0; i != 36; i++;) {
+// 		layer.keyframes.add({
+// 			.time = i as float / 6,
+// 			.value = Sin01(0.5 * i) * 600
+// 		});
+// 	}
+// 	return layer;
+// }
+//
+// KeyframeLayer make_rotation() {
+// 	KeyframeLayer layer = .();
+// 	layer.keyframes.add({
+// 		.time = 0,
+// 		.value = 0
+// 	});
+// 	layer.keyframes.add({
+// 		.time = 5,
+// 		.value = 360
+// 	});
+// 	return layer;
+// }
+//
+// KeyframeLayer make_cool_layer_x() {
+// 	KeyframeLayer layer = .();
+// 	for (int i = 0; i != 3 * 4; i++;) {
+// 		layer.keyframes.add({
+// 			.time = i as float / 4 * 2.0,
+// 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
+// 		});
+// 	}
+// 	return layer;
+// }
+//
+// KeyframeLayer make_cool_layer_y() {
+// 	KeyframeLayer layer = .();
+// 	for (int i = 0; i != 18; i++;) {
+// 		layer.keyframes.add({
+// 			.time = i as float / 3,
+// 			.value = Sin01(0.5 * i) * 600
+// 		});
+// 	}
+// 	return layer;
+// }
+//
+// Element make_cool_fn_element() -> {
+// 	.content_impl = CustomPureFnElement.new("cool_effect"),
+// 	.name = "cool_fn",
+// 	.pos = v2(0, 0),
+// 	.scale = v2(20, 20),
+// 	.uniform_scale = true,
+// 	.rotation = 0,
+// 	.opacity = 1,
+// 	.color = Colors.Orange,
+// 	.kl_pos_x = make_cool_layer_x(),
+// 	.kl_pos_y = make_cool_layer_y(),
+// 	.kl_rotation = make_rotation(),
+// 	.kl_opacity = .(),
+// 	.kl_scale = .(),
+// 	.visible = false,
+// 	.err_msg = NULL
+// };
+//
+// Element make_custom_effect_element(char^ effect_name) -> {
+// 	.content_impl = CustomPureFnElement.new(effect_name),
+// 	.name = effect_name,
+// 	.pos = v2(400, 400),
+// 	.scale = v2(150, 150),
+// 	.uniform_scale = true,
+// 	.rotation = 0,
+// 	.opacity = 1,
+// 	.color = Colors.Green,
+// 	.kl_pos_x = .(),
+// 	.kl_pos_y = .(),
+// 	.kl_rotation = .(),
+// 	.kl_opacity = .(),
+// 	.kl_scale = .(),
+// 	.visible = true,
+// 	.err_msg = NULL
+// };
+//
+// Element make_perlin_element() {
+// 	let it = make_custom_effect_element("perlin_field");
+//
+// 	it.kl_pos_x.Insert({
+// 		.time = 0,
+// 		.value = 0,
+// 	});
+// 	it.kl_pos_y.Insert({
+// 		.time = 0,
+// 		.value = 200,
+// 	});
+//
+// 	it.kl_pos_x.Insert({
+// 		.time = 2.5,
+// 		.value = 500,
+// 	});
+// 	it.kl_pos_y.Insert({
+// 		.time = 2.5,
+// 		.value = 400,
+// 	});
+//
+// 	it.kl_pos_x.Insert({
+// 		.time = 5,
+// 		.value = 1000,
+// 	});
+// 	it.kl_pos_y.Insert({
+// 		.time = 5,
+// 		.value = 200,
+// 	});
+//
+// 	return it;
+// }
+//
+// Element make_interesting_element() -> {
+// 	.content_impl = make_rect(),
+// 	.name = Element.NextElementName(),
+// 	.pos = v2(0, 0),
+// 	.scale = v2(200, 200),
+// 	.uniform_scale = true,
+// 	.rotation = 0,
+// 	.opacity = 1,
+// 	.color = c:BLUE,
+// 	.kl_pos_x = make_interesting_layer_x(),
+// 	.kl_pos_y = make_interesting_layer_y(),
+// 	.kl_rotation = make_rotation(),
+// 	.kl_opacity = .(),
+// 	.kl_scale = .(),
+// 	.visible = false,
+// 	.err_msg = NULL
+// };
+//
+// Element make_element() -> {
+// 	.content_impl = make_circle(),
+// 	.name = Element.NextElementName(),
+// 	.pos = v2(400, 400),
+// 	.scale = v2(150, 150),
+// 	.uniform_scale = true,
+// 	.rotation = 0,
+// 	.opacity = 1,
+// 	.color = c:GREEN,
+// 	.kl_pos_x = .(),
+// 	.kl_pos_y = .(),
+// 	.kl_rotation = .(),
+// 	.kl_opacity = .(),
+// 	.kl_scale = .(),
+// 	.visible = true,
+// 	.err_msg = NULL
+// };
+//
+// Element make_image_element(char^ file_path) -> {
+// 	.content_impl = make_image(file_path),
+// 	.name = Element.NextElementName(),
+// 	.pos = v2(400, 400),
+// 	.scale = v2(150, 150),
+// 	.uniform_scale = true,
+// 	.rotation = 0,
+// 	.opacity = 1,
+// 	.color = c:GREEN,
+// 	.kl_pos_x = .(),
+// 	.kl_pos_y = .(),
+// 	.kl_rotation = .(),
+// 	.kl_opacity = .(),
+// 	.kl_scale = .(),
+// 	.visible = true,
+// 	.err_msg = NULL
+// };

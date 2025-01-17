@@ -708,6 +708,10 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 	float width;
 	float height;
 
+	construct(float x, float y, float width, float height) -> {
+		:x, :y, :width, :height
+	};
+
 	static Rectangle FromV(Vec2 tl, Vec2 dims) {
 		return {
 			.x = tl.x,

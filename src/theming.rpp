@@ -23,12 +23,18 @@ int hex_char(char c) {
 
 // NOTE: hex_str should be WITHOUT leading #
 Color hex(char^ hex_str) {
-	int r = hex_char(hex_str[0]) * 16 + hex_char(hex_str[1]);
-	int g = hex_char(hex_str[2]) * 16 + hex_char(hex_str[3]);
-	int b = hex_char(hex_str[4]) * 16 + hex_char(hex_str[5]);
+	int shift_index = (hex_str[0] == '#') ? 1 | 0;
+
+	// if () { // TODO: error handle?
+	// 	panic();
+	// }
+
+	int r = hex_char(hex_str[0 + shift_index]) * 16 + hex_char(hex_str[1 + shift_index]);
+	int g = hex_char(hex_str[2 + shift_index]) * 16 + hex_char(hex_str[3 + shift_index]);
+	int b = hex_char(hex_str[4 + shift_index]) * 16 + hex_char(hex_str[5 + shift_index]);
 	int a = 255;
-	if (strlen(hex_str) >= 8) {
-		a = hex_char(hex_str[6]) * 16 + hex_char(hex_str[7]);
+	if (strlen(hex_str) >= 8 + shift_index) {
+		a = hex_char(hex_str[6 + shift_index]) * 16 + hex_char(hex_str[7 + shift_index]);
 	}
 
 	return rgba(r, g, b, a);
@@ -42,6 +48,11 @@ struct Theme {
 	Color button;
 	Color button_err;
 	Color active;
+
+	Color elem_ui_pink;
+	Color elem_ui_pink_border;
+	Color elem_ui_pink_text_color;
+	// Color elem_ui_yellow;
 }
 
 Theme MakeDarkTheme() -> {
@@ -54,6 +65,11 @@ Theme MakeDarkTheme() -> {
 	.button = hex("333333"),
 	.button_err = hex("765941"),
 	.active = hex("FFAA00AA"),
+
+	// .elem_ui_yellow = hex("CFAE55"),
+	.elem_ui_pink = hex("D6BCD6"),
+	.elem_ui_pink_border = hex("BFA6BF"),
+	.elem_ui_pink_text_color = hex("3D353D"),
 };
 
 Theme theme = MakeDarkTheme();

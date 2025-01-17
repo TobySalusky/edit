@@ -1,5 +1,6 @@
 import pair;
 
+// NOTE: StrMap operations are currently O(n), it just provides the API of a dictionary/hashmap, but with a simple flat list-of-pairs implementation
 struct StrMap<T> {
 	int capacity;
 	int size;

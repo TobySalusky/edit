@@ -27,7 +27,7 @@ Texture eye_closed_icon;
 Texture warning_icon;
 Texture image_icon;
 
-List<Image> images;
+List<Image> images = .();
 int max_images;
 
 int frame_rate = 60;
@@ -77,8 +77,11 @@ ExportState make_export_state() -> {
 
 ExportState export_state;
 
-// stateful elements (hardcoded, currently)
-List<Element> elements = List<Element>();
+// TODO: sort elements? (insertion sort) -> sort-by layer
+// NOTE: currently we traverse N times for rendering, N = # of layers used
+List<Element> elements = .();
+
+List<Layer> layers = .(); // metadata stored per-layer (layers do not directly contain elements!)
 
 int selected_elem_i = 0;
 
@@ -176,10 +179,11 @@ int main() {
 	warning_icon = LoadIcon(t"assets/warning.png");
 	image_icon = LoadIcon(t"assets/image.png");
 
-	images = .();
 	images.reserve(max_frames);
 
-	elements.add(make_interesting_element());
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
 	//elements.add(make_cool_fn_element());
 	//elements.add(make_perlin_element());
 	//elements.add(make_custom_effect_element("missing_fn"));
@@ -219,6 +223,43 @@ int main() {
 
     return 0;
 }
+
+// adds element, adding it's corresponding layer if necessary (NOTE: will create up to N layers, if placed at layer N...)
+// NOTE: direct use discouraged, generally use AddNewElementAt, since that won't cause overlap issues
+void AddNewElement(Element elem) {
+	while (elem.layer >= layers.size) {
+		layers.add({
+			.visible = true
+		});
+	}
+	elements.add(elem);
+}
+
+// gets first layer at which there wouldn't be a collision if an element at this time/length were added!
+int FirstAvailableLayerAt(float start_time, float duration) {
+	for (int i in 0..layers.size) {
+		bool collision = false;
+		for (let& elem in elements) { // TODO: don't loop over all elements... (just the ones on the right layer pls :D)
+			if (elem.CollidesWith(start_time, duration)) {
+				collision = true;
+				break;
+			}
+		}
+		if (!collision) { return i; }
+	}
+	return layers.size; // will have to add 1 new layer to accomodate element placement
+}
+
+// sets elem to correct layer (NOTE: pass with layer=-1, for clarity)
+void AddNewElementAt(Element elem) {
+	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
+}
+
+void SelectNewestElement() {
+	selected_elem_i = elements.size - 1;
+}
+
+float new_element_default_duration = 1.0 / frame_rate; // 1 frame
 
 bool look_at_controls = false;
 bool show_add_element_options = false;
@@ -285,11 +326,12 @@ void LeftPanelUI() {
 		if (Button(icon_tl, icon_dimens, "")) {
 			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
 			if (file_path != NULL) {
-				Image img = c:LoadImage(file_path);
-				elements.add(make_image_element(file_path) with {
-					scale = v2(img.width, img.height)
-				});
-				selected_elem_i = elements.size - 1;
+				Image img = Image.Load(file_path);
+				defer img.Unload();
+
+				char^ img_name = c:GetFileNameWithoutExt(file_path); // static string, no need to free :)
+				AddNewElementAt(Element(ImageElement.Make(file_path), img_name, current_time, new_element_default_duration, -1, v2(0, 0), v2(img.width, img.height)));
+				SelectNewestElement();
 				show_add_element_options = false;
 			}
 		}
@@ -298,8 +340,8 @@ void LeftPanelUI() {
 		// Add arbitrary element (Temporary)
 		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);
 		if (Button(plus_tl, v2((panel_width - 40) / 2, 40), "+")) {
-			elements.add(make_element());
-			selected_elem_i = elements.size - 1;
+			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
+			SelectNewestElement();
 		}
 	}
 	
@@ -313,11 +355,37 @@ void LeftPanelUI() {
 
 }
 
+bool timeline_dragging = false;
 void ElementTimelineUI() {
+	Vec2 tl = v2(panel_width + 1, 0);
+	Vec2 dimens = v2(window_width - panel_width, 100);
+	Rectangle timeline_rect = Rectangle.FromV(tl, dimens);
 
+	d.RectR(timeline_rect, theme.panel);
+
+	for (let& elem in elements) {
+		// elem.TimelineUI();
+	}
+
+	// mouse interactions --------------------
+	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
+		timeline_dragging = true;
+	}
+
+	if (mouse.LeftClickDown() && timeline_dragging) {
+		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		if (new_time <= 0) { new_time = 0; }
+		if (new_time >= max_time) { new_time = max_time; }
+		SetTime(new_time); // TODO: add snap-to-frame-set-time
+		SetFrame(current_frame);
+	}
+
+	if (!mouse.LeftClickDown()) {
+		timeline_dragging = false;
+	}
 }
 
-bool timeline_dragging = false;
+bool keyframe_timeline_dragging = false;
 void KeyframeTimelineUI() {
 	int info_width = 100;
 	int width = window_width - panel_width - info_width;
@@ -353,10 +421,10 @@ void KeyframeTimelineUI() {
 	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_time, "opacity"); i++;
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
-		timeline_dragging = true;
+		keyframe_timeline_dragging = true;
 	}
 
-	if (mouse.LeftClickDown() && timeline_dragging) {
+	if (mouse.LeftClickDown() && keyframe_timeline_dragging) {
 		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
 		if (new_time <= 0) { new_time = 0; }
 		if (new_time >= max_time) { new_time = max_time; }
@@ -365,7 +433,7 @@ void KeyframeTimelineUI() {
 	}
 
 	if (!mouse.LeftClickDown()) {
-		timeline_dragging = false;
+		keyframe_timeline_dragging = false;
 	}
 	//  /ui -------------------
 }
@@ -382,18 +450,26 @@ void SetTime(float new_time) {
 	UpdateState();
 }
 
+bool ElementIsVisibleNow(Element& elem) {
+	return elem.visible && elem.ActiveAtTime(current_time) && layers.get(elem.layer).visible;
+}
+
 void UpdateState() {
 	for (let& elem in elements) {
-		elem.UpdateState(current_time);
+		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
+			elem.UpdateState(current_time);
+		}
 	}
 }
 
 void DrawFrameToCanvas() {
 	canvas.Begin();
 	d.ClearBackground(theme.bg);
-	for (let& elem in elements) {
-		if (elem.visible) {
-			elem.Draw();
+	for (int i in 0..layers.size) {
+		for (let& elem in elements) {
+			if (elem.layer == i && ElementIsVisibleNow(elem)) {
+				elem.Draw();
+			}
 		}
 	}
 
@@ -533,13 +609,13 @@ void GameTick() {
 	// 	code_man.Reload();
 	// }
 
-	if (HotKeys.Temp_AddElementCool.IsPressed()) {
-		elements.add(make_cool_fn_element());
-	}
-
-	if (HotKeys.Temp_AddElementCircle.IsPressed()) {
-		elements.add(make_element());
-	}
+	// if (HotKeys.Temp_AddElementCool.IsPressed()) {
+	// 	elements.add(make_cool_fn_element());
+	// }
+	//
+	// if (HotKeys.Temp_AddElementCircle.IsPressed()) {
+	// 	elements.add(make_element());
+	// }
 
 	// :hotkey:use:global
 
@@ -599,6 +675,7 @@ void GameTick() {
 	if (!ui_hidden) {
 		LeftPanelUI();
 		KeyframeTimelineUI();
+		ElementTimelineUI();
 	}
 
 	if (is_exporting()) {
@@ -615,15 +692,16 @@ void OnFileDropped() {
 	FilePathList dropped_file_path_list = FilePathList.Load();
 	defer dropped_file_path_list.Unload();
 
-	// malloced image (the ImageElement is responsible for freeing)
-	// ^ TODO: make this ownership clearer!
-	char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
-	Image img = Image.Load(first_img_path);
-	defer img.Unload();
+	for (int i in 0..dropped_file_path_list.count) {
+		char^ file_path = strdup(dropped_file_path_list.paths[i]);
+		// malloced image (the ImageElement is responsible for freeing)
+		// ^ TODO: make this ownership clearer!
 
-	elements.add(make_image_element(first_img_path) with {
-		pos = mouse.GetPos(),
-		scale = v2(img.width, img.height)
-	});
-	selected_elem_i = elements.size - 1;
+		Image img = Image.Load(file_path);
+		defer img.Unload();
+
+		char^ img_name = c:GetFileNameWithoutExt(file_path); // static string, no need to free :)
+		AddNewElementAt(Element(ImageElement.Make(file_path), img_name, current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
+		SelectNewestElement();
+	}
 }
