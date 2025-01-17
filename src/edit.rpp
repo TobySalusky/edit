@@ -191,12 +191,7 @@ int main() {
 
 		// File drop listener
 		if(c:IsFileDropped()) {
-			FilePathList dropped_file_path_list = c:LoadDroppedFiles();
-			defer c:UnloadDroppedFiles(dropped_file_path_list);
-			char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
-			Image img = c:LoadImage(first_img_path);
-			elements.add(make_image_element(first_img_path));
-			selected_elem_i = elements.size - 1;
+			OnFileDropped();
 		}
 
 
@@ -295,7 +290,6 @@ void LeftPanelUI() {
 			selected_elem_i = elements.size - 1;
 		}
 	}
-
 }
 
 
@@ -572,7 +566,14 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
 }
 
-void OnFileDropped(char^ file_path) {
-    Texture texture = c:LoadTextureFromFile(file_path);
-	println(f"Image dropped successfully: {file_path}");
+void OnFileDropped() {
+	FilePathList dropped_file_path_list = c:LoadDroppedFiles();
+	defer c:UnloadDroppedFiles(dropped_file_path_list);
+	char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
+	Image img = c:LoadImage(first_img_path);
+	elements.add(make_image_element(first_img_path) with {
+		pos = mouse.GetPos(),
+		scale = v2(img.width, img.height)
+	});
+	selected_elem_i = elements.size - 1;
 }
