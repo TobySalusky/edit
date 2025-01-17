@@ -21,7 +21,7 @@ if (NOT raylib_FOUND) # If there's none, fetch and build raylib
   endif()
 endif()
 
-set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-gpl-shared")
+set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-lgpl-shared")
 include_directories("${FFMPEG_DIR}/include")
 
 set(FFMPEG_LIBS
