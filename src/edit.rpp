@@ -48,7 +48,9 @@ int SOUND_UNMUTED = 1;
 
 int mode = MODE_RUNNING;
 int muted = SOUND_MUTED;
-float master_volume = 0.5;
+
+int INIT_VOLUME = 0.6
+float master_volume = INIT_VOLUME;
 
 bool is_running() -> mode == MODE_RUNNING;
 bool is_exporting() -> mode == MODE_EXPORTING;
@@ -190,6 +192,7 @@ int main() {
 	// for (let p in temp_inputs.pairs()) {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
+	c:SetMasterVolume(master_volume);
 	c:PlaySound(fxMP3);
 	muted = SOUND_UNMUTED;
 	rl.SetTargetFPS(60);
