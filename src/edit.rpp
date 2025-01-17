@@ -115,11 +115,7 @@ void debug_print_env_config() {
 }
 
 Texture LoadIcon(char^ path) {
-	Image img = c:LoadImage(path);
-	c:ImageFlipVertical(^img); // TODO: flip vertical
-	defer img.delete();
-
-	return c:LoadTextureFromImage(img);
+	return c:LoadTextureFromFile(path);
 }
 
 char^ OpenFileDialog(char^ title, char^ filter) {
@@ -192,12 +188,23 @@ int main() {
 		if (c:IsKeyPressed(c:KEY_SPACE)) {
 			c:PlaySound(fxMP3);
 		}
+
+		// File drop listener
+		if(c:IsFileDropped()) {
+			FilePathList dropped_file_path_list = c:LoadDroppedFiles();
+			defer c:UnloadDroppedFiles(dropped_file_path_list);
+			char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
+			Image img = c:LoadImage(first_img_path);
+			elements.add(make_image_element(first_img_path));
+			selected_elem_i = elements.size - 1;
+		}
+
+
 		d.Begin();
 		GameTick();
 		d.End();
 		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
     }
-
 
     return 0;
 }
@@ -256,8 +263,6 @@ void LeftPanelUI() {
 	Vec2 tl = v2(10, window_height - 50);
 	if (Button(tl, btn_dimens, "+")) {
 		show_add_element_options = true;
-		//elements.add(make_element());
-		//selected_elem_i = elements.size - 1;
 	}
 
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
@@ -565,4 +570,9 @@ void GameTick() {
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
 	char^ video_name = t"{output_file_name_no_path}.mp4";
 	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
+}
+
+void OnFileDropped(char^ file_path) {
+    Texture texture = c:LoadTextureFromFile(file_path);
+	println(f"Image dropped successfully: {file_path}");
 }
