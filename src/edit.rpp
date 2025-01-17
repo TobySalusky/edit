@@ -86,7 +86,7 @@ void ExportFrameThread(void^ arg) {
 	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
 	defer free(name);
 	img.ExportTo(name);
-	img.delete();
+	img.Unload();
 	export_state.frames_written++;
 }
 
@@ -144,6 +144,8 @@ int main() {
 
 	code_man.Load();
 	defer code_man.Unload();
+
+	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
 	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
 
@@ -589,10 +591,15 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 }
 
 void OnFileDropped() {
-	FilePathList dropped_file_path_list = c:LoadDroppedFiles();
-	defer c:UnloadDroppedFiles(dropped_file_path_list);
+	FilePathList dropped_file_path_list = FilePathList.Load();
+	defer dropped_file_path_list.Unload();
+
+	// malloced image (the ImageElement is responsible for freeing)
+	// ^ TODO: make this ownership clearer!
 	char^ first_img_path = strdup(dropped_file_path_list.paths[0]);
-	Image img = c:LoadImage(first_img_path);
+	Image img = Image.Load(first_img_path);
+	defer img.Unload();
+
 	elements.add(make_image_element(first_img_path) with {
 		pos = mouse.GetPos(),
 		scale = v2(img.width, img.height)

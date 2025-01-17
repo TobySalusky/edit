@@ -21,16 +21,18 @@ if (NOT raylib_FOUND) # If there's none, fetch and build raylib
   endif()
 endif()
 
-set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-lgpl-shared")
-include_directories("${FFMPEG_DIR}/include")
+if (APPLE)
+	set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-linuxarm64-lgpl-shared")
+else()
+	set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-gpl-shared")
 
-set(FFMPEG_LIBS
-    "${FFMPEG_DIR}/lib/avcodec.lib"
-    "${FFMPEG_DIR}/lib/avformat.lib"
-    "${FFMPEG_DIR}/lib/avutil.lib"
-    "${FFMPEG_DIR}/lib/swscale.lib"
-)
-
+	set(FFMPEG_LIBS
+		"${FFMPEG_DIR}/lib/avcodec.lib"
+		"${FFMPEG_DIR}/lib/avformat.lib"
+		"${FFMPEG_DIR}/lib/avutil.lib"
+		"${FFMPEG_DIR}/lib/swscale.lib"
+	)
+endif()
 
 # ----------------------------------------------------------
 
@@ -40,8 +42,20 @@ file(GLOB EDIT_C_SOURCES "out/*.c")
 file(GLOB SCRIPT_C_SOURCES "test_out/*.c")
 
 add_executable(edit ${EDIT_C_SOURCES})
-target_link_libraries(edit raylib ${FFMPEG_LIBS})
 target_include_directories(edit PUBLIC include)
+target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
+
+target_link_libraries(edit raylib)
+if (APPLE)
+	find_library(AVCODEC NAMES avcodec)
+	find_library(AVFORMAT NAMES avformat)
+	find_library(AVUTIL NAMES avutil)
+	find_library(SWSCALE NAMES swscale)
+	target_link_libraries(edit ${AVCODEC} ${AVFORMAT} ${AVUTIL} ${SWSCALE})
+
+else()
+	target_link_libraries(edit ${FFMPEG_LIBS})
+endif()
 
 add_library(script SHARED ${SCRIPT_C_SOURCES})
 target_link_libraries(script raylib)
@@ -57,3 +71,5 @@ if (APPLE)
     target_link_libraries(script "-framework Cocoa")
     target_link_libraries(script "-framework OpenGL")
 endif()
+
+

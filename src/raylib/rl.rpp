@@ -31,6 +31,9 @@ typedef Vector4 Vec4;
 	uint capacity;
 	uint count;
 	char^^ paths;
+
+	static Self Load() -> c:LoadDroppedFiles();
+	void Unload() -> c:UnloadDroppedFiles(this);
 }
 @extern struct AutomationEvent {}
 @extern struct AutomationEventList{}
@@ -772,7 +775,9 @@ struct Point { // not a real raylib type, but is convenient
 
 	void ExportTo(char^ file_path) -> c:ExportImage(this, file_path);
 
-	void delete() -> c:UnloadImage(this);
+	void Unload() -> c:UnloadImage(this);
+
+	static Self Load(char^ file_path) -> c:LoadImage(file_path);
 }
 
 @extern struct Texture {
@@ -897,8 +902,9 @@ Shader make_shader(char^ fragFileName) -> c:LoadShader(0, fragFileName);
 
 Texture LoadTextureFromFile(char^ file_path) {
 	Image img = c:LoadImage(file_path);
+	defer img.Unload();
+
 	c:ImageFlipVertical(^img); // TODO: flip vertical
-	defer img.delete();
 	return c:LoadTextureFromImage(img);
 }
 

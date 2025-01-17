@@ -36,26 +36,26 @@ ImageElement^ make_image(char^ file_path) {
 	return it;
 }
 
-c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
-
 struct ImageCache {
 	static StrMap<Texture> cache;
 
 	static Texture Get(char^ file_path) {
-		if (Self.cache.has(file_path)) {
-			return Self.cache.get(file_path);
+		if (cache.has(file_path)) {
+			return cache.get(file_path);
 		}
 		Texture tex = LoadTextureFromFile(file_path);
-		Self.cache.put(file_path, tex);
+		cache.put(file_path, tex);
 		return tex;
 	}
 	
 	static void Unload() {
-		for (let pair in Self.cache) {
+		for (let pair in cache) {
 			pair.value.delete();
 		}
 	}
 }
+
+c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
 
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
