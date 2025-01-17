@@ -24,7 +24,7 @@ endif()
 if (APPLE)
 	set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-linuxarm64-lgpl-shared")
 else()
-	set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-gpl-shared")
+	set(FFMPEG_DIR "${CMAKE_SOURCE_DIR}/lib/ffmpeg-master-latest-win64-lgpl-shared")
 
 	set(FFMPEG_LIBS
 		"${FFMPEG_DIR}/lib/avcodec.lib"
