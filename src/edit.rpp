@@ -5,6 +5,7 @@ import thread;
 import element;
 import ui_elements;
 import maths;
+import data;
 
 import std;
 import map;
@@ -137,7 +138,7 @@ Texture LoadIcon(char^ path) {
 	return LoadTextureFromFile(path);
 }
 
-char^ OpenFileDialog(char^ title, char^ filter) {
+char^ OpenImageFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
 	filters[0] = "*.png";
 	filters[1] = "*.jpg";
@@ -147,7 +148,7 @@ char^ OpenFileDialog(char^ title, char^ filter) {
 	c:c:`char const* const* c_filters = (char const* const*) filters;`;
 
     char^ filePath = c:tinyfd_openFileDialog(
-        "Select an image file",
+        title,
         "",
         3,
         c:c_filters,
@@ -156,6 +157,25 @@ char^ OpenFileDialog(char^ title, char^ filter) {
     );
     return (filePath != NULL) ? filePath | "";
 }
+
+char^ OpenDataFileDialog(char^ title) {
+	char^^ filters = malloc(sizeof<char^> * 3);
+	filters[0] = "*.csv";
+	defer free(filters);
+
+	c:c:`char const* const* c_filters = (char const* const*) filters;`;
+
+    char^ filePath = c:tinyfd_openFileDialog(
+        title,
+        "",
+        1,
+        c:c_filters,
+        "data files",
+        0
+    );
+    return (filePath != NULL) ? filePath | "";
+}
+
 
 int main() {
 	debug_print_env_config();
@@ -200,12 +220,9 @@ int main() {
 	images.reserve(max_frames);
 
 	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
-	//elements.add(make_cool_fn_element());
-	//elements.add(make_perlin_element());
-	//elements.add(make_custom_effect_element("missing_fn"));
 
 	selected_elem_i = 0;
 
@@ -293,11 +310,11 @@ void LeftPanelUI() {
 		Vec2 options_dims = v2(panel_width - 20, 100);
 		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
 
-		// Add media fil
-		Vec2 icon_dimens = v2((panel_width - 40) / 2, 80);
+		// Add media file
+		Vec2 icon_dimens = v2((panel_width - 40) / 3, 80);
 		Vec2 icon_tl = options_tl + v2(5, 5);
 		if (Button(icon_tl, icon_dimens, "")) {
-			char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
+			char^ file_path = OpenImageFileDialog("Select an image");
 			if (file_path != NULL) {
 				Image img = Image.Load(file_path);
 				defer img.Unload();
@@ -310,9 +327,21 @@ void LeftPanelUI() {
 		}
 		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
 
+		// Add data
+		icon_tl = icon_tl + v2((panel_width - 40) / 3, 0);
+		if (Button(icon_tl, icon_dimens, "{data}")) {
+			char^ file_path = OpenDataFileDialog("Select a data file");
+			if (file_path != NULL) {
+				// Load data and apply to keyframe
+				Data data = Data(file_path);
+				data.ApplyKeyframeData(elements.get(selected_elem_i));
+				show_add_element_options = false;
+			}
+		}
+
 		// Add arbitrary element (Temporary)
-		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 2, 5);
-		if (Button(plus_tl, v2((panel_width - 40) / 2, 80), "+")) {
+		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 3 * 2, 5);
+		if (Button(plus_tl, v2((panel_width - 40) / 3, 80), "+")) {
 			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
 			SelectNewestElement();
 		}
