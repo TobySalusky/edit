@@ -1,7 +1,0 @@
-[package]
-name = "raylib"
-version = "0.1.0"
-
-[dependencies]
-std = "0.1.0"
-
