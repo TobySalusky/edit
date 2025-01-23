@@ -289,8 +289,8 @@ void LeftPanelUI() {
 	// }
 
 	if (show_add_element_options) {
-		Vec2 options_tl = v2(10, window_height - 170);
-		Vec2 options_dims = v2(panel_width - 20, 100);
+		Vec2 options_tl = v2(10, window_height - 250);
+		Vec2 options_dims = v2(panel_width - 20, 180);
 		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
 
 		// Add media fil
@@ -315,6 +315,13 @@ void LeftPanelUI() {
 		if (Button(plus_tl, v2((panel_width - 40) / 2, 80), "+")) {
 			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
 			SelectNewestElement();
+		}
+
+		// Add snapshot button
+		Vec2 snap_dimens = v2((panel_width - 40) / 2, 80);
+		Vec2 snap_tl = options_tl + v2(5, 85);
+		if (Button(snap_tl, snap_dimens, "snap")) {
+			Snapshot();	
 		}
 	}
 	
@@ -672,6 +679,8 @@ struct HotKeys {
 
 	static HotKey ExportMovie = HotKey.DvoKey(KEY.E, KEY.D);
 
+	static HotKey Snapshot = HotKey.Key(KEY.P);
+
 	// key as in keyframe
 	static HotKey KeyAtCurrentPosition  = HotKey.DvoKey(KEY.K, KEY.V);
 	static HotKey Alternative_KeyAtCurrentPosition  = HotKey.DvoKey(KEY.A, KEY.A);
@@ -755,6 +764,11 @@ void GameTick() {
 		SetFrame(0);
 
 		io.mkdir("out/frames");
+	}
+
+	// webcam snapshot
+	if (HotKeys.Snapshot.IsPressed()) {
+		Snapshot();
 	}
 
 	if (HotKeys.ToggleHideUIFullscreenPlayback.IsPressed()) {
@@ -878,6 +892,10 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
 	char^ video_name = t"{output_file_name_no_path}.mp4";
 	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
+}
+
+void Snapshot() {
+	println("balls mgee");
 }
 
 void OnFileDropped() {
