@@ -25,10 +25,15 @@ struct Data {
     }
 
     // Apply keyframe data to an element's keyframes
-    void ApplyKeyframeData(Element& elem) {
+    void ApplyKeyframeData(Element& elem, float start_time = 0.0, float frame_offset = 0.1) {
 
+        let frame_time = start_time;
         for (let& row in data) {
-            let keyframe_t = row.get_float(t"Time");
+            let keyframe_t = frame_time;
+            frame_time = frame_time + frame_offset;
+            if (ListContainsString(headers, "X")) {
+                keyframe_t = row.get_float(t"Time");
+            }
 
             if (ListContainsString(headers, "X")) {
                 elem.kl_pos_x.Insert({

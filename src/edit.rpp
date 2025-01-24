@@ -219,7 +219,7 @@ int main() {
 
 	images.reserve(max_frames);
 
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
@@ -912,18 +912,30 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 void OnFileDropped() {
 	FilePathList dropped_file_path_list = FilePathList.Load();
 	defer dropped_file_path_list.Unload();
-
+	
 	for (int i in 0..dropped_file_path_list.count) {
+		char^ file_type = c:GetFileExtension(dropped_file_path_list.paths[i]);
 		char^ file_path = strdup(dropped_file_path_list.paths[i]);
 		// malloced image (the ImageElement is responsible for freeing)
 		// ^ TODO: make this ownership clearer!
+		println(t"File dropped: {strcmp(file_type, ".png")}");
+		if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
+			// Handle image file
+			Image img = Image.Load(file_path);
+			defer img.Unload();
+			char^ img_name = c:GetFileNameWithoutExt(file_path);
+			AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
+			SelectNewestElement();
 
-		Image img = Image.Load(file_path);
-		defer img.Unload();
+		} else if (strcmp(file_type, ".csv") == 0) {
+			// Handle data file
+			Data data = Data(file_path);
+			data.ApplyKeyframeData(elements.get(selected_elem_i), current_time, (1.0 / frame_rate));
 
-		char^ img_name = c:GetFileNameWithoutExt(file_path);
-		AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
-		SelectNewestElement();
+		} else {
+			println(t"Unsupported file type: {file_type}");
+		}
+
 	}
 }
 
