@@ -10,6 +10,8 @@ interface ElementImpl {
 	void Draw(Element^ e);
 
 	char^ ImplTypeStr();
+
+	List<CustomFloatLayer>^ CustomFloatLayers();
 }
 struct RectElement : ElementImpl {
 	void Draw(Element^ e) {
@@ -17,6 +19,7 @@ struct RectElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "rect";
+	List<CustomFloatLayer>^ CustomFloatLayers() -> NULL;
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -27,6 +30,7 @@ struct CircleElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "circle";
+	List<CustomFloatLayer>^ CustomFloatLayers() -> NULL;
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -57,6 +61,7 @@ struct ImageElement : ElementImpl {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 	char^ ImplTypeStr() -> "img";
+	List<CustomFloatLayer>^ CustomFloatLayers() -> NULL;
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
@@ -68,7 +73,7 @@ c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
 
 struct CustomFloatLayer {
 	char^ name;
-	float value;
+	float^ value;
 	KeyframeLayer kl_value;
 
 	bool deleted_member; // true when this used to be a named member, but has since been removed/renamed
@@ -102,7 +107,18 @@ struct CustomPureFnElement : ElementImpl {
 						switch (fn_args_new_res) {
 							void^ ok -> {
 								c:CustomArgsNewFn args_new_fn = ok;
-								custom_args_handle = args_new_fn() as CustomStructHandle;
+								CustomStructHandle the_struct_handle = args_new_fn();
+
+								custom_float_layers = .();
+								for (let& member in the_struct_handle.members) {
+									custom_float_layers.add({
+										.value = member.ptr,
+										.kl_value = .(),
+										.name = member.name,
+										.deleted_member = false
+									});
+								}
+								custom_args_handle = the_struct_handle;
 							},
 							char^ err -> {
 								e#err_msg = t"failed to create new custom args `{fn_handle.custom_arg_t_name}`";
@@ -246,6 +262,14 @@ struct Element {
 
 		kl_rotation.SetFloat(^rotation, lt);
 		kl_opacity.SetFloat(^opacity, lt);
+
+		// TODO: color
+
+		if (content_impl#CustomFloatLayers() != NULL) {
+			for (let& layer in *content_impl#CustomFloatLayers()) {
+				layer.kl_value.SetFloat(layer.value, lt);
+			}
+		}
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
 		// pos = v2(300, 200) * v2(t, t);

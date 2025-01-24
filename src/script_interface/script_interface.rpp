@@ -28,7 +28,7 @@ choice CustomStructMemberType {
 struct CustomStructMemberHandle {
 	char^ name;
 	void^ ptr;
-	CustomStructMemberType t;
+	// CustomStructMemberType t;
 }
 
 struct CustomStructHandle {
