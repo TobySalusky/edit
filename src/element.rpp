@@ -4,6 +4,7 @@ import maths;
 import theming;
 import std;
 import code_manager;
+import script_interface;
 
 interface ElementImpl {
 	void Draw(Element^ e);
@@ -60,27 +61,88 @@ struct ImageElement : ElementImpl {
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
 
-c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color);`;
+c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
+c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
+c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
+c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
+
+struct CustomFloatLayer {
+	char^ name;
+	float value;
+	KeyframeLayer kl_value;
+
+	bool deleted_member; // true when this used to be a named member, but has since been removed/renamed
+}
 
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
+	List<CustomFloatLayer> custom_float_layers;
+	Opt<CustomStructHandle> custom_args_handle;
 
 	void Draw(Element^ e) {
-		let fn_res = code_man.GetFn(fn_name);
-		switch (fn_res) {
+		let fn_getter_res = code_man.GetFn(t"__scriptgen_NewFxFn_{fn_name}"); // creates handle
+
+		switch (fn_getter_res) {
 			void^ ok -> {
-				c:CustomPureFn fn = ok;
-				fn(e#pos, e#scale, e#rotation, e#color);
+				c:CustomPureFnGetter fn_getter = ok;
+				CustomFnHandle fn_handle = fn_getter();
+
+				FxArgs base_args = {
+					.pos = e#pos,
+					.scale = e#scale,
+					.rotation = e#rotation,
+					.color = e#color,
+				};
+
+				if (fn_handle.custom_arg_t_name != NULL) {
+					c:CustomPureFnWithCustomParams fn = fn_handle.ptr;
+
+					if (custom_args_handle is None) {
+						let fn_args_new_res = code_man.GetFn(t"__scriptgen_NewFxArgs_{fn_handle.custom_arg_t_name}"); // creates handle
+						switch (fn_args_new_res) {
+							void^ ok -> {
+								c:CustomArgsNewFn args_new_fn = ok;
+								custom_args_handle = args_new_fn() as CustomStructHandle;
+							},
+							char^ err -> {
+								e#err_msg = t"failed to create new custom args `{fn_handle.custom_arg_t_name}`";
+								return;
+							}
+						}
+					}
+
+					switch (custom_args_handle) {
+						CustomStructHandle args_handle -> {
+							fn(^base_args, args_handle.ptr);
+						},
+						None -> {
+							e#err_msg = "[INTERNAL-ERROR]: custom_args_handle is None";
+						}
+					}
+				} else {
+					c:CustomPureFnWithoutCustomParams fn = fn_handle.ptr;
+					custom_args_handle = none;
+
+					fn(^base_args);
+				}
 				e#err_msg = NULL;
 			},
 			char^ err -> {
-				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp! Error: {err}";
+				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp and is marked @fx_fn! Error: {err}";
 			}
 		}
 	}
 	char^ ImplTypeStr() -> "fx";
 
-	static Self^ Make(char^ fn_name) -> Box<Self>.Make({ :fn_name });
+	static Self^ Make(char^ fn_name) -> Box<Self>.Make({
+		:fn_name,
+		.custom_float_layers = .(),
+		.custom_args_handle = none
+	});
+
+	List<CustomFloatLayer>^ CustomFloatLayers() {
+		return ^custom_float_layers;
+	}
 }
 
 // layer metadata

@@ -13,6 +13,8 @@ import map;
 import dylib;
 import code_manager;
 
+import script_interface;
+
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import "libavcodec/avcodec.h";
@@ -223,6 +225,9 @@ int main() {
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+
+	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
 
 	selected_elem_i = 0;
 
