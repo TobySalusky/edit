@@ -270,8 +270,8 @@ int main() {
 			AVPacket *pkt;
 			uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
-			filename = "out_video.mp2";
-			codec_name = "mpeg2video";
+			filename = "out_video.mp4";
+			codec_name = "mpeg1video";
 
 			/* find the mpeg1video encoder */
 			codec = avcodec_find_encoder_by_name(codec_name);
