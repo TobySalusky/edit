@@ -92,6 +92,8 @@ List<Element> elements = .();
 List<Layer> layers = .(); // metadata stored per-layer (layers do not directly contain elements!)
 // TODO: vid_layers & audio_layers -> combined_layers (negative indices for audio? -> rendering ui purposes?)
 
+List<Data> data_list = .();
+
 int selected_elem_i = 0;
 
 void ExportFrameThread(void^ arg) {
@@ -165,15 +167,15 @@ char^ OpenDataFileDialog(char^ title) {
 
 	c:c:`char const* const* c_filters = (char const* const*) filters;`;
 
-    char^ filePath = c:tinyfd_openFileDialog(
-        title,
-        "",
-        1,
-        c:c_filters,
-        "data files",
-        0
-    );
-    return (filePath != NULL) ? filePath | "";
+	char^ filePath = c:tinyfd_openFileDialog(
+		title,
+		"",
+		1,
+		c:c_filters,
+		"data files",
+		0
+	);
+	return (filePath != NULL) ? filePath | "";
 }
 
 
@@ -219,10 +221,11 @@ int main() {
 
 	images.reserve(max_frames);
 
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
+
+	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 
 	selected_elem_i = 0;
 
@@ -331,10 +334,13 @@ void LeftPanelUI() {
 		icon_tl = icon_tl + v2((panel_width - 40) / 3, 0);
 		if (Button(icon_tl, icon_dimens, "{data}")) {
 			char^ file_path = OpenDataFileDialog("Select a data file");
-			if (file_path != NULL) {
+			println(t"Selected data file: {file_path}");
+			if (strlen(file_path) > 0) {
 				// Load data and apply to keyframe
 				Data data = Data(file_path);
-				data.ApplyKeyframeData(elements.get(selected_elem_i));
+				// elements.get(selected_elem_i).ApplyKeyframeData(data);
+				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
+				data_list.add(data);
 				show_add_element_options = false;
 			}
 		}
@@ -930,8 +936,8 @@ void OnFileDropped() {
 		} else if (strcmp(file_type, ".csv") == 0) {
 			// Handle data file
 			Data data = Data(file_path);
-			data.ApplyKeyframeData(elements.get(selected_elem_i), current_time, (1.0 / frame_rate));
-
+			data_list.add(data);
+			elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
 		} else {
 			println(t"Unsupported file type: {file_type}");
 		}
