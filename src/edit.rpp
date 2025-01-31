@@ -15,6 +15,8 @@ import code_manager;
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import <"libavcodec/avcodec.h">;
+c:import <"libswscale/swscale.h">;
+
 
 c:import <"libavutil/opt.h">;
 c:import <"libavutil/imgutils.h">;
@@ -41,6 +43,7 @@ Texture unmuted_icon;
 c:Sound fxMP3;
 
 List<Image> images = .();
+List<Image> test_images = .();
 int max_images;
 
 int frame_rate = 60;
@@ -104,6 +107,7 @@ void ExportFrameThread(void^ arg) {
 	while (images.size <= i) { }
 	Image img = images.get(i);
 	c:ImageFlipVertical(^img);
+	
 	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
 	defer free(name);
 	img.ExportTo(name);
@@ -260,21 +264,31 @@ int main() {
 		}
 
 		if (HotKeys.Mute.IsPressed()) {
+			Image bruh;
+			// char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
+			// if (file_path != NULL) {
+			// 	bruh = Image.Load(file_path);
+			//}
+			bruh = c:LoadImageFromTexture(canvas.texture);
+			int img_width = bruh.width;
+			int img_height = bruh.height;
 			c:c:`
+			int ret;
 			const char *filename, *codec_name;
 			const AVCodec *codec;
 			AVCodecContext *c= NULL;
-			int i, ret, x, y;
 			FILE *f;
 			AVFrame *frame;
+			AVFrame *yuv_frame;
 			AVPacket *pkt;
 			uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
-			filename = "out_video.mp4";
+			filename = "out_video.mpeg";
 			codec_name = "mpeg1video";
 
 			/* find the mpeg1video encoder */
 			codec = avcodec_find_encoder_by_name(codec_name);
+			// codec = avcodec_find_encoder(AV_CODEC_ID_H264);
 			if (!codec) {
 				fprintf(stderr, "Codec '%s' not found\n", codec_name);
 				exit(1);
@@ -293,8 +307,8 @@ int main() {
 			/* put sample parameters */
 			c->bit_rate = 400000;
 			/* resolution must be a multiple of two */
-			c->width = 352;
-			c->height = 288;
+			c->width = img_width;
+			c->height = img_height;
 			/* frames per second */
 			c->time_base = (AVRational){1, 25};
 			c->framerate = (AVRational){25, 1};
@@ -325,14 +339,20 @@ int main() {
 				exit(1);
 			}
 
+			println("bruh0");
 			frame = av_frame_alloc();
-			if (!frame) {
+			yuv_frame = av_frame_alloc();
+			if (!frame || !yuv_frame) {
 				fprintf(stderr, "Could not allocate video frame\n");
 				exit(1);
 			}
-			frame->format = c->pix_fmt;
+
+			frame->format = AV_PIX_FMT_RGB24;
 			frame->width  = c->width;
 			frame->height = c->height;
+			yuv_frame->format = AV_PIX_FMT_YUV420P;
+			yuv_frame->width  = c->width;
+			yuv_frame->height = c->height;
 
 			ret = av_frame_get_buffer(frame, 0);
 			if (ret < 0) {
@@ -340,50 +360,50 @@ int main() {
 				exit(1);
 			}
 
-			/* encode 1 second of video */
-			for (i = 0; i < 25; i++) {
-				fflush(stdout);
-
-				/* Make sure the frame data is writable.
-				On the first round, the frame is fresh from av_frame_get_buffer()
-				and therefore we know it is writable.
-				But on the next rounds, encode() will have called
-				avcodec_send_frame(), and the codec may have kept a reference to
-				the frame in its internal structures, that makes the frame
-				unwritable.
-				av_frame_make_writable() checks that and allocates a new buffer
-				for the frame only if necessary.
-				*/
-				ret = av_frame_make_writable(frame);
-				if (ret < 0)
-					exit(1);
-
-				/* Prepare a dummy image.
-				In real code, this is where you would have your own logic for
-				filling the frame. FFmpeg does not care what you put in the
-				frame.
-				*/
-				/* Y */
-				for (y = 0; y < c->height; y++) {
-					for (x = 0; x < c->width; x++) {
-						frame->data[0][y * frame->linesize[0] + x] = 255;
+			struct SwsContext *sws_ctx = sws_getContext(
+				img_width, img_height, AV_PIX_FMT_RGB24,
+				img_width, img_height, AV_PIX_FMT_YUV420P,
+				SWS_BILINEAR, NULL, NULL, NULL
+			);
+			av_image_alloc(yuv_frame->data, yuv_frame->linesize, img_width, img_height, AV_PIX_FMT_YUV420P, 1);
+			`;
+			println("bruh1");
+			for (int i = 0; i < test_images.size; i++;) {
+				bruh = test_images.get(i);
+				int ret = c:av_frame_make_writable(c:frame);
+				if (ret < 0) {
+					println("dawg");
+					c:exit(1);
+				}
+				// Image bruh = images.get(150);
+				c:c:`
+				// Color *pixels = getimagecolor(bruh);
+				// unsigned char *rawPixels = (unsigned char *)bruh.data;
+				`;
+				for (int y in 0..img_height) {
+					for (int x in 0..img_width) {
+						// int index = (y * img_width + x) * 3;
+						// Color pixel = pixels[y * img_width + x];
+						Color pixel = bruh.getXY(x, y);
+						//Color test = images.get(i).getXY(0,0);
+						c:c:`
+						// frame->data[0][y * frame->linesize[0] + x * 3] = (uint8_t) rawPixels[index];
+						// frame->data[0][y * frame->linesize[0] + x * 3 + 1] = (uint8_t) rawPixels[index + 1];
+						// frame->data[0][y * frame->linesize[0] + x * 3 + 2] = (uint8_t) rawPixels[index + 2];
+						frame->data[0][y * frame->linesize[0] + x * 3] = pixel.r;
+						frame->data[0][y * frame->linesize[0] + x * 3 + 1] = pixel.g;
+						frame->data[0][y * frame->linesize[0] + x * 3 + 2] = pixel.b;
+						`;
 					}
 				}
-
-				/* Cb and Cr */
-				for (y = 0; y < c->height/2; y++) {
-					for (x = 0; x < c->width/2; x++) {
-						frame->data[1][y * frame->linesize[1] + x] = 255;
-						frame->data[2][y * frame->linesize[2] + x] = 255;
-					}
-				}
-
+				//println("bruh2");
+				c:c:`
+				sws_scale(sws_ctx, (const uint8_t * const*) frame->data, frame->linesize, 0, img_height, yuv_frame->data, yuv_frame->linesize);
 				frame->pts = i;
-
-				/* encode the image */
-				encode(c, frame, pkt, f);
+				encode(c, yuv_frame, pkt, f);
+				`;
 			}
-
+			c:c:`
 			/* flush the encoder */
 			encode(c, NULL, pkt, f);
 
@@ -399,6 +419,9 @@ int main() {
 
 			avcodec_free_context(&c);
 			av_frame_free(&frame);
+			sws_freeContext(sws_ctx);
+			av_freep(&yuv_frame->data[0]);
+			av_frame_free(&yuv_frame);
 			av_packet_free(&pkt);
 			`;
 		}
@@ -980,6 +1003,10 @@ void GameTick() {
 			// Appears equivalent to PIX_FMT_RGBA of FFMPEG
 			Image img = c:LoadImageFromTexture(canvas.texture);
 			images.add(img);
+			Image bruh = c:LoadImageFromTexture(canvas.texture);
+			c:ImageFlipVertical(^bruh);
+			test_images.add(bruh);
+
 			export_state.frames_rendered++;
 			int^ ip = malloc(sizeof<int>);
 			*ip = images.size - 1;
