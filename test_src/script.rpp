@@ -72,23 +72,6 @@ void perlin_field(FxArgs& args, PerlinArgs& margs) {
 void MyFx2(FxArgs& args) {
 	// println(t"no margs, just args");
 }
-// CustomFnHandle __scriptgen_NewFxFn_MyFx2() {
-// 	c:void^ ptr = MyFx2; // TODO: fn name -> void^ conversion
-// 	// .ptr = MyFx as c:void^, // NOTE: also doesn't work :(
-// 	return {
-// 		:ptr,
-// 		.custom_arg_t_name = NULL
-// 	};
-// }
-
-// CustomFnHandle __scriptgen_NewFxFn_MyFx() {
-// 	c:void^ ptr = MyFx; // TODO: fn name -> void^ conversion
-// 	// .ptr = MyFx as c:void^, // NOTE: also doesn't work :(
-// 	return {
-// 		:ptr,
-// 		.custom_arg_t_name = "MyArgs"
-// 	};
-// }
 
 @fx_args
 struct MyArgs {
@@ -99,38 +82,6 @@ struct MyArgs {
 	Vec2 my_scalar;
 }
 
-// CustomStructHandle __scriptgen_NewFxArgs_MyArgs() {
-// 	List<CustomStructMemberHandle> members = .();
-//
-// 	// ---
-// 	MyArgs^ args = c:calloc(1, sizeof<MyArgs>);
-// 	args#f = -3;
-// 	args#v = v2(1, 0);
-//
-// 	members.add({
-// 		.name = "f",
-// 		.ptr = ^args#f,
-// 		.t = CustomStructMemberTypeFloat{},
-// 	});
-//
-// 	members.add({
-// 		.name = "v.x",
-// 		.ptr = ^args#v.x,
-// 		.t = CustomStructMemberTypeFloat{},
-// 	});
-// 	members.add({
-// 		.name = "v.y",
-// 		.ptr = ^args#v.y,
-// 		.t = CustomStructMemberTypeFloat{},
-// 	});
-// 	// ---
-//
-// 	return {
-// 		:members,
-// 		.ptr = args
-// 	};
-// }
-
 void Bar(float h, int col, Color color, Vec2 scalar) {
 	Vec2 p = v2(col as float * (150.0 + scalar.x), 800.0 - h);
 	Vec2 dims = v2(140, h);
@@ -138,7 +89,7 @@ void Bar(float h, int col, Color color, Vec2 scalar) {
 }
 
 @fx_fn
-void MyFx(FxArgs& args, MyArgs& margs) {
+void MyFx(FxArgs& args, using MyArgs& margs) {
 	Bar(margs.bar1, 1, Colors.Red, margs.my_scalar);
 	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
 	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
