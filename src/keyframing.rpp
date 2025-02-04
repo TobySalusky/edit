@@ -59,7 +59,10 @@ struct KeyframeLayer {
 		*f_setter = this.GetValue(time);
 	}
 
-	void UI(Vec2 tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name) {
+	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
+		int i = incr;
+		let tl = global_tl + v2(0, dimens.y * i);
+
 		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
 		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
 
@@ -69,6 +72,7 @@ struct KeyframeLayer {
 			float value = (delta.x / _dims.x) * 300;
 
 			println(t"setting value to: {value} {(tl - v2(90, 0)).x} {(tl - v2(90, 0)).y} {(tl + v2(0, dimens.y)).x} {(tl + v2(0, dimens.y)).y}");
+			println(t"name of layer being set is: {name}");
 
 			Insert({
 				:value,

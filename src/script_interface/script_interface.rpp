@@ -13,13 +13,22 @@ struct FxArgs {
 
 // struct CustomStructMemberTypeInt {}
 struct CustomStructMemberTypeFloat {}
+struct CustomStructMemberTypeList {
+	CustomStructMemberType^ elem_t; // malloced!!
+	List<float>^ fs;
+
+	// TODO: delete()
+}
 // struct CustomStructMemberTypeBool {}
-// struct CustomStructMemberTypeCustomStruct {}
+// struct CustomStructMemberTypeCustomStruct {
+// 	CustomStructHandle handle;
+// }
 
 // Vec2 -> two Float fields
 choice CustomStructMemberType {
 	// CustomStructMemberTypeInt,
 	CustomStructMemberTypeFloat,
+	CustomStructMemberTypeList,
 	// CustomStructMemberTypeBool,
 	// CustomStructMemberTypeCustomStruct,
 	;
@@ -28,7 +37,14 @@ choice CustomStructMemberType {
 struct CustomStructMemberHandle {
 	char^ name;
 	void^ ptr;
-	// CustomStructMemberType t;
+	CustomStructMemberType t;
+	bool is_list() -> t is CustomStructMemberTypeList;
+
+	void delete() {
+		// if (t is CustomStructMemberTypeCustomStruct) {
+		// 	(t as CustomStructMemberTypeCustomStruct).handle.delete();
+		// }
+	}
 }
 
 struct CustomStructHandle {
@@ -45,6 +61,9 @@ struct CustomStructHandle {
 	}
 
 	void delete() {
+		for (let& member in members) {
+			member.delete();
+		}
 		members.delete();
 		free(ptr);
 	}

@@ -225,6 +225,7 @@ int main() {
 	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
 
 	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
@@ -575,15 +576,17 @@ void KeyframeTimelineUI() {
 	float max_elem_time = selected_elem.duration;
 
 	float curr_lt = current_time - selected_elem.start_time;
-	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, "x"); i++;
-	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, "y"); i++;
-	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, "scale"); i++;
-	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, "angle"); i++;
-	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, "opacity"); i++;
+	selected_elem.kl_pos_x.UI(tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
+	selected_elem.kl_pos_y.UI(tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
+	selected_elem.kl_scale.UI(tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
+	selected_elem.kl_rotation.UI(tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
+	selected_elem.kl_opacity.UI(tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
 
-	if (selected_elem.content_impl#CustomFloatLayers() != NULL) {
-		for (let& layer in *selected_elem.content_impl#CustomFloatLayers()) {
-			layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
+	if (selected_elem.content_impl#CustomLayers() != NULL) {
+		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
+			// println(t"ui for {layer.name}");
+			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
+			layer.UI(tl, kl_dimens, max_elem_time, curr_lt, layer.name, i);
 		}
 	}
 

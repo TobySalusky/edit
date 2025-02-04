@@ -23,7 +23,7 @@ PluginInfo fx_fn_info() -> {
 
 PluginCodegen fx_fn_codegen(PluginCodegenArgs args) {
 	PluginCodegen err = {
-		.code = f"int err = \"@fx_fn - error\"", 
+		.code = f"int err = \"@fx_fn - error\";", 
 		.location = PluginCodegenLocationAfter{}
 	};
 	PluginSyntaxStatementFnDecl fn = (args.syntax_node as PluginSyntaxStatement else { return err;}) as.. else { return err; };
@@ -35,7 +35,7 @@ PluginCodegen fx_fn_codegen(PluginCodegenArgs args) {
 			let type_without_ref = em.substr_til(em.len() - 1).str; // TODO: mem-leak!
 			custom_arg_t_name = t"\"{type_without_ref}\"";
 		} else {
-			err.code = f"int err = \"@fx_fn - error - arg not ref!\"";
+			err.code = f"int err = \"@fx_fn - error - arg not ref!\";";
 			return err;
 		}
 
@@ -64,31 +64,29 @@ PluginInfo fx_args_info() -> {
 
 PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 	PluginCodegen err = {
-		.code = f"int err = \"@fx_args - error\"", 
+		.code = f"int err = \"@fx_args - error\";", 
 		.location = PluginCodegenLocationAfter{}
 	};
 	PluginSyntaxStatementStructure structure = (args.syntax_node as PluginSyntaxStatement else { return err;}) as PluginSyntaxStatementStructure else { return err; };
 
-
-	// char^ from = "";
-	//
-	// List<char^> ts = List<char^>();
-	// ts.add("short");
-	// ts.add("int");
-	// ts.add("long");
-	// ts.add("float");
-	// ts.add("double");
-
 	char^ member_contents = "";
 
+	int ii = 0;
 	for (let& decl in structure.var_decls()) {
 		if (decl.type_str == NULL) { return { .code = f"cooked;", .location = PluginCodegenLocationAfter{} }; }
 
+		// NOTE: List<...> not explicitly initialized, since 0 (from calloc) == .()
 		if (str_eq(decl.type_str, "float")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}\", .ptr = ^(ptr#{decl.name}) {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
 		} else if (str_eq(decl.type_str, "Vec2")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.x\", .ptr = ^(ptr#{decl.name}.x) {'}'});";
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.y\", .ptr = ^(ptr#{decl.name}.y) {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.x\", .ptr = ^(ptr#{decl.name}.x), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.y\", .ptr = ^(ptr#{decl.name}.y), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "List<float>")) {
+			// TODO: carefull of list memory leak!!!
+			
+			// char^ v_name = t"v_{ii}";
+			// TODO: mem-leak due to Box<..>
+			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeFloat{'{'}{'}'}), .fs = ^(ptr#{decl.name}) {'}'} {'}'});";
 		} else {
 			return err;
 		}

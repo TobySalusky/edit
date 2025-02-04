@@ -7,6 +7,35 @@ import script_interface;
 int CANVAS_WIDTH = 1200;
 int CANVAS_HEIGHT = 900;
 
+@fx_args
+struct PointSwarmArgs {
+	float dot_size;
+
+	List<float> fs;
+
+	void Draw() {
+		// println(t"PointSwarmArgs: {fs.size=}");
+		for (int i in 0..(fs.size/2)) {
+			Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
+			d.Circle(p, dot_size, Colors.Green);
+
+			for (int j in 0..(fs.size/2)) {
+				if (i != j) {
+					Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
+					d.Line(p, other_p, 3, Colors.Yellow);
+				}
+			}
+		}
+	}
+}
+
+@fx_fn
+void PointSwarm(FxArgs& args, PointSwarmArgs& margs) {
+	d.Circle(v2(200, 200), 10, Colors.Green);
+	margs.Draw();
+}
+
+
 // helper for `cool_effect` effect
 List<Vec2> GenPoints(int pixels_per) {
 	List<Vec2> points = .();
