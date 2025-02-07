@@ -6,6 +6,7 @@ import std;
 import code_manager;
 import script_interface;
 import ui_elements;
+import data;
 
 interface ElementImpl {
 	void Draw(Element^ e);
@@ -297,6 +298,8 @@ struct Element {
 
 	bool visible;
 	char^ err_msg;
+	
+	Data^ data;
 
 	// name: pass NULL for auto-generated name
 	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, int layer, Vec2 pos, Vec2 scale) -> {
@@ -314,6 +317,7 @@ struct Element {
 		.kl_opacity = .(),
 		.kl_scale = .(),
 		.visible = true,
+		.data = NULL,
 		.err_msg = NULL,
 		:start_time,
 		:duration,
@@ -378,6 +382,55 @@ struct Element {
 		kl_rotation.Clear();
 		kl_opacity.Clear();
 	}
+
+	void ApplyData(Data^ data) {
+		this.data = data;
+	}
+
+	// Apply keyframe data to an element's keyframes
+    void ApplyKeyframeData(Data data, float start_time = 0.0, float frame_offset = 0.1) {
+
+        let frame_time = start_time;
+        for (let& row in data.data) {
+            let keyframe_t = frame_time;
+            frame_time = frame_time + frame_offset;
+            if (ListContainsString(data.headers, "X")) {
+                keyframe_t = row.get_float(t"Time");
+            }
+
+            if (ListContainsString(data.headers, "X")) {
+                kl_pos_x.Insert({
+                    .time = keyframe_t,
+                    .value = row.get_float(t"X")
+                });
+            }
+            if (ListContainsString(data.headers, "Y")) {
+                kl_pos_y.Insert({
+                    .time = keyframe_t,
+                    .value = row.get_float(t"Y")
+                });
+            }
+            if (ListContainsString(data.headers, "Opacity")) {
+                kl_opacity.Insert({
+                    .time = keyframe_t,
+                    .value = row.get_float(t"Opacity")
+                });
+            }
+            if (ListContainsString(data.headers, "Rotation")) {
+                kl_rotation.Insert({
+                    .time = keyframe_t,
+                    .value = row.get_float(t"Rotation")
+                });
+            }
+            if (ListContainsString(data.headers, "Scale")) {
+
+                kl_scale.Insert({
+                    .time = keyframe_t,
+                    .value = row.get_float(t"Scale")
+                });
+            }
+        }
+    }
 }
 
 // KeyframeLayer make_interesting_layer_x() {
