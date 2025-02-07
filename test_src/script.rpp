@@ -100,7 +100,6 @@ void perlin_field(FxArgs& args, PerlinArgs& margs) {
 	}
 }
 
-<<<<<<< HEAD
 @fx_fn
 void MyFx2(FxArgs& args) {
 	// println(t"no margs, just args");
@@ -127,25 +126,25 @@ void MyFx(FxArgs& args, using MyArgs& margs) {
 	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
 	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
 }
-=======
-void bar_chart(Vec2 pos, Vec2 scale, float rotation, Color color, Data^ data) {
-	if (data == NULL) {
-		return;
-	}
 
-	List<char^> bar_labels = data#headers;
-	int bar_count = bar_labels.size;
-	SpreadSheetRow& bar_heights = data#data.get(0);
+@fx_args
+struct BarChartArgs {
+	List<float> data;
+}
+
+@fx_fn
+void bar_chart(FxArgs& args, using BarChartArgs& margs) {
+	int bar_count = margs.data.size;
 
 	float max_bar_value = 0.0;
     float spacing = 5.0;
     float total_spacing = spacing * (bar_count - 1);
-    float bar_width = (scale.x - total_spacing) / bar_count;
-    float bar_height = scale.y;
+    float bar_width = (args.scale.x - total_spacing) / bar_count;
+    float bar_height = args.scale.y;
 
 	// Find max bar value
 	for (int i in 0..bar_count) {
-		float bar_value = c:atof(bar_heights.get(bar_labels.get(i))) as float;
+		float bar_value = margs.data.get(i);
 		if (bar_value > max_bar_value) {
 			max_bar_value = bar_value;
 		}
@@ -153,27 +152,27 @@ void bar_chart(Vec2 pos, Vec2 scale, float rotation, Color color, Data^ data) {
 
 	// Draw bars
     for (int i in 0..bar_count) {
-		float bar_x = spacing + pos.x as float + i as float * (bar_width + spacing);
-		float bar_value = c:atof(bar_heights.get(bar_labels.get(i))) as float;
+		float bar_x = spacing + args.pos.x as float + i as float * (bar_width + spacing);
+		float bar_value = margs.data.get(i);
 		float current_bar_height = bar_value / max_bar_value * bar_height;
-        d.Rect(.(bar_x, pos.y + scale.y - current_bar_height), .(bar_width - 10, current_bar_height), color);
+        d.Rect(.(bar_x, args.pos.y + args.scale.y - current_bar_height), .(bar_width - 10, current_bar_height), args.color);
     }
 
     // Draw x-axis
-    d.Line(v2(pos.x, pos.y + scale.y), .(pos.x + scale.x, pos.y + scale.y), 2, Colors.White);
+    d.Line(v2(args.pos.x, args.pos.y + args.scale.y), .(args.pos.x + args.scale.x, args.pos.y + args.scale.y), 2, Colors.White);
     
 	// Draw y-axis
-    d.Line(pos, .(pos.x, pos.y + scale.y), 2, Colors.White);
+    d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
 
 	// Draw x-axis ticks and labels
 	for (int i in 0..bar_count) {
-		char^ bar_label = bar_labels.get(i);
+		char^ bar_label = t"bar {i+1}";
 		int text_width = c:MeasureText(bar_label, 20);
 		
 		// Draw tick and text label
-		float tick_x = pos.x as float + i as float * (bar_width + spacing) + bar_width / 2;
-		d.Line(.(tick_x, pos.y + scale.y), .(tick_x, pos.y + 10 + scale.y), 2, Colors.White);
-		d.Text(bar_label, tick_x as int - (text_width / 2) as int, pos.y as int + 15 + scale.y as int, 20, Colors.White);
+		float tick_x = args.pos.x as float + i as float * (bar_width + spacing) + bar_width / 2;
+		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + 10 + args.scale.y), 2, Colors.White);
+		d.Text(bar_label, tick_x as int - (text_width / 2) as int, args.pos.y as int + 15 + args.scale.y as int, 20, Colors.White);
 	}
 
 	// Draw y-axis ticks and labels
@@ -186,8 +185,8 @@ void bar_chart(Vec2 pos, Vec2 scale, float rotation, Color color, Data^ data) {
 		defer c:free(curr_y_label_str);
 
 		// Draw tick and text label
-		int tick_y = pos.y as int + scale.y as int - (i + 1) * (bar_height as int / bar_count as int);
-		d.Line(.(pos.x - 10, tick_y), .(pos.x, tick_y), 2, Colors.White);
-		d.Text(curr_y_label_str, pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
+		int tick_y = args.pos.y as int + args.scale.y as int - (i + 1) * (bar_height as int / bar_count as int);
+		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
+		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
 	}
 }
