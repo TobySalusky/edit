@@ -43,7 +43,6 @@ Texture unmuted_icon;
 c:Sound fxMP3;
 
 List<Image> images = .();
-List<Image> test_images = .();
 int max_images;
 
 int frame_rate = 60;
@@ -60,6 +59,13 @@ enum ApplicationMode {
 }
 
 ApplicationMode mode = .Running;
+
+enum ExportType {
+	FFMPEG_CALL, INTERNAL;
+	bool operator:==(Self other) -> this as int == other as int;
+}
+
+ExportType export_type = ExportType.INTERNAL;
 
 float INIT_VOLUME = 0.6;
 float master_volume = INIT_VOLUME;
@@ -99,21 +105,21 @@ List<Layer> layers = .(); // metadata stored per-layer (layers do not directly c
 
 int selected_elem_i = 0;
 
-void ExportFrameThread(void^ arg) {
-	int^ i_arg = arg;
-	int i = *i_arg;
-	free(arg);
 
-	while (images.size <= i) { }
-	Image img = images.get(i);
-	c:ImageFlipVertical(^img);
+//void ExportFrameThread(void^ arg) {
+	//int^ i_arg = arg;
+	//int i = *i_arg; // images.size - 1
+	//free(arg);
+
+	//while (images.size <= i) { }
+	//Image img = images.get(i);
+	//c:ImageFlipVertical(^img);
 	
-	char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
-	defer free(name);
-	img.ExportTo(name);
-	img.Unload();
-	export_state.frames_written++;
-}
+	//char^ name = f"out/frames/{i %d05}.png"; // t"" not thread safe!
+	//defer free(name);
+	//img.Unload();
+	//export_state.frames_written++;
+//}
 
 // List<TextInput> temp_inputs = .();
 
@@ -261,169 +267,6 @@ int main() {
 		// File drop listener
 		if (c:IsFileDropped()) {
 			OnFileDropped();
-		}
-
-		if (HotKeys.Mute.IsPressed()) {
-			Image bruh;
-			// char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
-			// if (file_path != NULL) {
-			// 	bruh = Image.Load(file_path);
-			//}
-			bruh = c:LoadImageFromTexture(canvas.texture);
-			int img_width = bruh.width;
-			int img_height = bruh.height;
-			c:c:`
-			int ret;
-			const char *filename, *codec_name;
-			const AVCodec *codec;
-			AVCodecContext *c= NULL;
-			FILE *f;
-			AVFrame *frame;
-			AVFrame *yuv_frame;
-			AVPacket *pkt;
-			uint8_t endcode[] = { 0, 0, 1, 0xb7 };
-
-			filename = "out_video.mpeg";
-			codec_name = "mpeg1video";
-
-			/* find the mpeg1video encoder */
-			codec = avcodec_find_encoder_by_name(codec_name);
-			// codec = avcodec_find_encoder(AV_CODEC_ID_H264);
-			if (!codec) {
-				fprintf(stderr, "Codec '%s' not found\n", codec_name);
-				exit(1);
-			}
-
-			c = avcodec_alloc_context3(codec);
-			if (!c) {
-				fprintf(stderr, "Could not allocate video codec context\n");
-				exit(1);
-			}
-
-			pkt = av_packet_alloc();
-			if (!pkt)
-				exit(1);
-
-			/* put sample parameters */
-			c->bit_rate = 400000;
-			/* resolution must be a multiple of two */
-			c->width = img_width;
-			c->height = img_height;
-			/* frames per second */
-			c->time_base = (AVRational){1, 25};
-			c->framerate = (AVRational){25, 1};
-
-			/* emit one intra frame every ten frames
-			* check frame pict_type before passing frame
-			* to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
-			* then gop_size is ignored and the output of encoder
-			* will always be I frame irrespective to gop_size
-			*/
-			c->gop_size = 10;
-			c->max_b_frames = 1;
-			c->pix_fmt = AV_PIX_FMT_YUV420P;
-
-			if (codec->id == AV_CODEC_ID_H264)
-				av_opt_set(c->priv_data, "preset", "slow", 0);
-
-			/* open it */
-			ret = avcodec_open2(c, codec, NULL);
-			if (ret < 0) {
-				fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
-				exit(1);
-			}
-
-			f = fopen(filename, "wb");
-			if (!f) {
-				fprintf(stderr, "Could not open %s\n", filename);
-				exit(1);
-			}
-
-			println("bruh0");
-			frame = av_frame_alloc();
-			yuv_frame = av_frame_alloc();
-			if (!frame || !yuv_frame) {
-				fprintf(stderr, "Could not allocate video frame\n");
-				exit(1);
-			}
-
-			frame->format = AV_PIX_FMT_RGB24;
-			frame->width  = c->width;
-			frame->height = c->height;
-			yuv_frame->format = AV_PIX_FMT_YUV420P;
-			yuv_frame->width  = c->width;
-			yuv_frame->height = c->height;
-
-			ret = av_frame_get_buffer(frame, 0);
-			if (ret < 0) {
-				fprintf(stderr, "Could not allocate the video frame data\n");
-				exit(1);
-			}
-
-			struct SwsContext *sws_ctx = sws_getContext(
-				img_width, img_height, AV_PIX_FMT_RGB24,
-				img_width, img_height, AV_PIX_FMT_YUV420P,
-				SWS_BILINEAR, NULL, NULL, NULL
-			);
-			av_image_alloc(yuv_frame->data, yuv_frame->linesize, img_width, img_height, AV_PIX_FMT_YUV420P, 1);
-			`;
-			println("bruh1");
-			for (int i = 0; i < test_images.size; i++;) {
-				bruh = test_images.get(i);
-				int ret = c:av_frame_make_writable(c:frame);
-				if (ret < 0) {
-					println("dawg");
-					c:exit(1);
-				}
-				// Image bruh = images.get(150);
-				c:c:`
-				// Color *pixels = getimagecolor(bruh);
-				// unsigned char *rawPixels = (unsigned char *)bruh.data;
-				`;
-				for (int y in 0..img_height) {
-					for (int x in 0..img_width) {
-						// int index = (y * img_width + x) * 3;
-						// Color pixel = pixels[y * img_width + x];
-						Color pixel = bruh.getXY(x, y);
-						//Color test = images.get(i).getXY(0,0);
-						c:c:`
-						// frame->data[0][y * frame->linesize[0] + x * 3] = (uint8_t) rawPixels[index];
-						// frame->data[0][y * frame->linesize[0] + x * 3 + 1] = (uint8_t) rawPixels[index + 1];
-						// frame->data[0][y * frame->linesize[0] + x * 3 + 2] = (uint8_t) rawPixels[index + 2];
-						frame->data[0][y * frame->linesize[0] + x * 3] = pixel.r;
-						frame->data[0][y * frame->linesize[0] + x * 3 + 1] = pixel.g;
-						frame->data[0][y * frame->linesize[0] + x * 3 + 2] = pixel.b;
-						`;
-					}
-				}
-				//println("bruh2");
-				c:c:`
-				sws_scale(sws_ctx, (const uint8_t * const*) frame->data, frame->linesize, 0, img_height, yuv_frame->data, yuv_frame->linesize);
-				frame->pts = i;
-				encode(c, yuv_frame, pkt, f);
-				`;
-			}
-			c:c:`
-			/* flush the encoder */
-			encode(c, NULL, pkt, f);
-
-			/* Add sequence end code to have a real MPEG file.
-			It makes only sense because this tiny examples writes packets
-			directly. This is called "elementary stream" and only works for some
-			codecs. To create a valid file, you usually need to write packets
-			into a proper file format or protocol; see mux.c.
-			*/
-			if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
-				fwrite(endcode, 1, sizeof(endcode), f);
-			fclose(f);
-
-			avcodec_free_context(&c);
-			av_frame_free(&frame);
-			sws_freeContext(sws_ctx);
-			av_freep(&yuv_frame->data[0]);
-			av_frame_free(&yuv_frame);
-			av_packet_free(&pkt);
-			`;
 		}
 
 		d.Begin();
@@ -1002,18 +845,15 @@ void GameTick() {
 			// Images of format type: PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 == 7 (by raylib.h)
 			// Appears equivalent to PIX_FMT_RGBA of FFMPEG
 			Image img = c:LoadImageFromTexture(canvas.texture);
-			images.add(img);
-			Image bruh = c:LoadImageFromTexture(canvas.texture);
-			c:ImageFlipVertical(^bruh);
-			test_images.add(bruh);
-
-			export_state.frames_rendered++;
-			int^ ip = malloc(sizeof<int>);
-			*ip = images.size - 1;
-			go_with(ExportFrameThread, ip);
-			SetFrame(current_frame + 1);
+			if (export_type == ExportType.INTERNAL) {
+				c:ImageFlipVertical(^img);
+				images.add(img);
+				export_state.frames_rendered++;
+				SetFrame(current_frame + 1);
+			}
+			
 		}
-		if (!export_state.is_ffmpegging && export_state.frames_written == export_state.total_frames) {
+		if (!export_state.is_ffmpegging && images.size == export_state.total_frames) {
 			export_state.is_ffmpegging = true;
 			export_state.start_ffmpeg_time = c:GetTime();
 			go(ExportVideoThread);
@@ -1084,8 +924,165 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 }
 
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
-	char^ video_name = t"{output_file_name_no_path}.mp4";
-	system(f"ffmpeg -y -framerate {framerate} -pattern_type glob -i '{folder_path}/*.png' -c:v libx264 -pix_fmt yuv420p {video_name}");
+	// char^ file_path = OpenFileDialog("Select an image", "Image Files\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.psd;*.hdr;*.pic;*.ppm;*.pgm\0All Files\0*.*\0");
+	// if (file_path != NULL) {
+	// 	img = Image.Load(file_path);
+	//}
+	Image img = c:LoadImageFromTexture(canvas.texture);
+	int imgh = img.height;
+	int imgw = img.width;
+	c:c:`
+	int ret;
+	const char *filename, *codec_name;
+	const AVCodec *codec;
+	AVCodecContext *c= NULL;
+	FILE *f;
+	AVFrame *frame;
+	AVFrame *yuv_frame;
+	AVPacket *pkt;
+	uint8_t endcode[] = { 0, 0, 1, 0xb7 };
+
+	filename = "out_video.mpeg";
+	codec_name = "mpeg1video";
+
+	/* find the mpeg1video encoder */
+	codec = avcodec_find_encoder_by_name(codec_name);
+	// codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+	if (!codec) {
+		fprintf(stderr, "Codec '%s' not found\n", codec_name);
+		exit(1);
+	}
+
+	c = avcodec_alloc_context3(codec);
+	if (!c) {
+		fprintf(stderr, "Could not allocate video codec context\n");
+		exit(1);
+	}
+
+	pkt = av_packet_alloc();
+	if (!pkt)
+		exit(1);
+
+	/* put sample parameters */
+	c->bit_rate = 400000;
+	/* resolution must be a multiple of two */
+	c->width = imgw;
+	c->height = imgh;
+	/* frames per second */
+	c->time_base = (AVRational){1, 25};
+	c->framerate = (AVRational){25, 1};
+
+	/* emit one intra frame every ten frames
+	* check frame pict_type before passing frame
+	* to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+	* then gop_size is ignored and the output of encoder
+	* will always be I frame irrespective to gop_size
+	*/
+	c->gop_size = 10;
+	c->max_b_frames = 1;
+	c->pix_fmt = AV_PIX_FMT_YUV420P;
+
+	if (codec->id == AV_CODEC_ID_H264)
+		av_opt_set(c->priv_data, "preset", "slow", 0);
+
+	/* open it */
+	ret = avcodec_open2(c, codec, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
+		exit(1);
+	}
+
+	f = fopen(filename, "wb");
+	if (!f) {
+		fprintf(stderr, "Could not open %s\n", filename);
+		exit(1);
+	}
+
+	println("Creating YUV frame");
+	frame = av_frame_alloc();
+	yuv_frame = av_frame_alloc();
+	if (!frame || !yuv_frame) {
+		fprintf(stderr, "Could not allocate video frame\n");
+		exit(1);
+	}
+
+	frame->format = AV_PIX_FMT_RGB24;
+	frame->width  = c->width;
+	frame->height = c->height;
+	yuv_frame->format = AV_PIX_FMT_YUV420P;
+	yuv_frame->width  = c->width;
+	yuv_frame->height = c->height;
+
+	ret = av_frame_get_buffer(frame, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Could not allocate the video frame data\n");
+		exit(1);
+	}
+
+	struct SwsContext *sws_ctx = sws_getContext(
+		c->width, c->height, AV_PIX_FMT_RGB24,
+		c->width, c->height, AV_PIX_FMT_YUV420P,
+		SWS_BILINEAR, NULL, NULL, NULL
+	);
+	av_image_alloc(yuv_frame->data, yuv_frame->linesize, c->width, c->height, AV_PIX_FMT_YUV420P, 1);
+	`;
+	println("Context created");
+	for (int i = 0; i < images.size; i++;) {
+		img = images.get(i);
+		defer img.Unload();
+		int ret = c:av_frame_make_writable(c:frame);
+		if (ret < 0) {
+			println("Invalid frame returned");
+			c:exit(1);
+		}
+		c:c:`
+		// Color *pixels = getimagecolor(img);
+		// unsigned char *rawPixels = (unsigned char *)img.data;
+		`;
+		for (int y in 0..canvas_height) {
+			for (int x in 0..canvas_width) {
+				// int index = (y * canvas_width + x) * 3;
+				// Color pixel = pixels[y * canvas_width + x];
+				Color pixel = img.getXY(x, y);
+				//Color test = images.get(i).getXY(0,0);
+				c:c:`
+				// frame->data[0][y * frame->linesize[0] + x * 3] = (uint8_t) rawPixels[index];
+				// frame->data[0][y * frame->linesize[0] + x * 3 + 1] = (uint8_t) rawPixels[index + 1];
+				// frame->data[0][y * frame->linesize[0] + x * 3 + 2] = (uint8_t) rawPixels[index + 2];
+				frame->data[0][y * frame->linesize[0] + x * 3] = pixel.r;
+				frame->data[0][y * frame->linesize[0] + x * 3 + 1] = pixel.g;
+				frame->data[0][y * frame->linesize[0] + x * 3 + 2] = pixel.b;
+				`;
+			}
+		}
+		c:c:`
+		sws_scale(sws_ctx, (const uint8_t * const*) frame->data, frame->linesize, 0, canvas_height, yuv_frame->data, yuv_frame->linesize);
+		frame->pts = i;
+		encode(c, yuv_frame, pkt, f);
+		`;
+	}
+	c:c:`
+	/* flush the encoder */
+	encode(c, NULL, pkt, f);
+
+	/* Add sequence end code to have a real MPEG file.
+	It makes only sense because this tiny examples writes packets
+	directly. This is called "elementary stream" and only works for some
+	codecs. To create a valid file, you usually need to write packets
+	into a proper file format or protocol; see mux.c.
+	*/
+	if (codec->id == AV_CODEC_ID_MPEG1VIDEO || codec->id == AV_CODEC_ID_MPEG2VIDEO)
+		fwrite(endcode, 1, sizeof(endcode), f);
+	fclose(f);
+
+	avcodec_free_context(&c);
+	av_frame_free(&frame);
+	sws_freeContext(sws_ctx);
+	av_freep(&yuv_frame->data[0]);
+	av_frame_free(&yuv_frame);
+	av_packet_free(&pkt);
+	`;
+	images = .(); // Clear images list
 }
 
 void OnFileDropped() {
