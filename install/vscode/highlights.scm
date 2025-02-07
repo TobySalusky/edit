@@ -85,6 +85,7 @@
  "defer"
  "sizeof"
  "static"
+ "using"
 ] @keyword
 
 [
