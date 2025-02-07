@@ -4,12 +4,16 @@ import maths;
 import theming;
 import std;
 import code_manager;
+import script_interface;
+import ui_elements;
 import data;
 
 interface ElementImpl {
 	void Draw(Element^ e);
 
 	char^ ImplTypeStr();
+
+	List<CustomLayer>^ CustomLayers();
 }
 struct RectElement : ElementImpl {
 	void Draw(Element^ e) {
@@ -17,6 +21,7 @@ struct RectElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "rect";
+	List<CustomLayer>^ CustomLayers() -> NULL;
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -27,6 +32,7 @@ struct CircleElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "circle";
+	List<CustomLayer>^ CustomLayers() -> NULL;
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -57,31 +63,198 @@ struct ImageElement : ElementImpl {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 	char^ ImplTypeStr() -> "img";
+	List<CustomLayer>^ CustomLayers() -> NULL;
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
 
-c:`typedef void(*CustomPureFn)(Vec2, Vec2, float, Color, Data*);`;
+c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
+c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
+c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
+c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
+
+struct CustomLayerFloat {
+	float^ value;
+	KeyframeLayer kl_value;
+}
+
+struct CustomLayerList {
+	List<CustomLayer> layers;
+	List<float>^ fs;
+
+	void AddFloatLayer() {
+		fs#add(0); // TODO: check whether resized
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerFloat{
+				.value = NULL, // NOTE: malloc float???
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		// set to float list internals!
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerFloat).value = ^fs#get(i);
+		}
+	}
+
+	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
+		int i = incr;
+		let tl = global_tl + v2(0, dimens.y * i);
+
+		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
+		d.Text("[]", (tl.x - 90 + c:MeasureText(name, 16) + 2) as.., tl.y as.., 16, Colors.SkyBlue);
+
+		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
+
+		if (Button(tl, dimens, "+")) {
+			AddFloatLayer();
+		}
+	}
+}
+
+choice CustomLayerKind {
+	CustomLayerFloat,
+	CustomLayerList,
+}
+
+struct CustomLayer {
+	char^ name;
+	CustomLayerKind kind;
+
+	void UpdateState(float lt) {
+		switch (kind) {
+			CustomLayerFloat it -> {
+				it.kl_value.SetFloat(it.value, lt);
+			},
+			CustomLayerList it -> {
+				for (let& layer in it.layers) {
+					layer.UpdateState(lt);
+				}
+			}
+		}
+	}
+
+	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
+		int i = incr;
+		let tl = global_tl + v2(0, dimens.y * i);
+
+		switch (kind) {
+			CustomLayerFloat it -> {
+				let& em = kind as CustomLayerFloat;
+				em.kl_value.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				incr++;
+			},
+			CustomLayerList it -> { // it is NOT ref!!??
+				let& em = kind as CustomLayerList;
+				em.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				incr++;
+				for (let& layer in em.layers) {
+					layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
+				}
+			}
+		}
+
+	}
+
+	bool deleted_member; // true when this used to be a named member, but has since been removed/renamed
+}
 
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
+	List<CustomLayer> custom_float_layers;
+	Opt<CustomStructHandle> custom_args_handle;
 
 	void Draw(Element^ e) {
-		let fn_res = code_man.GetFn(fn_name);
-		switch (fn_res) {
+		let fn_getter_res = code_man.GetFn(t"__scriptgen_NewFxFn_{fn_name}"); // creates handle
+
+		switch (fn_getter_res) {
 			void^ ok -> {
-				c:CustomPureFn fn = ok;
-				fn(e#pos, e#scale, e#rotation, e#color, e#data);
+				c:CustomPureFnGetter fn_getter = ok;
+				CustomFnHandle fn_handle = fn_getter();
+
+				FxArgs base_args = {
+					.pos = e#pos,
+					.scale = e#scale,
+					.rotation = e#rotation,
+					.color = e#color,
+				};
+
+				if (fn_handle.custom_arg_t_name != NULL) {
+					c:CustomPureFnWithCustomParams fn = fn_handle.ptr;
+
+					if (custom_args_handle is None) {
+						let fx_new_fn_name = t"__scriptgen_NewFxArgs_{fn_handle.custom_arg_t_name}";
+						let fn_args_new_res = code_man.GetFn(fx_new_fn_name); // creates handle
+						switch (fn_args_new_res) {
+							void^ ok -> {
+								c:CustomArgsNewFn args_new_fn = ok;
+								CustomStructHandle the_struct_handle = args_new_fn();
+								println(t"called {fx_new_fn_name}");
+
+								custom_float_layers = .();
+								for (let& member in the_struct_handle.members) {
+									custom_float_layers.add({
+										.name = member.name,
+										.deleted_member = false,
+										.kind = match (member.t) {
+											CustomStructMemberTypeFloat -> CustomLayerFloat{
+												.value = member.ptr,
+												.kl_value = .(),
+											},
+											CustomStructMemberTypeList -> CustomLayerList{
+												.layers = .(),
+												.fs = (member.t as CustomStructMemberTypeList).fs
+											}
+										}
+									});
+								}
+								custom_args_handle = the_struct_handle;
+							},
+							char^ err -> {
+								e#err_msg = t"failed to create new custom args `{fn_handle.custom_arg_t_name}`";
+								return;
+							}
+						}
+					}
+
+					switch (custom_args_handle) {
+						CustomStructHandle args_handle -> {
+							fn(^base_args, args_handle.ptr);
+						},
+						None -> {
+							e#err_msg = "[INTERNAL-ERROR]: custom_args_handle is None";
+						}
+					}
+				} else {
+					c:CustomPureFnWithoutCustomParams fn = fn_handle.ptr;
+					custom_args_handle = none;
+
+					fn(^base_args);
+				}
 				e#err_msg = NULL;
 			},
 			char^ err -> {
-				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp! Error: {err}";
+				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp and is marked @fx_fn! Error: {err}";
 			}
 		}
 	}
 	char^ ImplTypeStr() -> "fx";
 
-	static Self^ Make(char^ fn_name) -> Box<Self>.Make({ :fn_name });
+	static Self^ Make(char^ fn_name) -> Box<Self>.Make({
+		:fn_name,
+		.custom_float_layers = .(),
+		.custom_args_handle = none
+	});
+
+	List<CustomLayer>^ CustomLayers() {
+		return ^custom_float_layers;
+	}
 }
 
 // layer metadata
@@ -188,6 +361,14 @@ struct Element {
 
 		kl_rotation.SetFloat(^rotation, lt);
 		kl_opacity.SetFloat(^opacity, lt);
+
+		// TODO: color
+
+		if (content_impl#CustomLayers() != NULL) {
+			for (let& layer in *content_impl#CustomLayers()) {
+				layer.UpdateState(lt);
+			}
+		}
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
 		// pos = v2(300, 200) * v2(t, t);

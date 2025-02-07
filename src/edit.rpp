@@ -13,6 +13,8 @@ import map;
 import dylib;
 import code_manager;
 
+import script_interface;
+
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import "libavcodec/avcodec.h";
@@ -221,9 +223,14 @@ int main() {
 
 	images.reserve(max_frames);
 
-	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
+
+	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
 
 	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 
@@ -574,11 +581,21 @@ void KeyframeTimelineUI() {
 	int kl_height = height / 5;
 	Vec2 kl_dimens = v2(dimens.x, kl_height);
 	float max_elem_time = selected_elem.duration;
-	selected_elem.kl_pos_x.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "x"); i++;
-	selected_elem.kl_pos_y.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "y"); i++;
-	selected_elem.kl_scale.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "scale"); i++;
-	selected_elem.kl_rotation.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "angle"); i++;
-	selected_elem.kl_opacity.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, "opacity"); i++;
+
+	float curr_lt = current_time - selected_elem.start_time;
+	selected_elem.kl_pos_x.UI(tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
+	selected_elem.kl_pos_y.UI(tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
+	selected_elem.kl_scale.UI(tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
+	selected_elem.kl_rotation.UI(tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
+	selected_elem.kl_opacity.UI(tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
+
+	if (selected_elem.content_impl#CustomLayers() != NULL) {
+		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
+			// println(t"ui for {layer.name}");
+			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
+			layer.UI(tl, kl_dimens, max_elem_time, curr_lt, layer.name, i);
+		}
+	}
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		keyframe_timeline_dragging = true;

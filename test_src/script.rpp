@@ -1,16 +1,46 @@
 import std;
 import rl;
 import perlin; // used by `perlin_field` effect
+import list;
+import script_interface;
 import data;
 
 int CANVAS_WIDTH = 1200;
 int CANVAS_HEIGHT = 900;
 
-// helper for `cool_effect` effect
-List<Vec2> GenPoints() {
-	List<Vec2> points = .();
+@fx_args
+struct PointSwarmArgs {
+	float dot_size;
 
-	int pixels_per = 120;
+	List<float> fs;
+
+	void Draw() {
+		// println(t"PointSwarmArgs: {fs.size=}");
+		for (int i in 0..(fs.size/2)) {
+			Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
+			d.Circle(p, dot_size, Colors.Green);
+
+			for (int j in 0..(fs.size/2)) {
+				if (i != j) {
+					Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
+					d.Line(p, other_p, 3, Colors.Yellow);
+				}
+			}
+		}
+	}
+}
+
+@fx_fn
+void PointSwarm(FxArgs& args, PointSwarmArgs& margs) {
+	d.Circle(v2(200, 200), 10, Colors.Green);
+	margs.Draw();
+}
+
+
+// helper for `cool_effect` effect
+List<Vec2> GenPoints(int pixels_per) {
+	pixels_per = std.maxi(1, pixels_per);
+	List<Vec2> points = .();
 
 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
 		points.add(.(i*pixels_per, 0));
@@ -23,42 +53,81 @@ List<Vec2> GenPoints() {
 
 	return points;
 }
-List<Vec2> points = GenPoints();
+// List<Vec2> points = GenPoints();
 
 // EFFECTS --------
-// void my_fx(ElementInfo& info, float ray_density, int some_custom_var) {
-// 	info.pos; info.scale; 
-// }
+@fx_args
+struct CoolArgs {
+	float pixels_per;
+}
 
-void cool_effect(Vec2 pos, Vec2 scale, float rotation, Color color) {
-	Vec2 center = pos + scale.divide(2);
+@fx_fn
+void cool_effect(FxArgs& args, CoolArgs& margs) {
+	Vec2 center = args.pos + args.scale.divide(2);
 
+	let points = GenPoints(margs.pixels_per as int);
+	defer points.delete();
 	for (let p in points) {
 		d.Line(p, center, 3, Colors.Orange);
 	}
 
 	d.Circle(center, 11, Colors.Black);
-	d.Circle(center, 10, color);
+	d.Circle(center, 10, args.color);
 }
 
-void perlin_field(Vec2 pos, Vec2 scale, float rotation, Color color) {
+@fx_args
+struct PerlinArgs {
+	float dot_size;
+}
+
+@fx_fn
+void perlin_field(FxArgs& args, PerlinArgs& margs) {
 	float factor = 0.1;
 	float pos_factor = 0.01;
-	int dot_size = 120;
+	int dot_size = std.maxi(margs.dot_size as int, 1);
+
 	Vec2 stride = .(CANVAS_WIDTH / dot_size, CANVAS_HEIGHT / dot_size);
 
 	for (int col in 0..dot_size) {
 		for (int row in 0..dot_size) {
-			float x = pos.x * pos_factor + factor * col;
-			float y = pos.y * pos_factor + factor * row;
-			float z = pos.x * pos_factor - pos.y * pos_factor / 2;
+			float x = args.pos.x * pos_factor + factor * col;
+			float y = args.pos.y * pos_factor + factor * row;
+			float z = args.pos.x * pos_factor - args.pos.y * pos_factor / 2;
 
 			float noise = stb.perlin.turbulence_noise3(x, y, z, 2, 0.5, 6);
-			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, color, noise));
+			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, args.color, noise));
 		}
 	}
 }
 
+<<<<<<< HEAD
+@fx_fn
+void MyFx2(FxArgs& args) {
+	// println(t"no margs, just args");
+}
+
+@fx_args
+struct MyArgs {
+	float bar1;
+	float bar2;
+	float bar3;
+
+	Vec2 my_scalar;
+}
+
+void Bar(float h, int col, Color color, Vec2 scalar) {
+	Vec2 p = v2(col as float * (150.0 + scalar.x), 800.0 - h);
+	Vec2 dims = v2(140, h);
+	d.Rect(p, dims * (scalar.divide(300) + v2(1, 1)), color);
+}
+
+@fx_fn
+void MyFx(FxArgs& args, using MyArgs& margs) {
+	Bar(margs.bar1, 1, Colors.Red, margs.my_scalar);
+	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
+	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
+}
+=======
 void bar_chart(Vec2 pos, Vec2 scale, float rotation, Color color, Data^ data) {
 	if (data == NULL) {
 		return;
