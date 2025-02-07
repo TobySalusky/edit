@@ -16,3 +16,4 @@ plugin_out/
 test_resource/
 
 build/
+plugin_build/

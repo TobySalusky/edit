@@ -38,6 +38,7 @@ void PointSwarm(FxArgs& args, PointSwarmArgs& margs) {
 
 // helper for `cool_effect` effect
 List<Vec2> GenPoints(int pixels_per) {
+	pixels_per = std.maxi(1, pixels_per);
 	List<Vec2> points = .();
 
 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
@@ -82,7 +83,8 @@ struct PerlinArgs {
 void perlin_field(FxArgs& args, PerlinArgs& margs) {
 	float factor = 0.1;
 	float pos_factor = 0.01;
-	int dot_size = margs.dot_size as int;
+	int dot_size = std.maxi(margs.dot_size as int, 1);
+
 	Vec2 stride = .(CANVAS_WIDTH / dot_size, CANVAS_HEIGHT / dot_size);
 
 	for (int col in 0..dot_size) {
