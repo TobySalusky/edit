@@ -17,10 +17,17 @@ c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import <"libavcodec/avcodec.h">;
 c:import <"libswscale/swscale.h">;
+c:import <"pthread.h">;
 
 
 c:import <"libavutil/opt.h">;
 c:import <"libavutil/imgutils.h">;
+
+// MUTEXES
+
+c:pthread_mutex_t images_lock;
+c:pthread_cond_t less;
+c:pthread_cond_t more;
 
 int window_width = 1200;
 int window_height = 900;
@@ -243,7 +250,7 @@ int main() {
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
-	fxMP3 = c:LoadSound("assets/Spain.mp3");
+	fxMP3 = c:LoadSound("assets/grant_etude.mp3");
 	defer c:UnloadSound(fxMP3);
 
 	c:SetMasterVolume(master_volume);
@@ -265,7 +272,7 @@ int main() {
 
 	images.reserve(max_frames);
 
-	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 5, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 
@@ -832,8 +839,6 @@ void GameTick() {
 		SetMode(.Exporting);
 		export_state = make_export_state();
 		SetFrame(0);
-
-		io.mkdir("out/frames");
 	}
 
 	if (HotKeys.ToggleHideUIFullscreenPlayback.IsPressed()) {
@@ -875,19 +880,30 @@ void GameTick() {
 		if (new_time > max_time) { new_time = 0; }
 		SetTime(new_time);
 	} else if (is_exporting()) {
-		if (images.size < max_frames) {
+		if (export_state.frames_rendered < max_frames) {
 			// Images of format type: PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 == 7 (by raylib.h)
 			// Appears equivalent to PIX_FMT_RGBA of FFMPEG
 			Image img = c:LoadImageFromTexture(canvas.texture);
 			if (export_type == ExportType.INTERNAL) {
 				c:ImageFlipVertical(^img);
+				c:c:`
+				pthread_mutex_lock(&images_lock);
+				while (images.size >= images.capacity) {
+					pthread_cond_wait(&less, &images_lock);
+				}
+				`;
 				images.add(img);
+				c:c:`
+				pthread_cond_signal(&more);
+				pthread_mutex_unlock(&images_lock);
+				`;
+
 				export_state.frames_rendered++;
 				SetFrame(current_frame + 1);
 			}
 			
 		}
-		if (!export_state.is_ffmpegging && images.size == export_state.total_frames) {
+		if (!export_state.is_ffmpegging) {
 			export_state.is_ffmpegging = true;
 			export_state.start_ffmpeg_time = c:GetTime();
 			go(ExportVideoThread);
@@ -1061,8 +1077,18 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	av_image_alloc(yuv_frame->data, yuv_frame->linesize, c->width, c->height, AV_PIX_FMT_YUV420P, 1);
 	`;
 	println("Context created");
-	for (int i = 0; i < images.size; i++;) {
-		img = images.get(i);
+	while (export_state.frames_written < export_state.total_frames) {
+		c:c:`
+		pthread_mutex_lock(&images_lock);
+		while (images.size <= 0) {
+			pthread_cond_wait(&more, &images_lock);
+		}
+		`;
+		img = images.remove_at(0);
+		c:c:`
+		pthread_cond_signal(&less);
+		pthread_mutex_unlock(&images_lock);
+		`;
 		defer img.Unload();
 		int ret = c:av_frame_make_writable(c:frame);
 		if (ret < 0) {
@@ -1091,9 +1117,10 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 		}
 		c:c:`
 		sws_scale(sws_ctx, (const uint8_t * const*) frame->data, frame->linesize, 0, canvas_height, yuv_frame->data, yuv_frame->linesize);
-		frame->pts = i;
+		frame->pts = export_state.frames_written;
 		encode(c, yuv_frame, pkt, f);
 		`;
+		export_state.frames_written++;
 	}
 	c:c:`
 	/* flush the encoder */
