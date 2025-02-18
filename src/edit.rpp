@@ -1074,6 +1074,9 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 		c->width, c->height, AV_PIX_FMT_YUV420P,
 		SWS_BILINEAR, NULL, NULL, NULL
 	);
+	if (!sws_ctx) {
+		exit(1);
+	}
 	av_image_alloc(yuv_frame->data, yuv_frame->linesize, c->width, c->height, AV_PIX_FMT_YUV420P, 1);
 	`;
 	println("Context created");
@@ -1144,6 +1147,7 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	av_packet_free(&pkt);
 	`;
 	images = .(); // Clear images list
+	SetMode(.Running);
 }
 
 void OnFileDropped() {
