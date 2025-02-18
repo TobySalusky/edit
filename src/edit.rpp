@@ -7,11 +7,14 @@ import ui_elements;
 import maths;
 import data;
 
+import ffmpeg_encoding;
+
 import std;
 import map;
 
 import dylib;
 import code_manager;
+
 
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
@@ -180,37 +183,7 @@ char^ OpenImageFileDialog(char^ title) {
     return (filePath != NULL) ? filePath | "";
 }
 
-c:c:`
-static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
-                   FILE *outfile)
-{
-    int ret;
 
-    /* send the frame to the encoder */
-    if (frame)
-        printf("Send frame %3"PRId64"\n", frame->pts);
-
-    ret = avcodec_send_frame(enc_ctx, frame);
-    if (ret < 0) {
-        fprintf(stderr, "Error sending a frame for encoding\n");
-        exit(1);
-    }
-
-    while (ret >= 0) {
-        ret = avcodec_receive_packet(enc_ctx, pkt);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-            return;
-        else if (ret < 0) {
-            fprintf(stderr, "Error during encoding\n");
-            exit(1);
-        }
-
-        printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
-        fwrite(pkt->data, 1, pkt->size, outfile);
-        av_packet_unref(pkt);
-    }
-}
-`;
 
 char^ OpenDataFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
@@ -1121,13 +1094,15 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 		c:c:`
 		sws_scale(sws_ctx, (const uint8_t * const*) frame->data, frame->linesize, 0, canvas_height, yuv_frame->data, yuv_frame->linesize);
 		frame->pts = export_state.frames_written;
-		encode(c, yuv_frame, pkt, f);
 		`;
+		encode(c:c, c:yuv_frame, c:pkt, c:f);
+		
 		export_state.frames_written++;
 	}
+	encode(c:c, NULL, c:pkt, c:f);
 	c:c:`
 	/* flush the encoder */
-	encode(c, NULL, pkt, f);
+	
 
 	/* Add sequence end code to have a real MPEG file.
 	It makes only sense because this tiny examples writes packets
