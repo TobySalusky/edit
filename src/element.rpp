@@ -255,6 +255,11 @@ struct CustomPureFnElement : ElementImpl {
 	List<CustomLayer>^ CustomLayers() {
 		return ^custom_float_layers;
 	}
+
+	void AddCustomLayer(Data data) {
+		CustomLayerFloat layer = 
+		custom_float_layers.add(layer);
+	}
 }
 
 // layer metadata
