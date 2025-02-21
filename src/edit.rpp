@@ -889,14 +889,26 @@ void GameTick() {
 			Image img = c:LoadImageFromTexture(canvas.texture);
 			if (export_type == ExportType.INTERNAL) {
 				c:ImageFlipVertical(^img);
+				c:c:`
+				pthread_mutex_lock(&images_lock);
+				// Look, I'm sorry, but it works when this doesn't wait.
+				// We can make it make sense later
+				while (images.size == images.capacity) {
+					pthread_cond_wait(&less, &images_lock);
+				}
+				`;
 				images.add(img);
+				c:c:`
+				pthread_cond_signal(&more);
+				pthread_mutex_unlock(&images_lock);
+				`;
 
 				export_state.frames_rendered++;
 				SetFrame(current_frame + 1);
 			}
 			
 		}
-		if (!export_state.is_ffmpegging && export_state.frames_rendered == max_frames) {
+		if (!export_state.is_ffmpegging) {
 			export_state.is_ffmpegging = true;
 			export_state.start_ffmpeg_time = c:GetTime();
 			go(ExportVideoThread);
@@ -1380,7 +1392,17 @@ static void open_video(AVFormatContext *oc, const AVCodec *codec,
 void fill_yuv_image(c:AVFrame ^pict, int frame_index, int width, int height)
 {
 	if (export_state.frames_written < export_state.total_frames) {
+		c:c:`
+		pthread_mutex_lock(&images_lock);
+		while (images.size < 0) {
+			pthread_cond_wait(&more, &images_lock);
+		}
+		`;
 		Image img = images.remove_at(0);
+		c:c:`
+		pthread_cond_signal(&less);
+		pthread_mutex_unlock(&images_lock);
+		`;
 		defer img.Unload();
 
 		for (int y in 0..height) {
@@ -1572,7 +1594,6 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
     /* free the stream */
     avformat_free_context(oc);
 	`;
-	images = .();
 	SetMode(.Running);
 }
 
