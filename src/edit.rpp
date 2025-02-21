@@ -37,6 +37,8 @@ c:pthread_mutex_t images_lock;
 c:pthread_cond_t less;
 c:pthread_cond_t more;
 
+// Canvas and window
+
 int window_width = 1200;
 int window_height = 900;
 Vec2 window_dimens = v2(window_width, window_height);
@@ -56,10 +58,14 @@ Texture pause_icon;
 Texture muted_icon;
 Texture unmuted_icon;
 
+// Audio
+
 c:Sound fxMP3;
 
 List<Image> images = .();
 int max_images;
+
+// Video
 
 int frame_rate = 60;
 
@@ -68,6 +74,9 @@ float current_time = 0;
 float max_time = 5;
 int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
+
+float STREAM_DURATION = time_per_frame * max_frames;
+int STREAM_FRAME_RATE = frame_rate;
 
 enum ApplicationMode {
 	Running, Exporting, Paused;
@@ -942,8 +951,6 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 }
 
 c:c:`
-#define STREAM_DURATION   10.0
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 
 #define SCALE_FLAGS SWS_BICUBIC
