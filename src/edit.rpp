@@ -891,8 +891,6 @@ void GameTick() {
 				c:ImageFlipVertical(^img);
 				c:c:`
 				pthread_mutex_lock(&images_lock);
-				// Look, I'm sorry, but it works when this doesn't wait.
-				// We can make it make sense later
 				while (images.size == images.capacity) {
 					pthread_cond_wait(&less, &images_lock);
 				}
