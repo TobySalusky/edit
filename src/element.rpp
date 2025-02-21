@@ -255,11 +255,6 @@ struct CustomPureFnElement : ElementImpl {
 	List<CustomLayer>^ CustomLayers() {
 		return ^custom_float_layers;
 	}
-
-	void AddCustomLayer(Data data) {
-		CustomLayerFloat layer = 
-		custom_float_layers.add(layer);
-	}
 }
 
 // layer metadata
@@ -394,12 +389,49 @@ struct Element {
 
 	// Apply keyframe data to an element's keyframes
     void ApplyKeyframeData(Data data, float start_time = 0.0, float frame_offset = 0.1) {
-
         let frame_time = start_time;
+
+		// Custom float data
+		if (content_impl#CustomLayers() != NULL && ListContainsString(data.headers, "Value")) {
+			for (let& layer in *content_impl#CustomLayers()) {
+				if (layer.kind is CustomLayerList) {
+					let& layer_list = layer.kind as CustomLayerList;
+					StrMap<int> layer_map = .();
+	
+					// Create a map of layer names to CustomLayerFloat
+					for (let i = 0; i < layer_list.layers.size; i++;) {
+						let layer_name = layer_list.layers.get(i).name;
+						layer_map.put(layer_name, i);
+					}
+	
+					// Insert keyframes into the appropriate layer
+					for (let i = 0; i < data.data.size; i++;) {
+						let row = data.data.get(i);
+						let layer_name = row.get(t"Name");
+						let value = row.get_float(t"Value");
+						let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
+	
+						if (!layer_map.has(layer_name)) {
+							layer_list.AddFloatLayer();
+							let new_layer = ^layer_list.layers.get(layer_list.layers.size - 1);
+							new_layer#name = layer_name;
+							layer_map.put(layer_name, layer_list.layers.size - 1);
+						}
+	
+						(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
+							.time = keyframe,
+							.value = value
+						});
+					}
+				}
+			}
+		}
+
+		// Default keyframed parameters
         for (let& row in data.data) {
             let keyframe_t = frame_time;
             frame_time = frame_time + frame_offset;
-            if (ListContainsString(data.headers, "X")) {
+            if (ListContainsString(data.headers, "Time")) {
                 keyframe_t = row.get_float(t"Time");
             }
 
@@ -428,7 +460,6 @@ struct Element {
                 });
             }
             if (ListContainsString(data.headers, "Scale")) {
-
                 kl_scale.Insert({
                     .time = keyframe_t,
                     .value = row.get_float(t"Scale")
