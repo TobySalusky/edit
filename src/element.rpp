@@ -165,6 +165,7 @@ struct CustomLayer {
 	bool deleted_member; // true when this used to be a named member, but has since been removed/renamed
 }
 
+
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
 	List<CustomLayer> custom_float_layers;
@@ -175,6 +176,7 @@ struct CustomPureFnElement : ElementImpl {
 
 		switch (fn_getter_res) {
 			void^ ok -> {
+
 				c:CustomPureFnGetter fn_getter = ok;
 				CustomFnHandle fn_handle = fn_getter();
 
@@ -237,6 +239,7 @@ struct CustomPureFnElement : ElementImpl {
 
 					fn(^base_args);
 				}
+
 				e#err_msg = NULL;
 			},
 			char^ err -> {
