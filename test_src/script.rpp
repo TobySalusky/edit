@@ -190,3 +190,71 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
 	}
 }
+
+@fx_fn
+void pie_chart(FxArgs& args, using BarChartArgs& margs) {
+
+	List<Color> default_colors = .();
+	default_colors.add(Colors.Lightgray);
+	default_colors.add(Colors.Gray);
+	default_colors.add(Colors.DarkGray);
+	default_colors.add(Colors.Yellow);
+	default_colors.add(Colors.Gold);
+	default_colors.add(Colors.Orange);
+	default_colors.add(Colors.Pink);
+	default_colors.add(Colors.Red);
+	default_colors.add(Colors.Maroon);
+	default_colors.add(Colors.Green);
+	default_colors.add(Colors.Lime);
+	default_colors.add(Colors.DarkGreen);
+	default_colors.add(Colors.SkyBlue);
+	default_colors.add(Colors.Blue);
+	default_colors.add(Colors.DarkBlue);
+	default_colors.add(Colors.Purple);
+	default_colors.add(Colors.Violet);
+	default_colors.add(Colors.DarkPurple);
+	default_colors.add(Colors.Beige);
+	default_colors.add(Colors.Brown);
+
+    float total = 0.0;
+    for (int i in 0..margs.data.size) {
+        total = total + margs.data.get(i);
+    }
+	
+    float angle = 0.0;
+    Vec2 center = args.pos + args.scale.divide(2);
+    float radius = args.scale.x / 2;
+	
+    for (int i in 0..margs.data.size) {
+        float value = margs.data.get(i);
+        float slice_angle = value / total * 360.0;
+        float end_angle = angle + slice_angle;
+
+        // Draw the slice
+        DrawCustomTriangleFan(center, radius, angle, end_angle, default_colors.get(i % 20));
+
+        angle = end_angle;
+    }
+}
+
+// TODO: Make part of rl?
+void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float endAngle, Color color) {
+	int segments = 100; // Number of segments to approximate the circle
+	float angleStep = (endAngle - startAngle) / segments;
+
+	List<Vec2> points = .();
+	points.add(center);
+
+	for (int i = 0; i <= segments; i++;) {
+		float angle = startAngle + (i as float) * angleStep;
+		points.add(Vec2{
+			.x = center.x + radius * c:cos(angle * c:DEG2RAD),
+			.y = center.y + radius * c:sin(angle * c:DEG2RAD)
+		});
+	}
+
+	// Draw the triangle fan
+	for (int i = 1; i < segments + 1; i++;) {
+		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color);
+	}
+}
