@@ -950,6 +950,8 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 	}
 }
 
+//============= FFMPEG HELPERS ====================================================
+
 c:c:`
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 
@@ -1397,7 +1399,7 @@ static AVFrame *get_video_frame(OutputStream *ost)
         exit(1);
 
     if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		printf("WHY IS THIS HAPPENING TO ME!??!?!?\n");
+		printf("We don't use this, something is wrong.\n");
 		exit(1);
         /* as we only generate a YUV420P picture, we must convert it
          * to the codec pixel format if needed */
@@ -1454,6 +1456,8 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
     swr_free(&ost->swr_ctx);
 }
 `;
+
+//===============================================================================
 
 
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
