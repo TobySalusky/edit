@@ -99,6 +99,7 @@ struct string {
 		for (int i = 0; i != length; i++;) {
 			substr_str[i] = str[start_i + i];
 		}
+		substr_str[length] = '\0';
 
 		return s(substr_str);
 	}
@@ -117,8 +118,7 @@ struct string {
 			}
 		}
 
-		c:char nullterm = 0;
-		out[(s_len * n)] = nullterm;
+		out[(s_len * n)] = '\0';
 		return s(out);
 	}
 

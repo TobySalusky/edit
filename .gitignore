@@ -7,10 +7,13 @@
 **/.DS_Store
 
 test_src/external/
+plugin_src/external/
 
 out/
 test_out/
+plugin_out/
 
 test_resource/
 
 build/
+plugin_build/

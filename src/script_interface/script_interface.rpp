@@ -1,0 +1,77 @@
+import std;
+import list;
+import rl;
+
+/// -----------------------------------------
+// base args for @fx_fn's
+struct FxArgs {
+	Vec2 pos;
+	Vec2 scale;
+	float rotation;
+	Color color;
+}
+
+// struct CustomStructMemberTypeInt {}
+struct CustomStructMemberTypeFloat {}
+struct CustomStructMemberTypeList {
+	CustomStructMemberType^ elem_t; // malloced!!
+	List<float>^ fs;
+
+	// TODO: delete()
+}
+// struct CustomStructMemberTypeBool {}
+// struct CustomStructMemberTypeCustomStruct {
+// 	CustomStructHandle handle;
+// }
+
+// Vec2 -> two Float fields
+choice CustomStructMemberType {
+	// CustomStructMemberTypeInt,
+	CustomStructMemberTypeFloat,
+	CustomStructMemberTypeList,
+	// CustomStructMemberTypeBool,
+	// CustomStructMemberTypeCustomStruct,
+	;
+}
+
+struct CustomStructMemberHandle {
+	char^ name;
+	void^ ptr;
+	CustomStructMemberType t;
+	bool is_list() -> t is CustomStructMemberTypeList;
+
+	void delete() {
+		// if (t is CustomStructMemberTypeCustomStruct) {
+		// 	(t as CustomStructMemberTypeCustomStruct).handle.delete();
+		// }
+	}
+}
+
+struct CustomStructHandle {
+	List<CustomStructMemberHandle> members;
+	void^ ptr; // ptr malloced
+
+	Opt<CustomStructMemberHandle> GetMember(char^ name) {
+		for (let& member in members) { // NOTE: ref? -> choice?
+			if (str_eq(member.name, name)) {
+				return member;
+			}
+		}
+		return none;
+	}
+
+	void delete() {
+		for (let& member in members) {
+			member.delete();
+		}
+		members.delete();
+		free(ptr);
+	}
+}
+
+struct CustomFnHandle {
+	void^ ptr;
+	char^ custom_arg_t_name; // = NULL, when none
+}
+
+// -------
