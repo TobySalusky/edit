@@ -697,7 +697,7 @@ void DrawFrameToCanvas() {
 }
 
 void ExportVideoThread() {
-	ExportVideo(frame_rate, "out/frames", "out/capture");
+	ExportVideo(frame_rate, "out", "edit_video");
 
 	SetMode(.Paused);
 	SetFrame(0);
@@ -1480,10 +1480,13 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	Image img = c:LoadImageFromTexture(canvas.texture);
 	int imgh = img.height;
 	int imgw = img.width;
+
+	char ^filename;
+	filename = str_concat(output_file_name_no_path, ".mp4");
+
 	c:c:`
 	OutputStream video_st = { 0 }, audio_st = { 0 };
     const AVOutputFormat *fmt;
-    const char *filename;
     AVFormatContext *oc;
     const AVCodec *audio_codec, *video_codec;
     int ret;
@@ -1491,8 +1494,6 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
     int encode_video = 0, encode_audio = 0;
     AVDictionary *opt = NULL;
     int i;
-
-    filename = "test.mp4";
 
     /* allocate the output media context */
     avformat_alloc_output_context2(&oc, NULL, NULL, filename);
