@@ -3,6 +3,7 @@ import rl;
 import perlin; // used by `perlin_field` effect
 import list;
 import script_interface;
+
 import data;
 
 int CANVAS_WIDTH = 1200;
@@ -100,6 +101,7 @@ void perlin_field(FxArgs& args, PerlinArgs& margs) {
 	}
 }
 
+
 @fx_fn
 void MyFx2(FxArgs& args) {
 	// println(t"no margs, just args");
@@ -152,6 +154,7 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 
 	// Draw bars
     for (int i in 0..bar_count) {
+
 		float bar_x = spacing + args.pos.x as float + i as float * (bar_width + spacing);
 		float bar_value = margs.data.get(i);
 		float current_bar_height = bar_value / max_bar_value * bar_height;
@@ -185,6 +188,7 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 		defer c:free(curr_y_label_str);
 
 		// Draw tick and text label
+
 		int tick_y = args.pos.y as int + args.scale.y as int - (i + 1) * (bar_height as int / bar_count as int);
 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
 		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
