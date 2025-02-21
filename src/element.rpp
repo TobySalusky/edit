@@ -68,7 +68,6 @@ struct ImageElement : ElementImpl {
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
 
-
 c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
 c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
 c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
@@ -177,9 +176,6 @@ struct CustomPureFnElement : ElementImpl {
 
 		switch (fn_getter_res) {
 			void^ ok -> {
-
-				c:CustomPureFn fn = ok;
-				fn(e#pos, e#scale, e#rotation, e#color, e#data);
 
 				c:CustomPureFnGetter fn_getter = ok;
 				CustomFnHandle fn_handle = fn_getter();
