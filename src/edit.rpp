@@ -236,7 +236,7 @@ int main() {
 	// Audio init and close
 	c:InitAudioDevice();
 	defer c:CloseAudioDevice();
-	fxMP3 = c:LoadSound("assets/grant_etude.mp3");
+	fxMP3 = c:LoadSound("assets/history.mp3");
 	defer c:UnloadSound(fxMP3);
 
 	c:SetMasterVolume(master_volume);
