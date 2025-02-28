@@ -258,3 +258,63 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color);
 	}
 }
+
+@fx_fn
+void scatterplot(FxArgs& args, using BarChartArgs& margs) {
+	int num_ticks = 10; // Make modifiable
+	float max_x = 0.0;
+	float max_y = 0.0;
+	int data_count = margs.data.size / 2;
+	if (data_count < 1) {
+		return;
+	}
+	for (int i in 0..data_count) {
+		float x = margs.data.get(i * 2);
+		float y = margs.data.get(i * 2 + 1);
+		if (x > max_x) {
+			max_x = x;
+		}
+		if (y > max_y) {
+			max_y = y;
+		}
+	}
+
+	for (int i in 0..data_count) {
+		float x = margs.data.get(i * 2);
+		float y = margs.data.get(i * 2 + 1);
+		Vec2 p = v2(x / max_x * args.scale.x, y / max_y * args.scale.y);
+		d.Circle(args.pos + p, 5, args.color);
+	}
+
+	// Draw x-axis
+	d.Line(v2(args.pos.x, args.pos.y + args.scale.y), .(args.pos.x + args.scale.x, args.pos.y + args.scale.y), 2, Colors.White);
+
+	// Draw y-axis
+	d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
+
+	// Draw x-axis ticks and labels
+	for (int i in 0..num_ticks) {
+		float tick_value = max_x / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_x = args.pos.x + (i as float) * (args.scale.x / num_ticks);
+		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + args.scale.y + 10), 2, Colors.White);
+		d.Text(tick_label, (tick_x - text_width / 2) as int, (args.pos.y + args.scale.y) as int + 15, 20, Colors.White);
+	}
+
+	// Draw y-axis ticks and labels
+	for (int i in 0..num_ticks) {
+		float tick_value = max_y / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_y = args.pos.y + args.scale.y - (i as float) * (args.scale.y / num_ticks);
+		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
+		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
+	}
+}
