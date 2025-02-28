@@ -670,7 +670,9 @@ struct IO_lib {
 		} else if (c:ENOENT == c:errno) {
 			return false;
 		} else {
-			println("[tpp-std-warn]: dir_exsists failed to open dir for some other reason... it may exist");
+			char^ err_msg = f"[tpp-std-warn]: dir_exists failed to open dir (dir=`{dir_path}`) for some other reason... it may exist";
+			defer free(err_msg);
+			println(err_msg);
 			return false;
 		}
 	}

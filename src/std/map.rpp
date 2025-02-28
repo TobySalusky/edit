@@ -20,7 +20,7 @@ struct StrMap<T> {
 	}
 
 	// TODO: operator:[]
-	T get(char^ key) {
+	T& get(char^ key) {
 		for (int i = 0; i != size; i++;) {
 			if (str_eq(key, keys[i])) {
 				return values[i];

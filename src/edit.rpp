@@ -15,12 +15,15 @@ import code_manager;
 
 import script_interface;
 
+import yaml;
+import global_settings;
+
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import "libavcodec/avcodec.h";
 
-int window_width = 1200;
-int window_height = 900;
+int window_width = GlobalSettings.get_int("window_width", 1200); // loaded from GlobalSettings
+int window_height = GlobalSettings.get_int("window_height", 900);
 Vec2 window_dimens = v2(window_width, window_height);
 
 int canvas_width = 1200;
@@ -180,8 +183,100 @@ char^ OpenDataFileDialog(char^ title) {
 	return (filePath != NULL) ? filePath | "";
 }
 
+struct CommandLineArgs {
+	char^ open_project;
+	char^ save_to_project;
 
-int main() {
+	construct(int argc, char^^ argv) {
+		char^ open_project = NULL;
+		char^ save_to_project = NULL;
+
+		for (int i in 0..argc) {
+			if (str_eq("-o", argv[i])) {
+				if (i+1 >= argc) { panic("-o requires parameter:project-name (local to ./saves/)"); }
+				// TODO: asserts backwards (in rpp)!!
+				// assert(argc > i + 1,t);
+				open_project = argv[i + 1];
+			} else if (str_eq("-s", argv[i])) {
+				if (i+1 >= argc) { panic("-s requires parameter:project-name (local to ./saves/)"); }
+			// println(t"hi: {argc=} {i+1=}");
+				// assert(argc <= i + 1, "-s requires parameter:project-name (local to ./saves/)");
+				save_to_project = argv[i + 1];
+			}
+		}
+
+		return {
+			:open_project,
+			:save_to_project,
+		};
+	}
+}
+
+struct ProjectSave {
+	static void Load(Path project_dir_path) {
+		elements = .(); // clear elements
+		selected_elem_i = 0;
+		
+		let obj = yaml_parser{}.parse_file(project_dir_path/"manifest.yaml");
+
+		char^ project_name = obj.get_str("project_name");
+		char^ edit_version = obj.get_str("edit_version");
+		int num_elements = obj.get_int("num_elements");
+
+		// obj.delete();
+
+		let layers_list_obj = yaml_parser{}.parse_file(project_dir_path/"layers.yaml");
+
+		layers = .();
+		for (int i in 0..layers_list_obj.list.size) {
+			let& layer_obj = layers_list_obj.at_obj(i);
+			layers.add(Layer{
+				.visible = layer_obj.get_bool("visible"), // TODO: get_bool
+			});
+		}
+
+		for (int i in 0..num_elements) {
+			// TODO: free RectElement!
+			AddNewElementAt(Element(RectElement.Make(), "basic_element_for_overwrite", 0, 1, -1, v2(0, 0), v2(200, 150)));
+			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", true);
+		}
+	}
+
+	static void Create(Path project_dir_path, char^ name) {
+		io.mkdir(project_dir_path);
+
+		yaml_object manifest = make_yaml_object();
+		manifest.put_literal("project_name", name);
+		manifest.put_literal("edit_version", "0.0.1");
+		manifest.put_int("num_elements", elements.size);
+
+		manifest.serialize_to(project_dir_path/"manifest.yaml");
+
+		yaml_object layers_obj = make_yaml_object(); // TODO: free
+		for (let& layer in layers) {
+			let layer_obj = make_yaml_object();
+			layer_obj.put_bool("visible", layer.visible);
+			layers_obj.push_object(layer_obj);
+		}
+		layers_obj.serialize_to(project_dir_path/"layers.yaml");
+
+		io.mkdir(project_dir_path/"elements");
+
+		for (int i in 0..elements.size) {
+			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", false);
+		}
+
+		// yo.push_object({
+		// 	
+		// });
+	}
+}
+
+int main(int argc, char^^ argv) {
+	defer GlobalSettings.SaveUpdates();
+
+	CommandLineArgs args = .(argc, argv);
+
 	debug_print_env_config();
 
 	code_man.Load();
@@ -192,10 +287,10 @@ int main() {
 	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
 
 	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
-	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT ~| c:FLAG_WINDOW_RESIZABLE);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
-	window.Init(window_width, window_height, "CodeComposite");
+	window.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}"); // TODO: mem leak?
 	defer window.Close();
 
 	// Audio init and close
@@ -243,6 +338,11 @@ int main() {
 	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
 	// }
 
+	if (args.open_project != NULL) {
+		println(t"opening: saves/{args.open_project}");
+		ProjectSave.Load(Path("saves")/args.open_project);
+	}
+
 	rl.SetTargetFPS(60);
 	while (!window.ShouldClose()) {
 
@@ -256,6 +356,10 @@ int main() {
 		d.End();
 		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
     }
+
+	if (args.save_to_project != NULL) {
+		ProjectSave.Create(Path("saves")/args.save_to_project, args.save_to_project);
+	}
 
     return 0;
 }
@@ -304,24 +408,24 @@ float new_element_default_duration = 0.5;
 bool look_at_controls = false;
 bool show_add_element_options = false;
 
-int panel_width = 300;
+int left_panel_width = GlobalSettings.get_int("left_panel_width", 300);
 void LeftPanelUI() {
-	d.Rect(v2(0, 0), v2(panel_width, window_height), theme.panel);
-	d.Rect(v2(panel_width, 0), v2(1, window_height), theme.panel_border);
+	d.Rect(v2(0, 0), v2(left_panel_width, window_height), theme.panel);
+	d.Rect(v2(left_panel_width, 0), v2(1, window_height), theme.panel_border);
 
 	// Elements List
-	Vec2 btn_dimens = v2(panel_width - 20, 40);
+	Vec2 btn_dimens = v2(left_panel_width - 20, 40);
 	// for (let& input in temp_inputs) { // TODO: gd doesn't work on refs!
 	// 	input.Do();
 	// }
 
 	if (show_add_element_options) {
 		Vec2 options_tl = v2(10, window_height - 170);
-		Vec2 options_dims = v2(panel_width - 20, 100);
+		Vec2 options_dims = v2(left_panel_width - 20, 100);
 		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
 
 		// Add media file
-		Vec2 icon_dimens = v2((panel_width - 40) / 3, 80);
+		Vec2 icon_dimens = v2((left_panel_width - 40) / 3, 80);
 		Vec2 icon_tl = options_tl + v2(5, 5);
 		if (Button(icon_tl, icon_dimens, "")) {
 			char^ file_path = OpenImageFileDialog("Select an image");
@@ -338,7 +442,7 @@ void LeftPanelUI() {
 		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
 
 		// Add data
-		icon_tl = icon_tl + v2((panel_width - 40) / 3, 0);
+		icon_tl = icon_tl + v2((left_panel_width - 40) / 3, 0);
 		if (Button(icon_tl, icon_dimens, "{data}")) {
 			char^ file_path = OpenDataFileDialog("Select a data file");
 			println(t"Selected data file: {file_path}");
@@ -353,8 +457,8 @@ void LeftPanelUI() {
 		}
 
 		// Add arbitrary element (Temporary)
-		Vec2 plus_tl = options_tl + v2((panel_width - 10) / 3 * 2, 5);
-		if (Button(plus_tl, v2((panel_width - 40) / 3, 80), "+")) {
+		Vec2 plus_tl = options_tl + v2((left_panel_width - 10) / 3 * 2, 5);
+		if (Button(plus_tl, v2((left_panel_width - 40) / 3, 80), "+")) {
 			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
 			SelectNewestElement();
 		}
@@ -368,7 +472,7 @@ void LeftPanelUI() {
 		show_add_element_options = false;
 	}
 
-	d.RectR(.(0, 0, panel_width, 32), theme.button);
+	d.RectR(.(0, 0, left_panel_width, 32), theme.button);
 	let& selected_elem = elements.get(selected_elem_i);
 	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
 	KeyframeTimelineUI();
@@ -407,8 +511,8 @@ void ElementTimelineUI() {
 	float height = element_timeline_ui_height;
 	float layer_height = height / show_layers;
 
-	float whole_width = window_width - panel_width;
-	Vec2 whole_tl = v2(panel_width + 1, window_height as float - height);
+	float whole_width = window_width - left_panel_width;
+	Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
 	Vec2 whole_dimens = v2(whole_width, height);
 	Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
 	d.RectR(whole_rect, theme.panel);
@@ -551,8 +655,8 @@ void ElementTimelineUI() {
 bool keyframe_timeline_dragging = false;
 void KeyframeTimelineUI() {
 	int info_width = 100;
-	// int width = window_width - panel_width - info_width;
-	int width = panel_width;
+	// int width = window_width - left_panel_width - info_width;
+	int width = left_panel_width;
 	int height = keyframe_timeline_ui_height;
 
 	int y_start = 32;
@@ -739,6 +843,9 @@ struct HotKeys {
 
 	static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
+
+	static HotKey Temp_LeftSidebar_Less = HotKey.DvoKey(KEY.Y, KEY.T);
+	static HotKey Temp_LeftSidebar_More = HotKey.DvoKey(KEY.F, KEY.Y);
 }
 
 void SetMute(bool mute) {
@@ -776,8 +883,18 @@ Vec2 GetMousePosWorldSpace() {
 	return (mouse.GetPos() - canvas_rect.tl()) / (canvas_rect.dimen() / window_dimens);
 }
 
+void UpdateWindowSize(int width, int height) {
+	window_width = GlobalSettings.set_int("window_width", width);
+	window_height = GlobalSettings.set_int("window_height", height);
+	window_dimens = v2(width, height);
+}
+
 bool init = false;
 void GameTick() {
+	if (window_width != rl.GetScreenWidth() || window_height != rl.GetScreenHeight()) {
+		UpdateWindowSize(rl.GetScreenWidth(), rl.GetScreenHeight());
+	}
+
 	mp_world_space = GetMousePosWorldSpace();
 
 	if (check_code_timer.DidRepeatWhileUpdating()) {
@@ -893,6 +1010,14 @@ void GameTick() {
 		}
 	}
 
+	if (HotKeys.Temp_LeftSidebar_Less.IsPressed()) {
+		left_panel_width = GlobalSettings.set_int("left_panel_width", left_panel_width - 50);
+	}
+
+	if (HotKeys.Temp_LeftSidebar_More.IsPressed()) {
+		left_panel_width = GlobalSettings.set_int("left_panel_width", left_panel_width + 50);
+	}
+
 	if (!ui_hidden) {
 		LeftPanelUI();
 		ElementTimelineUI();
@@ -967,7 +1092,7 @@ Rectangle UnCoveredArea() {
 		return .(0, 0, window_width, window_height);
 	}
 
-	return .(panel_width, 0, window_width - panel_width, window_height - (element_timeline_ui_height));
+	return .(left_panel_width, 0, window_width - left_panel_width, window_height - (element_timeline_ui_height));
 }
 
 Rectangle CanvasRect() -> UnCoveredArea().Inset(ui_hidden ? 0 | 10).FitIntoSelfWithAspectRatio(canvas_width, canvas_height);

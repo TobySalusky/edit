@@ -7,18 +7,64 @@ import code_manager;
 import script_interface;
 import ui_elements;
 import data;
+import yaml;
 
+int KIND_RECT = 0;
+int KIND_CIRCLE = 1;
+int KIND_IMAGE = 2;
+int KIND_FX_FN = 3;
 interface ElementImpl {
+
 	void Draw(Element^ e);
 
 	char^ ImplTypeStr();
 
 	List<CustomLayer>^ CustomLayers();
+
+	int Kind();
+	void _FillYaml(yaml_object& yo);
+	void _FillFromYaml(yaml_object& yo);
 }
+
+ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
+	ElementImpl^ it;
+	switch (kind) {
+		KIND_RECT -> {
+			it = RectElement.Make();
+		},
+		KIND_CIRCLE -> {
+			it = CircleElement.Make();
+		},
+		KIND_IMAGE -> {
+			it = ImageElement.Make(yo.get_str("file_path"));
+		},
+		KIND_FX_FN -> {
+			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
+		},
+		else -> {
+			it = RectElement.Make();
+		}
+	}
+	// it#_FillFromYaml(yo);
+
+	return it;
+}
+
+yaml_object ElementImplToYaml(ElementImpl^ impl) {
+	let yo = make_yaml_object();
+	yo.put_int("kind", impl#Kind());
+	impl#_FillYaml(yo);
+	return yo;
+}
+
 struct RectElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
+
+	int Kind() -> KIND_RECT;
+	void _FillYaml(yaml_object& yo) { }
+	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "rect";
 	List<CustomLayer>^ CustomLayers() -> NULL;
@@ -30,6 +76,10 @@ struct CircleElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
+
+	int Kind() -> KIND_CIRCLE;
+	void _FillYaml(yaml_object& yo) { }
+	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "circle";
 	List<CustomLayer>^ CustomLayers() -> NULL;
@@ -62,6 +112,15 @@ struct ImageElement : ElementImpl {
 	void Draw(Element^ e) {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
+
+	int Kind() -> KIND_IMAGE;
+	void _FillYaml(yaml_object& yo) {
+		yo.put_literal("file_path", file_path);
+	}
+	void _FillFromYaml(yaml_object& yo) {
+		file_path = yo.get_str("file_path");
+	}
+
 	char^ ImplTypeStr() -> "img";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
@@ -170,6 +229,14 @@ struct CustomPureFnElement : ElementImpl {
 	List<CustomLayer> custom_float_layers;
 	Opt<CustomStructHandle> custom_args_handle;
 
+	int Kind() -> KIND_FX_FN;
+	void _FillYaml(yaml_object& yo) {
+		yo.put_literal("fn_name", fn_name);
+	}
+	void _FillFromYaml(yaml_object& yo) {
+		fn_name = yo.get_str("fn_name");
+	}
+
 	void Draw(Element^ e) {
 		let fn_getter_res = code_man.GetFn(t"__scriptgen_NewFxFn_{fn_name}"); // creates handle
 
@@ -195,7 +262,7 @@ struct CustomPureFnElement : ElementImpl {
 							void^ ok -> {
 								c:CustomArgsNewFn args_new_fn = ok;
 								CustomStructHandle the_struct_handle = args_new_fn();
-								println(t"called {fx_new_fn_name}");
+								println(t"called {fx_new_fn_name}: -> struct w/ {the_struct_handle.members.size} members");
 
 								custom_float_layers = .();
 								for (let& member in the_struct_handle.members) {
@@ -225,6 +292,7 @@ struct CustomPureFnElement : ElementImpl {
 
 					switch (custom_args_handle) {
 						CustomStructHandle args_handle -> {
+							// println(t"calling __scriptgen_NewFxFn_{fn_name}(<Args>, <CustomArgs>)");
 							fn(^base_args, args_handle.ptr);
 						},
 						None -> {
@@ -235,6 +303,7 @@ struct CustomPureFnElement : ElementImpl {
 					c:CustomPureFnWithoutCustomParams fn = fn_handle.ptr;
 					custom_args_handle = none;
 
+					// println(t"calling __scriptgen_NewFxFn_{fn_name}(<Args>)");
 					fn(^base_args);
 				}
 				e#err_msg = NULL;
@@ -300,6 +369,40 @@ struct Element {
 	char^ err_msg;
 	
 	Data^ data;
+
+	void Serialize(Path p, bool is_load) {
+		yaml_serializer serialize = make_yaml_serializer(p, is_load);
+
+		serialize.str_default(name, "name", "UNTITLED");
+		serialize.float_default(start_time, "start_time", 0);
+		serialize.float_default(duration, "end_time", 0);
+		serialize.int_default(layer, "layer", 0);
+		serialize.float_default(pos.x, "pos.x", 0);
+		serialize.float_default(pos.y, "pos.y", 0);
+		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - uniform_scale
+		serialize.float_default(scale.x, "scale.x", 100);
+		serialize.float_default(scale.y, "scale.y", 100);
+		serialize.float_default(rotation, "rotation", 0);
+		serialize.float_default(opacity, "opacity", 0);
+		serialize.int_default(color.r, "color.r", 0);
+		serialize.int_default(color.g, "color.g", 0);
+		serialize.int_default(color.b, "color.b", 0);
+		serialize.int_default(color.a, "color.a", 0);
+		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
+		// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
+
+		// impl
+		if (is_load) {
+			content_impl = ElementImplFromYaml(serialize.obj.get_int("kind"), serialize.obj.get_obj("impl"));
+		} else {
+			serialize.obj.put_int("kind", content_impl#Kind());
+			serialize.obj.put_object("impl", ElementImplToYaml(content_impl));
+		}
+
+		// keyframe layers!!!
+
+		serialize.finish();
+	}
 
 	// name: pass NULL for auto-generated name
 	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, int layer, Vec2 pos, Vec2 scale) -> {

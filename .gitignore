@@ -17,3 +17,5 @@ test_resource/
 
 build/
 plugin_build/
+
+saves/
