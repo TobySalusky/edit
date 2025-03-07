@@ -130,6 +130,7 @@ void MyFx(FxArgs& args, using MyArgs& margs) {
 @fx_args
 struct BarChartArgs {
 	List<float> data;
+	// List<float> data2;
 }
 
 @fx_fn
@@ -317,4 +318,84 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
 		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
 	}
+}
+
+@fx_fn
+void line_graph(FxArgs& args, using BarChartArgs& margs) {
+	int data_count = margs.data.size;
+	if (data_count < 2) {
+		return;
+	}
+
+	float max_value = 0.0;
+	for (int i in 0..data_count) {
+		float value = margs.data.get(i);
+		if (value > max_value) {
+			max_value = value;
+		}
+	}
+
+	float padding_top = 20.0; // Add padding at the top
+	float padding_bottom = 20.0; // Add padding at the bottom
+	float padding_left = 20.0; // Add padding on the left
+	float padding_right = 20.0; // Add padding on the right
+
+	Vec2 prev_point = .(args.pos.x + padding_left, args.pos.y + args.scale.y - padding_bottom - (margs.data.get(0) / max_value * (args.scale.y - padding_top - padding_bottom)));
+	d.Circle(prev_point, 5, args.color); // Add circle on the first data point
+	for (int i in 1..data_count) {
+		float value = margs.data.get(i);
+		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
+		d.Line(prev_point, curr_point, 2, args.color);
+		d.Circle(curr_point, 5, args.color); // Add circles on data points
+		prev_point = curr_point;
+	}
+
+	// Draw x-axis
+	d.Line(v2(args.pos.x, args.pos.y + args.scale.y), .(args.pos.x + args.scale.x, args.pos.y + args.scale.y), 2, Colors.White);
+
+	// Draw y-axis
+	d.Line(.(args.pos.x, args.pos.y), .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
+
+	// Draw x-axis ticks and labels
+	int num_ticks = 9;
+	for (int i in 0..(num_ticks + 1)) {
+		float tick_value = (data_count - 1) as float / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_x = args.pos.x + padding_left + (i as float) * ((args.scale.x - padding_left - padding_right) / num_ticks);
+		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + args.scale.y + 10), 2, Colors.White);
+		d.Text(tick_label, (tick_x - text_width / 2) as int, (args.pos.y + args.scale.y) as int + 15, 20, Colors.White);
+	}
+
+	// Draw y-axis ticks and labels
+	num_ticks = 10;
+	for (int i in 0..(num_ticks + 1)) {
+		float tick_value = max_value / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_y = args.pos.y + args.scale.y - padding_bottom - (i as float) * ((args.scale.y - padding_top - padding_bottom) / num_ticks);
+		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
+		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
+	}
+
+	// Draw chart title
+	char^ title = t"Line Graph";
+	int title_width = c:MeasureText(title, 30);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
+
+	// Draw x-axis label
+	char^ x_axis_label = t"X-Axis";
+	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
+	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
+
+	// Draw y-axis label
+	char^ y_axis_label = t"Y-Axis";
+	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 40) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
