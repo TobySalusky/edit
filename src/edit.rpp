@@ -1805,7 +1805,7 @@ bool ImportVideo(int framerate, char^ folder_path, char^ input_file_name_no_path
 
     if (video_stream) {
         printf("Play the output video file with the command:\n"
-               "ffplay -f rawvideo -pix_fmt %s -video_size %dx%d %s\n",
+               "ffplay -f rawvideo -pixel_format %s -video_size %dx%d %s\n",
                av_get_pix_fmt_name(pix_fmt), width, height,
                video_dst_filename);
     }
@@ -1828,7 +1828,7 @@ bool ImportVideo(int framerate, char^ folder_path, char^ input_file_name_no_path
             goto end;
 
         printf("Play the output audio file with the command:\n"
-               "ffplay -f %s -ac %d -ar %d %s\n",
+               "ffplay -f %s -ch_layout mono -ar %d %s\n",
                fmt, n_channels, audio_dec_ctx->sample_rate,
                audio_dst_filename);
     }
