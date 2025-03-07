@@ -946,7 +946,7 @@ void GameTick() {
 		if (HotKeys.Mute.IsPressed()) {
 			c:c:`
 			char video_path[256];
-			printf("Input file path, include extension: \n");
+			printf("\nInput file path, include extension: \n>");
 			scanf("%s", video_path);
 			`;
 			ImportVideo(frame_rate, "out", c:video_path);
