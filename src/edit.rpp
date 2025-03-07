@@ -1828,8 +1828,8 @@ bool ImportVideo(int framerate, char^ folder_path, char^ input_file_name_no_path
             goto end;
 
         printf("Play the output audio file with the command:\n"
-               "ffplay -f %s -ch_layout mono -ar %d %s\n",
-               fmt, n_channels, audio_dec_ctx->sample_rate,
+               "ffplay -f %s -ch_layout %s -ar %d %s\n",
+               fmt, "mono", audio_dec_ctx->sample_rate,
                audio_dst_filename);
     }
 
