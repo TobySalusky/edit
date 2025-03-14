@@ -270,6 +270,11 @@ int main() {
 	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 0, 5, -1, v2(100, 100), v2(500, 500)) with { color = Colors.Blue });
 
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 0, 5, -1, v2(100, 100), v2(500, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("scatterplot"), "scatterplot", 0, 5, -1, v2(100, 100), v2(800, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("line_graph"), "line_graph", 0, 5, -1, v2(200, 100), v2(800, 500)) with { color = Colors.Green });
+
 
 	selected_elem_i = 0;
 
