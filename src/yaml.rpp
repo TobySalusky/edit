@@ -132,6 +132,16 @@ struct yaml_object {
 		return c:atoi(v.literal_value);
 	}
 
+	uchar get_uchar_default(char^ name, uchar default_value) {
+		if (!dict.has(name)) {
+			return default_value;
+		} // TODO: handle path (eg: a.b.c)
+		yaml_value v = dict.get(name);
+		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+
+		return c:atoi(v.literal_value) as uchar;
+	}
+
 	float get_float(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
@@ -381,6 +391,14 @@ struct yaml_serializer {
 			ptr = obj.get_int_default(name, default_val);
 		} else {
 			obj.put_literal(name, t"{ptr}");
+		}
+	}
+
+	void uchar_default(uchar& ptr, char^ name, uchar default_val) {
+		if (is_load) {
+			ptr = obj.get_uchar_default(name, default_val);
+		} else {
+			obj.put_literal(name, t"{ptr as int}");
 		}
 	}
 

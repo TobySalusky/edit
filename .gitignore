@@ -18,7 +18,7 @@ test_resource/
 build/
 plugin_build/
 
-saves/
+saves/**
 
 lr.sh
 pr.sh

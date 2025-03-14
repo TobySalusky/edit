@@ -1046,7 +1046,7 @@ void GameTick() {
 
 	if (mouse.LeftClickPressed() && !ui_element_activated_this_frame) {
 		focused_ui_elem_id = UiElementID.ID(NULL);
-		println("deactivating");
+		// println("deactivating");
 	}
 }
 char^ edit_text = f"";

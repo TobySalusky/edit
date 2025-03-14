@@ -265,7 +265,7 @@ struct CustomLayer {
 				char^ change_text = TextBox(UiElementID.ID(em.value, 0), *em.value, Rectangle.FromV(tl, dimens), 16);
 
 				if (change_text != NULL) {
-					println(t"edited to be: {change_text=}");
+					// println(t"edited to be: {change_text=}");
 					*em.value = change_text;
 					// NOTE: be careful! this points straight to textbox's buffer
 				}
@@ -330,9 +330,9 @@ struct CustomPureFnElement : ElementImpl {
 								CustomStructHandle the_struct_handle = args_new_fn();
 
 								println(t"called {fx_new_fn_name}: -> struct w/ {the_struct_handle.members.size} members");
-								for (let& member in the_struct_handle.members) {
-									printf("%p %f %d\n", member.name, member.name, strlen(member.name));
-								}
+								// for (let& member in the_struct_handle.members) {
+								// 	printf("%p %f %d\n", member.name, member.name, strlen(member.name));
+								// }
 
 								custom_float_layers = .();
 								for (let& member in the_struct_handle.members) {
@@ -489,10 +489,13 @@ struct Element {
 		serialize.float_default(scale.y, "scale.y", 100);
 		serialize.float_default(rotation, "rotation", 0);
 		serialize.float_default(opacity, "opacity", 0);
-		serialize.int_default(color.r, "color.r", 0);
-		serialize.int_default(color.g, "color.g", 0);
-		serialize.int_default(color.b, "color.b", 0);
-		serialize.int_default(color.a, "color.a", 0);
+
+		//	 TODO: important!!! toby!! not working on windows!!
+		// serialize.uchar_default(color.r, "color.r", 0);
+		// serialize.uchar_default(color.g, "color.g", 0);
+		// serialize.uchar_default(color.b, "color.b", 0);
+		// serialize.uchar_default(color.a, "color.a", 0);
+
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
 
