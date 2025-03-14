@@ -1548,16 +1548,16 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height)
     );
     if (!sws_ctx) {
         fprintf(stderr, "Error initializing the sws context\n");
-        return -1;
+        exit(1);
     }
 
     // Set the new dimensions for the RGB frame
     if (av_image_alloc(rgb_frame->data, rgb_frame->linesize, width, height, AV_PIX_FMT_RGB24, 1) < 0) {
         fprintf(stderr, "Error allocating RGB frame\n");
-        return -1;
+        exit(1);
     }
 
-    sws_scale(sws_ctx, pict->data, pict->linesize, 0, pict->height, rgb_frame->data, rgb_frame->linesize);
+    sws_scale(sws_ctx, (const uint8_t * const *) pict->data, pict->linesize, 0, pict->height, rgb_frame->data, rgb_frame->linesize);
 
     sws_freeContext(sws_ctx);
 	`;
