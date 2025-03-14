@@ -222,7 +222,6 @@ char^ OpenDataFileDialog(char^ title) {
 	return (filePath != NULL) ? filePath | "";
 }
 
-<<<<<<< HEAD
 struct CommandLineArgs {
 	char^ open_project;
 	char^ save_to_project;

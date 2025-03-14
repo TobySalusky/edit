@@ -1,0 +1,249 @@
+import rl;
+import theming;
+import std;
+
+struct UiElementID {
+	void^ ptr;
+	int i; // normally 0, unless ID_i
+
+	bool operator:==(UiElementID other) -> ptr == other.ptr && i == other.i;
+	
+	// TODO: do defaults work for constructors?
+	static UiElementID ID(void^ ptr, int i = 0) -> {
+		:ptr,
+		:i,
+	};
+}
+
+UiElementID focused_ui_elem_id = UiElementID.ID(NULL);
+bool ui_element_activated_this_frame = false;
+bool NoTextInputFocused() {
+	return focused_ui_elem_id == UiElementID.ID(NULL);
+}
+
+bool Button(Vec2 tl, Vec2 dimens, char^ text) {
+	Vec2 br = tl + dimens;
+
+	d.RectBetween(tl, br, theme.button);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	if (hovered) { // hover overlay-lighten
+		d.RectBetween(tl, br, hex("FFFFFF11"));
+	}
+
+	int fontSize = 18;
+
+	float text_width = c:MeasureText(text, fontSize);
+	float center_x = tl.x + dimens.x / 2;
+	int tx = (center_x - text_width / 2) as int;
+	int ty = (tl.y + dimens.y / 2 - fontSize / 2) as int;
+	d.Text(text, tx, ty, fontSize, c:WHITE);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
+bool ButtonIcon(Vec2 tl, Vec2 dimens, Texture icon_texture) {
+	Vec2 br = tl + dimens;
+
+	// d.RectBetween(tl, br, theme.button);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	// if (hovered) { // hover overlay-lighten
+	// 	d.RectBetween(tl, br, hex("FFFFFF11"));
+	// }
+
+	// TODO: highlight w/ color on `hovered`
+	d.TextureAtSizeV(icon_texture, tl, dimens);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
+bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover, Color button_bg) {
+	Vec2 br = tl + dimens;
+
+	d.RectBetween(tl, br, button_bg);
+	bool hovered = mouse.GetPos().Between(tl, br);
+
+	if (hovered || force_hover) { // hover overlay-lighten
+		d.RectBetween(tl, br, hex("FFFFFF11"));
+	}
+
+	int fontSize = 18;
+
+	float text_width = c:MeasureText(text, fontSize);
+	float center_x = tl.x + dimens.x / 2;
+	int tx = (center_x - text_width / 2) as int;
+	int ty = (tl.y + dimens.y / 2 - fontSize / 2) as int;
+	d.Text(text, tx, ty, fontSize, Colors.White);
+
+	return mouse.LeftClickPressed() && hovered;
+}
+
+// struct TextInput {
+// 	List<char> char_list;
+//
+// 	int cursor_i;
+// 	bool selected;
+// 	bool hovered;
+//
+// 	Rectangle rect;
+//
+// 	Font font;
+// 	int font_size;
+// 	float padding;
+//
+// 	construct(char^ init_text, float padding, Font font, int font_size) {
+// 		List<char> char_list = .();
+// 		// List a = .(10, 20);
+// 		for (int i in ..strlen(init_text)) {
+// 			char_list.add(init_text[i]);
+// 		}
+//
+// 		return {
+// 			:char_list,
+// 			.cursor_i = 0,
+// 			.selected = false,
+// 			.hovered = false,
+// 			.rect = RectV(v2(0, 0), v2(0, 0)),
+// 			:font,
+// 			:font_size,
+// 			:padding,
+// 		};
+// 	}
+//
+// 	static Self make(char^ init_text) -> .(init_text, 4, c:GetFontDefault(), 16);
+//
+// 	char^ ttext() {
+// 		char^ text = talloc(char_list.size + 1);
+// 		c:memcpy(text, char_list.data, char_list.size);
+// 		text[char_list.size] = "\0"[0];
+// 		return text;
+// 	}
+// 	char^ mtext() -> f"{this.ttext()}";
+//
+// 	// @discardable
+// 	Vec2 Layout(Vec2 tl, float width) { // returns dimens
+// 		// TODO: is "0" an ok string to measure?
+// 		float height = c:MeasureTextEx(font, "0", font_size, 0).y + padding*2; // TODO: what is the right spacing num???
+// 		rect = RectV(tl, v2(width, height));
+// 		return rect.dimen();
+// 	}
+//
+// 	// // @discardable
+// 	// Vec2 Layout(Rectangle rect) { // returns dimens
+// 	// 	return rect.dimen();
+// 	// }
+//
+// 	void Interact() {
+// 		selected = rect.Contains(mouse.GetPos());
+// 	}
+//
+// 	Color bg() -> selected ? theme.active | theme.button;
+//
+// 	void Render() {
+// 		d.Rect(rect.tl(), rect.dimen(), this.bg());
+// 		let text_tl = rect.tl() + v2(padding, padding);
+// 		d.TextV(this.ttext(), text_tl, font_size, Colors.White);
+// 	}
+//
+// 	void Do() {
+// 		this.Interact();
+// 		this.Render();
+// 	}
+// }
+
+struct TextInputState {
+	// NOTE: includes null-term
+	static int mem_size = 256; // TODO: per-input size?
+
+	// NOTE: includes null-term
+	static int char_capacity = 255; // TODO: per-input size?
+
+	char^ buffer;
+	int caret_pos;
+	int size;
+	UiElementID id;
+
+	bool is_active() -> id == focused_ui_elem_id;
+
+	void Activate() {
+		focused_ui_elem_id = id;
+		ui_element_activated_this_frame = true;
+	}
+
+	void InitFrom(char^ str) {
+		c:strncpy(buffer, str, char_capacity);
+		size = strlen(str);
+	}
+
+	// NOTE: MUST BE ACTIVE
+	// if unchanged: return NULL
+	// if changed: return TextInputState-owned char^ (should be strdupped or temp outside use!)
+	char^ DoActiveEffects() {
+		bool changed = false;
+
+		int key_pressed = c:GetCharPressed();
+		while (key_pressed > 0) {
+			if (char_capacity > size) {
+				buffer[size++] = key_pressed as char;
+			}
+			key_pressed = c:GetCharPressed();
+
+			changed = true;
+		}
+
+		if (key.IsPressed(KEY.BACKSPACE)) {
+			c:memset(buffer, 0, mem_size);
+			size = 0;
+
+			changed = true;
+		}
+
+		return changed ? buffer | NULL;
+	}
+}
+
+// TODO: styling/colour options
+char^ TextBox(UiElementID id, char^ init_text, Rectangle rect, int font_size) {
+	TextInputState& input = GetTextInput(id);
+	char^ res = NULL;
+
+	if (init_text == NULL) { init_text = ""; }
+
+	if (mouse.LeftClickPressed() && rect.Contains(mouse.GetPos())) {
+		println("activating textbox!");
+		if (!input.is_active() && init_text != input.buffer) {
+			input.InitFrom(init_text);
+		}
+		input.Activate();
+	}
+
+	// draw text-input state!
+	d.RectR(rect, theme.button);
+
+	if (input.is_active()) {
+		res = input.DoActiveEffects();
+		d.RectOutlineR(rect, theme.active);
+	}
+
+	char^ display_text = input.is_active() ? input.buffer | init_text;
+	d.TextV(display_text, rect.tl(), font_size, Colors.White);
+
+	return res;
+}
+
+// key as UiElementID is kinda mid for multi-elem/layer setups :(
+EqMap<UiElementID, TextInputState> text_inputs;
+TextInputState& GetTextInput(UiElementID id) {
+	if (!text_inputs.has(id)) {
+		char^ buffer = c:calloc(1, 256);
+		text_inputs.put_unique(id, {
+			:buffer,
+			.caret_pos = 0,
+			.size = 0,
+			:id
+		});
+	}
+	return text_inputs.get(id);
+}
+TextInputState& GetTextInputNamed(char^ unique_name) -> GetTextInput(UiElementID.ID(unique_name));
