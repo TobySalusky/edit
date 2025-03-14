@@ -135,6 +135,10 @@ struct BarChartArgs {
 
 @fx_fn
 void bar_chart(FxArgs& args, using BarChartArgs& margs) {
+	if (margs.data.size == 0) {
+		return;
+	}
+
 	int bar_count = margs.data.size;
 
 	float max_bar_value = 0.0;
@@ -190,10 +194,18 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
 		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
 	}
+
+	// Draw chart title
+	char^ title = t"Bar Chart";
+	int title_width = c:MeasureText(title, 30);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
 }
 
 @fx_fn
 void pie_chart(FxArgs& args, using BarChartArgs& margs) {
+	if (margs.data.size == 0) {
+		return;
+	}
 
 	List<Color> default_colors = .();
 	default_colors.add(Colors.Lightgray);
@@ -217,25 +229,49 @@ void pie_chart(FxArgs& args, using BarChartArgs& margs) {
 	default_colors.add(Colors.Beige);
 	default_colors.add(Colors.Brown);
 
-    float total = 0.0;
-    for (int i in 0..margs.data.size) {
-        total = total + margs.data.get(i);
-    }
+	float total = 0.0;
+	for (int i in 0..margs.data.size) {
+		total = total + margs.data.get(i);
+	}
 	
-    float angle = 0.0;
-    Vec2 center = args.pos + args.scale.divide(2);
-    float radius = args.scale.x / 2;
+	float angle = 0.0;
+	Vec2 center = args.pos + args.scale.divide(2);
+	float radius = args.scale.x / 2;
 	
-    for (int i in 0..margs.data.size) {
-        float value = margs.data.get(i);
-        float slice_angle = value / total * 360.0;
-        float end_angle = angle + slice_angle;
+	for (int i in 0..margs.data.size) {
+		float value = margs.data.get(i);
+		float slice_angle = value / total * 360.0;
+		float end_angle = angle + slice_angle;
 
-        // Draw the slice
-        DrawCustomTriangleFan(center, radius, angle, end_angle, default_colors.get(i % 20));
+		// Draw the slice
+		DrawCustomTriangleFan(center, radius, angle, end_angle, default_colors.get(i % 20));
 
-        angle = end_angle;
-    }
+		// Draw the label
+		float label_angle = angle + slice_angle / 2;
+		Vec2 label_pos = center + Vec2{.x = c:cos(label_angle * c:DEG2RAD) * (radius + 20) - 10, .y = c:sin(label_angle * c:DEG2RAD) * (radius + 20)};
+		char^ label = c:malloc(6);
+		c:gcvt(value, 3, label);
+		d.Text(label, label_pos.x as int, label_pos.y as int, 20, Colors.White);
+		defer c:free(label);
+
+		angle = end_angle;
+	}
+
+	// Draw legend
+	Vec2 legend_pos = center + Vec2{.x = radius + 50, .y = -radius};
+	for (int i in 0..margs.data.size) {
+		Color color = default_colors.get(i % 20);
+		Vec2 rect_pos = legend_pos + Vec2{.x = 0, .y = i * 30};
+		d.Rect(rect_pos, .(20, 20), color);
+
+		char^ legend_label = t"Label {i+1}";
+		d.Text(legend_label, rect_pos.x as int + 30, rect_pos.y as int + 5, 20, Colors.White);
+	}
+
+	// Draw chart title
+	char^ title = t"Pie Chart";
+	int title_width = c:MeasureText(title, 30);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 60) as int, 30, Colors.White);
 }
 
 // TODO: Make part of rl?
@@ -254,14 +290,21 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 		});
 	}
 
-	// Draw the triangle fan
+	// Draw the triangle fan with anti-aliasing
 	for (int i = 1; i < segments + 1; i++;) {
-		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color);
+		// for (int j = 4; j > 0; j = j - 2;) {
+		// 	d.Triangle(points.get(0), points.get(i + 1), points.get(i), ColorAlpha(color, 0.2 * (8 - j) / 8.0)); // Outer triangles for anti-aliasing
+		// }
+		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color); // Main triangle
 	}
 }
 
 @fx_fn
 void scatterplot(FxArgs& args, using BarChartArgs& margs) {
+	if (margs.data.size == 0) {
+		return;
+	}
+	
 	int num_ticks = 10; // Make modifiable
 	float max_x = 0.0;
 	float max_y = 0.0;
@@ -288,7 +331,7 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 	}
 
 	// Draw x-axis
-	d.Line(v2(args.pos.x, args.pos.y + args.scale.y), .(args.pos.x + args.scale.x, args.pos.y + args.scale.y), 2, Colors.White);
+	d.Line(args.pos + v2(0, args.scale.y), args.pos + v2(args.scale.x, args.scale.y), 2, Colors.White);
 
 	// Draw y-axis
 	d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
@@ -318,6 +361,20 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
 		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
 	}
+	// Draw chart title
+	char^ title = t"Scatter Plot";
+	int title_width = c:MeasureText(title, 30);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
+
+	// Draw x-axis label
+	char^ x_axis_label = t"X-Axis";
+	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
+	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
+
+	// Draw y-axis label
+	char^ y_axis_label = t"Y-Axis";
+	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
 
 @fx_fn
@@ -340,14 +397,50 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 	float padding_left = 20.0; // Add padding on the left
 	float padding_right = 20.0; // Add padding on the right
 
+	int half_data_count = data_count / 2;
+
+	// Draw first half of the data in the original color
 	Vec2 prev_point = .(args.pos.x + padding_left, args.pos.y + args.scale.y - padding_bottom - (margs.data.get(0) / max_value * (args.scale.y - padding_top - padding_bottom)));
-	d.Circle(prev_point, 5, args.color); // Add circle on the first data point
-	for (int i in 1..data_count) {
+	for (int i in 1..half_data_count) {
 		float value = margs.data.get(i);
-		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
-		d.Line(prev_point, curr_point, 2, args.color);
-		d.Circle(curr_point, 5, args.color); // Add circles on data points
+		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
+
+		// Draw antialiased line
+		for (int j = 4; j > 0; j = j - 2;) {
+			d.Line(prev_point, curr_point, j * 2, ColorAlpha(args.color, 0.2 * (8 - j) / 8.0)); // Outer lines for antialiasing
+		}
+		d.Line(prev_point, curr_point, 2, ColorAlpha(args.color, 0.5)); // Main line
+
 		prev_point = curr_point;
+	}
+
+	// Draw second half of the data in blue using the same x values as the first half
+	prev_point = .(args.pos.x + padding_left, args.pos.y + args.scale.y - padding_bottom - (margs.data.get(half_data_count) / max_value * (args.scale.y - padding_top - padding_bottom)));
+	for (int i in 1..half_data_count) {
+		float value = margs.data.get(half_data_count + i);
+		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
+
+		// Draw antialiased line
+		for (int j = 4; j > 0; j = j - 2;) {
+			d.Line(prev_point, curr_point, j * 2, ColorAlpha(Colors.Blue, 0.2 * (8 - j) / 8.0)); // Outer lines for antialiasing
+		}
+		d.Line(prev_point, curr_point, 2, ColorAlpha(Colors.Blue, 0.5)); // Main line
+
+		prev_point = curr_point;
+	}
+
+	// Draw circles for first half
+	for (int i in 0..half_data_count) {
+		float value = margs.data.get(i);
+		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
+		d.Circle(curr_point, 5, args.color);
+	}
+
+	// Draw circles for second half
+	for (int i in 0..half_data_count) {
+		float value = margs.data.get(half_data_count + i);
+		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
+		d.Circle(curr_point, 5, Colors.Blue);
 	}
 
 	// Draw x-axis
@@ -359,7 +452,7 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 	// Draw x-axis ticks and labels
 	int num_ticks = 9;
 	for (int i in 0..(num_ticks + 1)) {
-		float tick_value = (data_count - 1) as float / num_ticks * i;
+		float tick_value = (half_data_count - 1) as float / num_ticks * i;
 		char^ tick_label = c:malloc(6);
 		c:gcvt(tick_value, 3, tick_label);
 		int text_width = c:MeasureText(tick_label, 20);
@@ -397,5 +490,10 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 	// Draw y-axis label
 	char^ y_axis_label = t"Y-Axis";
 	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
-	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 40) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+}
+
+Color ColorAlpha(Color color, float alpha) {
+	color.a = (alpha * 255.0) as int;
+	return color;
 }
