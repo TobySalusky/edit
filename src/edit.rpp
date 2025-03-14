@@ -64,6 +64,8 @@ Texture unmuted_icon;
 
 c:Sound fxMP3;
 
+List<Image> imported_images = .();
+
 List<Image> images = .();
 int max_images;
 
@@ -1526,6 +1528,31 @@ static AVFrame *frame = NULL;
 static AVPacket *pkt = NULL;
 static int video_frame_count = 0;
 static int audio_frame_count = 0;
+`;
+
+void fill_rl_image(c:AVFrame^ pict, int width, int height)
+{
+	Image img;
+	printf(t"{width}, {height}\n");
+
+	for (int y in 0..height) {
+		for (int x in 0..width) {
+			c:c:`
+			Color pixel = {
+				.r = pict->data[0][y * pict->linesize[0] + x * 3 + 0],
+				.g = pict->data[0][y * pict->linesize[0] + x * 3 + 1],
+				.b = pict->data[0][y * pict->linesize[0] + x * 3 + 2]
+			};
+			;`
+			img.setXY(x, y, c:pixel);
+		}
+	}
+	printf(t"{img.width}, {img.height}\n");
+	imported_images.add(img);
+	
+}
+
+c:c:`
 
 static int output_video_frame(AVFrame *frame)
 {
@@ -1552,6 +1579,8 @@ static int output_video_frame(AVFrame *frame)
     av_image_copy2(video_dst_data, video_dst_linesize,
                    frame->data, frame->linesize,
                    pix_fmt, width, height);
+				   
+	fill_rl_image(frame, width, height);
 
     /* write to rawvideo file */
     fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
@@ -1857,6 +1886,13 @@ end:
     av_free(video_dst_data[0]);
 
 	`;
+	// Check that imported_images is populated
+	while (!imported_images.is_empty()) {
+		Image img = imported_images.pop_back();
+		// Texture tex = c:LoadTextureFromImage(img);
+		char^ name = t"import_out/{imported_images.size %d05}.png";
+		c:ExportImage(img, name);
+	}
 	return false;
 }
 
