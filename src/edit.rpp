@@ -1532,23 +1532,54 @@ static int audio_frame_count = 0;
 
 void fill_rl_image(c:AVFrame^ pict, int width, int height)
 {
-	Image img;
-	printf(t"{width}, {height}\n");
+	Image img = c:GenImageColor(width, height, c:BLACK);
+	c:c:`
+	struct SwsContext *sws_ctx = NULL;
+	AVFrame* rgb_frame = av_frame_alloc();
+	rgb_frame->format = AV_PIX_FMT_RGB24;
+    rgb_frame->width  = width;
+    rgb_frame->height = height;
+   
+    sws_ctx = sws_getContext(
+        pict->width, pict->height, pix_fmt,
+        width, height, AV_PIX_FMT_RGB24,
+        SWS_BICUBIC,
+        NULL, NULL, NULL
+    );
+    if (!sws_ctx) {
+        fprintf(stderr, "Error initializing the sws context\n");
+        return -1;
+    }
+
+    // Set the new dimensions for the RGB frame
+    if (av_image_alloc(rgb_frame->data, rgb_frame->linesize, width, height, AV_PIX_FMT_RGB24, 1) < 0) {
+        fprintf(stderr, "Error allocating RGB frame\n");
+        return -1;
+    }
+
+    sws_scale(sws_ctx, pict->data, pict->linesize, 0, pict->height, rgb_frame->data, rgb_frame->linesize);
+
+    sws_freeContext(sws_ctx);
+	`;
 
 	for (int y in 0..height) {
 		for (int x in 0..width) {
 			c:c:`
 			Color pixel = {
-				.r = pict->data[0][y * pict->linesize[0] + x * 3 + 0],
-				.g = pict->data[0][y * pict->linesize[0] + x * 3 + 1],
-				.b = pict->data[0][y * pict->linesize[0] + x * 3 + 2]
+				.r = rgb_frame->data[0][y * rgb_frame->linesize[0] + x * 3 + 0],
+				.g = rgb_frame->data[0][y * rgb_frame->linesize[0] + x * 3 + 1],
+				.b = rgb_frame->data[0][y * rgb_frame->linesize[0] + x * 3 + 2],
+				.a = 255
 			};
 			;`
 			img.setXY(x, y, c:pixel);
 		}
 	}
-	printf(t"{img.width}, {img.height}\n");
 	imported_images.add(img);
+	c:c:`
+	av_freep(&rgb_frame->data[0]);  // Free the data
+	av_frame_free(&rgb_frame);       // Free the frame
+	`;
 	
 }
 
@@ -1887,12 +1918,13 @@ end:
 
 	`;
 	// Check that imported_images is populated
-	while (!imported_images.is_empty()) {
-		Image img = imported_images.pop_back();
-		// Texture tex = c:LoadTextureFromImage(img);
-		char^ name = t"import_out/{imported_images.size %d05}.png";
-		c:ExportImage(img, name);
-	}
+	// while (!imported_images.is_empty()) {
+	// 	Image img = imported_images.pop_back();
+	// 	defer(img.Unload());
+	// 	// Texture tex = c:LoadTextureFromImage(img);
+	// 	char^ name = t"import_out/{imported_images.size %d05}.png";
+	// 	c:ExportImage(img, name);
+	// }
 	return false;
 }
 
