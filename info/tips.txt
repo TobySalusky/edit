@@ -1,4 +1,0 @@
-* run/test-run acting weird (undefined symbols or files seemingly not included?)
--> redo `cmake --build out/build` 
-
-* libraylib.dll needs to be in same location as windows edit.exe for it to be runnable (otherwise it just silently crashes)

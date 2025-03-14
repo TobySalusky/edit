@@ -1,1 +1,0 @@
-rm -rf plugin_src\external && mkdir plugin_src\external && cp -r src\std plugin_src\external && rpp build plugin_src -out-dir:plugin_out -build-type:cgen -include-h-file:include\platform_stdlib_patch.h -cpp-compat

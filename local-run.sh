@@ -1,1 +1,0 @@
-./scripts/mac/run.sh $@
