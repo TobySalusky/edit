@@ -46,15 +46,24 @@ struct CodeManager {
 		}
 	}
 
+	void PreLoadTakeCareOfPreppedReload() {
+		if (!io.file_exists(new_dylib_path)) { return; }
+
+		io.rm_if_existent(old_dylib_path);
+		io.mv(dylib_path, old_dylib_path);
+		io.mv(new_dylib_path, dylib_path);
+	}
+
 	void CheckModifiedTimeAndReloadIfNecessary() {
 		if (!io.file_exists(new_dylib_path)) { return; }
 
+		println("unloading script.dylib for hot-reload");
 		this.Lib().Unload();
 
 		io.rm_if_existent(old_dylib_path);
 		io.mv(dylib_path, old_dylib_path);
 		io.mv(new_dylib_path, dylib_path);
-		
+		println("reloading script.dylib for hot-reload");
 		this.Load();
 	}
 

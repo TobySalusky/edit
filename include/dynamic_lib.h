@@ -34,7 +34,7 @@ static inline dynamic_lib_result dynamic_lib_open(const char* file_path) {
 		.error = handle == 0 ? "dynamic_lib_open(...) failed (WINDOWS: reason unknown)" : 0,
 	};
 #elif __APPLE__
-	void* handle = dlopen(file_path, RTLD_LAZY);
+	void* handle = dlopen(file_path, RTLD_NOW);
 	char* error = handle == 0 ? dlerror() : 0;
 	return (dynamic_lib_result) {
 		.handle = handle,

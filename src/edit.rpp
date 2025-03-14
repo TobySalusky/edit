@@ -85,7 +85,7 @@ ExportState make_export_state() -> {
 	.frames_rendered = 0,
 	.frames_written = 0,
 	.is_ffmpegging = false,
-	.start_ffmpeg_time = 0
+	.start_ffmpeg_time = 0,
 };
 
 ExportState export_state;
@@ -279,6 +279,7 @@ int main(int argc, char^^ argv) {
 
 	debug_print_env_config();
 
+	code_man.PreLoadTakeCareOfPreppedReload();
 	code_man.Load();
 	defer code_man.Unload();
 
@@ -319,15 +320,15 @@ int main(int argc, char^^ argv) {
 	images.reserve(max_frames);
 
 	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
 
-	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
-
-	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 
 	selected_elem_i = 0;
 
@@ -694,6 +695,7 @@ void KeyframeTimelineUI() {
 	selected_elem.kl_opacity.UI(tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
 
 	if (selected_elem.content_impl#CustomLayers() != NULL) {
+		// println(t"ui for {selected_elem.content_impl#CustomLayers()#size}");
 		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
 			// println(t"ui for {layer.name}");
 			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
@@ -811,7 +813,7 @@ struct HotKey {
 	int key_code;
 	// TODO: modifiers
 
-	bool IsPressed() -> key.IsPressed(key_code);
+	bool IsPressed() -> NoTextInputFocused() && key.IsPressed(key_code);
 
 	static Self DvoKey(int keycode_qwerty, int keycode_dvorak) -> {
 		.key_code = is_dvorak ? keycode_dvorak | keycode_qwerty 
@@ -891,6 +893,7 @@ void UpdateWindowSize(int width, int height) {
 
 bool init = false;
 void GameTick() {
+	ui_element_activated_this_frame = false;
 	if (window_width != rl.GetScreenWidth() || window_height != rl.GetScreenHeight()) {
 		UpdateWindowSize(rl.GetScreenWidth(), rl.GetScreenHeight());
 	}
@@ -1027,7 +1030,26 @@ void GameTick() {
 	if (is_exporting()) {
 		DrawExportProgressOverlay();
 	}
+
+	// char^ change_text = TextBox(UiElementID.ID("my_text", 0), "my_text", {
+	// 	.x = 0, .y = 500,
+	// 	.width = left_panel_width, .height = 24
+	// }, 16);
+	//
+	// if (change_text != NULL) {
+	// 	println(t"edited: {change_text=}");
+	//
+	// 	free(edit_text);
+	// 	edit_text = strdup(change_text);
+	// }
+
+
+	if (mouse.LeftClickPressed() && !ui_element_activated_this_frame) {
+		focused_ui_elem_id = UiElementID.ID(NULL);
+		println("deactivating");
+	}
 }
+char^ edit_text = f"";
 
 float video_play_pause_mute_ui_height = 32;
 

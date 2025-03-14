@@ -10,16 +10,15 @@ int CANVAS_HEIGHT = 900;
 
 @fx_args
 struct PointSwarmArgs {
-	float dot_size;
-
 	List<float> fs;
+	float dot_size;
 }
 
 @fx_fn
 void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
 	for (int i in 0..(fs.size/2)) {
 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
-		d.Circle(p, dot_size, Colors.Green);
+		d.Circle(p, dot_size, Colors.Red);
 
 		for (int j in 0..(fs.size/2)) {
 			if (i != j) {
@@ -27,6 +26,24 @@ void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
 				d.Line(p, other_p, 3, Colors.Yellow);
 			}
 		}
+	}
+}
+
+@fx_args
+struct StringWheelArgs {
+	float font_size;
+	float rot;
+	List<char^> strs;
+
+	char^ what;
+}
+
+@fx_fn
+void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
+	Vec2 screen_center = v2(CANVAS_WIDTH, CANVAS_HEIGHT).scale(0.5);
+	for (int i in 0..strs.size) {
+		float str_rot = rot + (360.0 / strs.size) * i;
+		d.TextAngle(strs.get(i), screen_center, .MiddleLeft, str_rot, font_size, Colors.White);
 	}
 }
 

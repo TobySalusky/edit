@@ -787,6 +787,19 @@ struct std {
 
 	static int maxi(int a, int b) -> a > b ? a | b;
 	static int mini(int a, int b) -> a > b ? b | a;
+
+	// static bool cstrs_have_overlap(char^ a, char^ b) { // TODO: 
+	// 	if (a == b) {
+	// 		return true; // simple aliasing!
+	// 	}
+	//  TODO: check range overlap between a/b & \0's
+	// 	
+	// 	return false;
+	// }
+}
+
+struct Math {
+	static float PI = c:M_PI as float;
 }
 
 

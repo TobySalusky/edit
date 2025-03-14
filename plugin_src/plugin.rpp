@@ -77,16 +77,41 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 
 		// NOTE: List<...> not explicitly initialized, since 0 (from calloc) == .()
 		if (str_eq(decl.type_str, "float")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "double")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeDouble{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "bool")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeBool{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "uchar")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUChar{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "char")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeChar{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "ushort")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUShort{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "short")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeShort{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "uint")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUInt{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "int")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeInt{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "ulong")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeULong{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "long")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeLong{'{'}{'}'} {'}'});";
 		} else if (str_eq(decl.type_str, "Vec2")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.x\", .ptr = ^(ptr#{decl.name}.x), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}.y\", .ptr = ^(ptr#{decl.name}.y), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeVec2{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "Color")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeColor{'{'}{'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "char^")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeStr{'{'}{'}'} {'}'});";
 		} else if (str_eq(decl.type_str, "List<float>")) {
 			// TODO: carefull of list memory leak!!!
 			
 			// char^ v_name = t"v_{ii}";
 			// TODO: mem-leak due to Box<..>
-			member_contents = t"{member_contents} members.add({'{'} .name = \"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeFloat{'{'}{'}'}), .fs = ^(ptr#{decl.name}) {'}'} {'}'});";
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeFloat{'{'}{'}'}), .list_ptr = ^(ptr#{decl.name}) {'}'} {'}'});";
+		} else if (str_eq(decl.type_str, "List<char^>")) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeStr{'{'}{'}'}), .list_ptr = ^(ptr#{decl.name}) {'}'} {'}'});";
 		} else {
 			return err;
 		}
