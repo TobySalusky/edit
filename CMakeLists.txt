@@ -31,6 +31,7 @@ else()
 		"${FFMPEG_DIR}/lib/avformat.lib"
 		"${FFMPEG_DIR}/lib/avutil.lib"
 		"${FFMPEG_DIR}/lib/swscale.lib"
+    "${FFMPEG_DIR}/lib/swresample.lib"
 	)
 endif()
 
@@ -46,6 +47,10 @@ target_include_directories(edit PUBLIC include)
 target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
 
 target_link_libraries(edit raylib)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+target_link_libraries(edit Threads::Threads)
+
 if (APPLE)
 	find_library(AVCODEC NAMES avcodec)
 	find_library(AVFORMAT NAMES avformat)
@@ -55,6 +60,7 @@ if (APPLE)
 
 else()
 	target_link_libraries(edit ${FFMPEG_LIBS})
+  file(COPY "${FFMPEG_DIR}/bin/" DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
 add_library(script SHARED ${SCRIPT_C_SOURCES})
