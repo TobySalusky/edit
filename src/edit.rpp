@@ -1068,7 +1068,7 @@ void GameTick() {
 			printf("\nInput file path, include extension: \n>");
 			scanf("%s", video_path);
 			`;
-			ImportVideo(frame_rate, "out", c:video_path);
+			ImportVideo(frame_rate, c:video_path);
 		}
 	}
 
@@ -1900,7 +1900,7 @@ static int get_format_from_sample_fmt(const char **fmt,
 
 //===============================================================================
 
-bool ImportVideo(int framerate, char^ folder_path, char^ input_file_name_no_path) {
+bool ImportVideo(int framerate, char^ input_file_name_no_path) {
 	c:c:`
 	int ret = 0;
 
