@@ -2,6 +2,8 @@
 
 import std;
 import rl;
+import hotkey;
+
 import clay_lib;
 
 bool debugEnabled = false;
@@ -79,7 +81,7 @@ struct EditClayApp {
 		float mouseWheelX = mouseWheelDelta.x;
 		float mouseWheelY = mouseWheelDelta.y;
 
-		if (rl.IsKeyPressed(KEY.D)) {
+		if (HotKeys.ClayDebugToggle.IsPressed()) {
 			debugEnabled = !debugEnabled;
 			Clay.SetDebugModeEnabled(debugEnabled);
 		}

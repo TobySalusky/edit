@@ -39,10 +39,7 @@ endif()
 
 # Our Project
 
-file(GLOB EDIT_C_SOURCES "out/*.c")
-file(GLOB SCRIPT_C_SOURCES "test_out/*.c")
-
-add_executable(edit ${EDIT_C_SOURCES})
+add_executable(edit "out/__unity__.c")
 target_include_directories(edit PUBLIC include)
 target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
 
@@ -63,7 +60,7 @@ else()
 	target_link_libraries(edit ${FFMPEG_LIBS})
 endif()
 
-add_library(script SHARED ${SCRIPT_C_SOURCES})
+add_library(script SHARED "test_out/__unity__.c")
 target_link_libraries(script raylib)
 target_include_directories(script PUBLIC include) # might not need all that..
 
