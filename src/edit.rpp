@@ -897,7 +897,7 @@ void GameTick() {
 		focused_ui_elem_id = UiElementID.ID(NULL);
 	}
 
-	// Update();
+	Update();
 }
 
 float video_play_pause_mute_ui_height = 32;

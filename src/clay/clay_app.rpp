@@ -53,7 +53,7 @@ struct EditClayApp {
 		// fonst.get(FONT_ID_BODY_16)
 		fonts.add(c:LoadFontEx("assets/fonts/Roboto-Regular.ttf", 32, 0, 400));
 		c:SetTextureFilter(fonts.get(1).texture, c:TEXTURE_FILTER_BILINEAR);
-		Clay.SetMeasureTextFunction(c:Raylib_MeasureText, ^fonts);
+		Clay.SetMeasureTextFunction(c:Raylib_MeasureText, fonts.data);
 	}
 
 	static void Deinit() {
