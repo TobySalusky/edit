@@ -18,6 +18,9 @@ import script_interface;
 import yaml;
 import global_settings;
 
+import clay_lib;
+import clay_app;
+
 c:import "rlgl.h";
 c:import "tinyfiledialogs.h";
 c:import <"pthread.h">;
@@ -203,7 +206,6 @@ char^ OpenImageFileDialog(char^ title) {
     return (filePath != NULL) ? filePath | "";
 }
 
-
 char^ OpenDataFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
 	filters[0] = "*.csv";
@@ -305,101 +307,6 @@ struct ProjectSave {
 			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", false);
 		}
 	}
-}
-
-int main(int argc, char^^ argv) {
-	defer GlobalSettings.SaveUpdates();
-
-	CommandLineArgs args = .(argc, argv);
-
-	debug_print_env_config();
-
-	code_man.PreLoadTakeCareOfPreppedReload();
-	code_man.Load();
-	defer code_man.Unload();
-
-	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
-
-	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
-
-	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
-	// TODO: high dpi -> increase sizes of render textures!
-	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT ~| c:FLAG_WINDOW_RESIZABLE ~| c:FLAG_WINDOW_HIGHDPI);      // Enable Multi Sampling Anti Aliasing 4x (if available)
-
-	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
-	window.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}"); // TODO: mem leak?
-	defer window.Close();
-
-	// Audio init and close
-	c:InitAudioDevice();
-	defer c:CloseAudioDevice();
-	fxMP3 = c:LoadSound("assets/history.mp3");
-	defer c:UnloadSound(fxMP3);
-
-	c:SetMasterVolume(master_volume);
-	c:PlaySound(fxMP3);
-
-	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
-
-	canvas = make_render_texture(1200, 900);
-
-	eye_open_icon = LoadIcon(t"assets/eye_open.png");
-	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
-	warning_icon = LoadIcon(t"assets/warning_dark.png");
-	image_icon = LoadIcon(t"assets/image.png");
-
-	play_icon = LoadIcon(t"assets/play.png");
-	pause_icon = LoadIcon(t"assets/pause.png");
-	muted_icon = LoadIcon(t"assets/muted.png");
-	unmuted_icon = LoadIcon(t"assets/unmuted.png");
-
-	images.reserve(max_frames);
-
-	//AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
-
-	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
-
-	selected_elem_i = 0;
-
-	// temp_inputs.add(TextInput.make("a"));
-	// temp_inputs.add(TextInput.make("what"));
-	// temp_inputs.add(TextInput.make(""));
-	// for (let p in temp_inputs.pairs()) {
-	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
-	// }
-
-	if (args.open_project != NULL) {
-		println(t"opening: saves/{args.open_project}");
-		ProjectSave.Load(Path("saves")/args.open_project);
-	}
-
-	rl.SetTargetFPS(60);
-	while (!window.ShouldClose()) {
-
-		// File drop listener
-		if (c:IsFileDropped()) {
-			OnFileDropped();
-		}
-
-		d.Begin();
-		GameTick();
-		d.End();
-		tfree(); // not thread safe (don't use temp-alloc from other threads!) ----------
-    }
-
-	if (args.save_to_project != NULL) {
-		ProjectSave.Create(Path("saves")/args.save_to_project, args.save_to_project);
-	}
-
-    return 0;
 }
 
 // adds element, adding it's corresponding layer if necessary (NOTE: will create up to N layers, if placed at layer N...)
@@ -1090,24 +997,12 @@ void GameTick() {
 		DrawExportProgressOverlay();
 	}
 
-	// char^ change_text = TextBox(UiElementID.ID("my_text", 0), "my_text", {
-	// 	.x = 0, .y = 500,
-	// 	.width = left_panel_width, .height = 24
-	// }, 16);
-	//
-	// if (change_text != NULL) {
-	// 	println(t"edited: {change_text=}");
-	//
-	// 	free(edit_text);
-	// 	edit_text = strdup(change_text);
-	// }
-
-
 	if (mouse.LeftClickPressed() && !ui_element_activated_this_frame) {
 		focused_ui_elem_id = UiElementID.ID(NULL);
 	}
+
+	Update();
 }
-char^ edit_text = f"";
 
 float video_play_pause_mute_ui_height = 32;
 
@@ -2073,9 +1968,8 @@ end:
 
 
 void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_path) {
-	Image img = c:LoadImageFromTexture(canvas.texture);
-	int imgh = img.height;
-	int imgw = img.width;
+	int imgh = canvas.texture.height;
+	int imgw = canvas.texture.width;
 
 	char ^filename;
 	filename = str_concat(output_file_name_no_path, ".mp4");
@@ -2210,3 +2104,143 @@ Rectangle UnCoveredArea() {
 }
 
 Rectangle CanvasRect() -> UnCoveredArea().Inset(ui_hidden ? 0 | 10).FitIntoSelfWithAspectRatio(canvas_width, canvas_height);
+
+void Update() {
+	// File drop listener
+	if (rl.IsFileDropped()) {
+		OnFileDropped();
+	}
+
+    #clay({
+		.id = CLAY_ID("OuterContainer"),
+		.layout = {
+			.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
+			.padding = { 16, 16, 16, 16 }, 
+			.childGap = 16 
+		}, 
+		.backgroundColor = Colors.Red 
+	}) {
+		#clay({ 
+			.id = CLAY_ID("InnerContainer"), 
+			.layout = {
+				.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW(200, 800) },
+				.padding = { 16, 16, 16, 16 },
+				.childGap = 16,
+				.layoutDirection = CLAY_TOP_TO_BOTTOM,
+				.childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } 
+			}, 
+			.backgroundColor = Colors.Blue 
+		}) {
+			for (int i in 0..7) {
+				El(i);
+			}
+		}
+	}
+}
+
+void El(int i) {
+	#clay({
+		.id = CLAY_IDI("El", i),
+		.layout = { 
+			.sizing = {
+				.width = CLAY_SIZING_FIT(),
+				.height = CLAY_SIZING_FIT(),
+			}
+		},
+		.backgroundColor = Colors.Green
+	}) {
+		#clay({
+			.id = CLAY_IDI_LOCAL("img", i), // TODO: ???
+			.layout = { 
+				.sizing = {
+					.width = CLAY_SIZING_FIXED(64),
+					.height = CLAY_SIZING_FIXED(64),
+				}
+			},
+			.image = .(warning_icon),
+		}) {}
+
+		CLAY_TEXT(.(t"hi {i}"), CLAY_TEXT_CONFIG({
+			.fontSize = 64
+		}));
+	}
+}
+
+int main(int argc, char^^ argv) {
+	CommandLineArgs args = .(argc, argv);
+	debug_print_env_config();
+
+	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
+	EditClayApp.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}");
+	defer EditClayApp.Deinit();
+
+	defer GlobalSettings.SaveUpdates();
+
+	code_man.PreLoadTakeCareOfPreppedReload();
+	code_man.Load();
+	defer code_man.Unload();
+
+	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
+
+
+	// Audio init and close
+	c:InitAudioDevice();
+	defer c:CloseAudioDevice();
+	fxMP3 = c:LoadSound("assets/history.mp3");
+	defer c:UnloadSound(fxMP3);
+
+	c:SetMasterVolume(master_volume);
+	c:PlaySound(fxMP3);
+
+	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
+
+	canvas = make_render_texture(1200, 900);
+
+	eye_open_icon = LoadIcon(t"assets/eye_open.png");
+	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
+	warning_icon = LoadIcon(t"assets/warning_dark.png");
+	image_icon = LoadIcon(t"assets/image.png");
+
+	play_icon = LoadIcon(t"assets/play.png");
+	pause_icon = LoadIcon(t"assets/pause.png");
+	muted_icon = LoadIcon(t"assets/muted.png");
+	unmuted_icon = LoadIcon(t"assets/unmuted.png");
+
+	images.reserve(max_frames);
+
+	//AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
+
+	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
+
+	selected_elem_i = 0;
+
+	// temp_inputs.add(TextInput.make("a"));
+	// temp_inputs.add(TextInput.make("what"));
+	// temp_inputs.add(TextInput.make(""));
+	// for (let p in temp_inputs.pairs()) {
+	// 	p.value.Layout(v2(10, 100 + 30 * p.key), 200);
+	// }
+
+	if (args.open_project != NULL) {
+		println(t"opening: saves/{args.open_project}");
+		ProjectSave.Load(Path("saves")/args.open_project);
+	}
+
+	defer {
+		if (args.save_to_project != NULL) {
+			ProjectSave.Create(Path("saves")/args.save_to_project, args.save_to_project);
+		}
+	}
+
+	EditClayApp.MainLoop(GameTick);
+
+    return 0;
+}

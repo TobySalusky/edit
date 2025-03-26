@@ -1,15 +1,21 @@
 import slice;
 
 struct List<T> {
-	int capacity;
-	int size;
-	T^ data;
+	int capacity = 0;
+	int size = 0;
+	T^ data = NULL;
 
 	construct() -> {
 		.capacity = 0,
 		.size = 0,
 		.data = NULL
 	};
+
+	static Self Reserved(int n) {
+		Self res = .(); // TODO(rpp): TODO: why was i getting an error here?? (can i not use own constructor in static fn!!)
+		res.reserve(n);
+		return res;
+	}
 
 	Slice<T> to_slice() -> { :data, :size };
 

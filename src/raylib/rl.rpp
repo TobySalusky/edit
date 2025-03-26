@@ -314,8 +314,8 @@ Vec2 Vec2_up = v2(0, 1);
 Vec2 Vec2_right = v2(1, 0);
 
 @extern struct Vec2 {
-	float x;
-	float y;
+	float x = 0;
+	float y = 0;
 
 	construct(float x, float y) -> { :x, :y };
 
@@ -492,7 +492,23 @@ enum TextPinKind {
 	TopLeft, TopMiddle, TopRight, MiddleLeft, Middle, MiddleRight, BottomLeft, BottomMiddle, BottomRight,
 }
 
-@extern struct Font {}
+// GlyphInfo, font characters glyphs info
+@extern struct GlyphInfo {
+    int value;              // Character value (Unicode)
+    int offsetX;            // Character offset X when drawing
+    int offsetY;            // Character offset Y when drawing
+    int advanceX;           // Character advance position X
+    Image image;            // Character image data
+}
+
+@extern struct Font {
+	int baseSize;           // Base size (default chars height)
+    int glyphCount;         // Number of glyph characters
+    int glyphPadding;       // Padding around the glyph characters
+    Texture texture;      // Texture atlas containing the glyphs
+    Rectangle^ recs;        // Rectangles in texture for the glyphs
+    GlyphInfo^ glyphs;      // Glyphs info data
+}
 
 struct Drawer {
 	void Begin() -> c:BeginDrawing();

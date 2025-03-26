@@ -32,8 +32,8 @@ int CANVAS_HEIGHT = 900;
 
 @fx_args
 struct PointSwarmArgs {
-	List<float> fs;
-	float dot_size;
+	List<float> fs = .();
+	float dot_size = 10;
 }
 
 // @fx_fn
