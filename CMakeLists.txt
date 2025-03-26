@@ -39,7 +39,12 @@ endif()
 
 # Our Project
 
-add_executable(edit "out/__unity__.c")
+if (APPLE)
+	add_executable(edit "out/__unity__.c")
+else()
+	# NOTE: this windows build does not -include-c-file:tinyfiledialogs.c --- because that causes issues with the inclusion of windows.h
+	add_executable(edit "out/__unity__.c" "include/tinyfiledialogs.c")
+endif()
 target_include_directories(edit PUBLIC include)
 target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
 

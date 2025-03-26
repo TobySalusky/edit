@@ -510,10 +510,10 @@ struct Element {
 		// serialize.uchar_default(color.b, "color.b", 0);
 		// serialize.uchar_default(color.a, "color.a", 0);
 
-		serialize.int_default(color.r, "color.r", 0);
-		serialize.int_default(color.g, "color.g", 0);
-		serialize.int_default(color.b, "color.b", 0);
-		serialize.int_default(color.a, "color.a", 0);
+		// serialize.int_default(color.r, "color.r", 0);
+		// serialize.int_default(color.g, "color.g", 0);
+		// serialize.int_default(color.b, "color.b", 0);
+		// serialize.int_default(color.a, "color.a", 0);
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
 

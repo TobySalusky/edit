@@ -142,7 +142,7 @@ void __tpp_panic(char* msg) {
 }
 
 void __tpp_assert(bool panic_condition, char* panic_msg) {
-	if (panic_condition) {
+	if (!panic_condition) {
 		__tpp_panic(panic_msg);
 	}
 }
