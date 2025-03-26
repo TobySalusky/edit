@@ -142,7 +142,6 @@ struct CustomLayerVec2 {
 	KeyframeLayer<Vec2> kl_value;
 }
 
-
 struct CustomLayerStr {
 	char^^ value;
 }
@@ -284,15 +283,19 @@ struct CustomLayer {
 					*it.value = change_text;
 					// NOTE: be careful! this points straight to textbox's buffer
 				}
-				
-				incr++;
 			},
 			CustomLayerList it -> { // it is NOT ref!!??
-				it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
-				incr++;
-				for (let& layer in it.layers) {
-					layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
-				}
+				println("who what where when?");
+				// it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				//
+				// let& em = kind as CustomLayerList;
+				// assert(^it == ^em, "i thought ^it == ^em....???!!");
+				// em.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				//
+				// incr++;
+				// for (let& layer in it.layers) {
+				// 	layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
+				// }
 			}
 		}
 
@@ -343,6 +346,7 @@ struct CustomPureFnElement : ElementImpl {
 							void^ ok -> {
 								c:CustomArgsNewFn args_new_fn = ok;
 								CustomStructHandle the_struct_handle = args_new_fn();
+
 								println(t"called {fx_new_fn_name}: -> struct w/ {the_struct_handle.members.size} members");
 								// for (let& member in the_struct_handle.members) {
 								// 	printf("%p %f %d\n", member.name, member.name, strlen(member.name));

@@ -26,4 +26,11 @@ pr.sh
 tr.sh
 =======
 saves/
+<<<<<<< HEAD
 >>>>>>> 29aafae (horray)
+=======
+
+lr.sh
+pr.sh
+tr.sh
+>>>>>>> 6c0a916 (horrayyy)

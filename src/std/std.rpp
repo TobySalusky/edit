@@ -800,7 +800,6 @@ struct std {
 
 struct Math {
 	static float PI = c:M_PI as float;
-
 	static float cos(float rads) -> c:cos(rads); 
 	static float sin(float rads) -> c:sin(rads); 
 }

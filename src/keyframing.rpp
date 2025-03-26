@@ -156,7 +156,6 @@ struct KeyframeLayer<T> {
 		*setter = this.GetValue(time);
 	}
 
-
 	void Insert(Keyframe<T> frame) {
 		for (int i = 0; i != keyframes.size; i++;) {
 			if (frame.time == keyframes.get(i).time) {
