@@ -18,8 +18,12 @@ test_resource/
 build/
 plugin_build/
 
+<<<<<<< HEAD
 saves/**
 
 lr.sh
 pr.sh
 tr.sh
+=======
+saves/
+>>>>>>> 29aafae (horray)

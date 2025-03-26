@@ -37,9 +37,9 @@ c:import <"libswresample/swresample.h">;
 
 // MUTEXES
 
-c:pthread_mutex_t images_lock;
-c:pthread_cond_t less;
-c:pthread_cond_t more;
+// c:pthread_mutex_t images_lock; NOTE: not currently used
+// c:pthread_cond_t less;
+// c:pthread_cond_t more;
 
 // Canvas and window
 
@@ -252,7 +252,7 @@ struct CommandLineArgs {
 }
 
 struct ProjectSave {
-	static void Load(Path project_dir_path) {
+	static void Load(Path project_dir_path) { // TODO: don't leak mem :)
 		elements = .(); // clear elements
 		selected_elem_i = 0;
 		
@@ -304,10 +304,6 @@ struct ProjectSave {
 		for (int i in 0..elements.size) {
 			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", false);
 		}
-
-		// yo.push_object({
-		// 	
-		// });
 	}
 }
 
@@ -315,6 +311,7 @@ int main(int argc, char^^ argv) {
 	defer GlobalSettings.SaveUpdates();
 
 	CommandLineArgs args = .(argc, argv);
+
 	debug_print_env_config();
 
 	code_man.PreLoadTakeCareOfPreppedReload();
@@ -933,6 +930,7 @@ void UpdateWindowSize(int width, int height) {
 bool init = false;
 void GameTick() {
 	ui_element_activated_this_frame = false;
+
 	if (window_width != rl.GetScreenWidth() || window_height != rl.GetScreenHeight()) {
 		UpdateWindowSize(rl.GetScreenWidth(), rl.GetScreenHeight());
 	}

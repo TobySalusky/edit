@@ -343,7 +343,6 @@ struct CustomPureFnElement : ElementImpl {
 							void^ ok -> {
 								c:CustomArgsNewFn args_new_fn = ok;
 								CustomStructHandle the_struct_handle = args_new_fn();
-
 								println(t"called {fx_new_fn_name}: -> struct w/ {the_struct_handle.members.size} members");
 								// for (let& member in the_struct_handle.members) {
 								// 	printf("%p %f %d\n", member.name, member.name, strlen(member.name));
@@ -512,6 +511,10 @@ struct Element {
 		// serialize.uchar_default(color.b, "color.b", 0);
 		// serialize.uchar_default(color.a, "color.a", 0);
 
+		serialize.int_default(color.r, "color.r", 0);
+		serialize.int_default(color.g, "color.g", 0);
+		serialize.int_default(color.b, "color.b", 0);
+		serialize.int_default(color.a, "color.a", 0);
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
 		// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
 

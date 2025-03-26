@@ -31,7 +31,7 @@ else()
 		"${FFMPEG_DIR}/lib/avformat.lib"
 		"${FFMPEG_DIR}/lib/avutil.lib"
 		"${FFMPEG_DIR}/lib/swscale.lib"
-    "${FFMPEG_DIR}/lib/swresample.lib"
+		"${FFMPEG_DIR}/lib/swresample.lib"
 	)
 endif()
 
