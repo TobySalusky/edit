@@ -6,7 +6,7 @@ import element;
 import ui_elements;
 import maths;
 import data;
-
+import keyframing;
 
 import std;
 import map;
@@ -326,7 +326,8 @@ int main(int argc, char^^ argv) {
 	// TODO: println(t"{test.get("apple")}"); (quote properly when inserting into talloc!!)
 
 	rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
-	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT ~| c:FLAG_WINDOW_RESIZABLE);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+	// TODO: high dpi -> increase sizes of render textures!
+	rl.SetConfigFlags(c:FLAG_MSAA_4X_HINT ~| c:FLAG_WINDOW_RESIZABLE ~| c:FLAG_WINDOW_HIGHDPI);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
 	window.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}"); // TODO: mem leak?
@@ -726,11 +727,11 @@ void KeyframeTimelineUI() {
 	float max_elem_time = selected_elem.duration;
 
 	float curr_lt = current_time - selected_elem.start_time;
-	selected_elem.kl_pos_x.UI(tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
-	selected_elem.kl_pos_y.UI(tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
-	selected_elem.kl_scale.UI(tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
-	selected_elem.kl_rotation.UI(tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
-	selected_elem.kl_opacity.UI(tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
+	KeyframeLayerUI_Float(selected_elem.kl_pos_x, tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
+	KeyframeLayerUI_Float(selected_elem.kl_pos_y, tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
+	KeyframeLayerUI_Float(selected_elem.kl_scale, tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
+	KeyframeLayerUI_Float(selected_elem.kl_rotation, tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
+	KeyframeLayerUI_Float(selected_elem.kl_opacity, tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
 
 	if (selected_elem.content_impl#CustomLayers() != NULL) {
 		// println(t"ui for {selected_elem.content_impl#CustomLayers()#size}");
@@ -1052,14 +1053,14 @@ void GameTick() {
 		if (HotKeys.KeyAtCurrentPosition.IsPressed() || HotKeys.Alternative_KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
 			let& elem = elements.get(selected_elem_i);
 			float keyframe_t = std.clamp(current_time - elem.start_time, 0, elem.duration);
-			elem.kl_pos_x.Insert({
+			elem.kl_pos_x.InsertValue(
 				.time = keyframe_t,
 				.value = mp_world_space.x
-			});
-			elem.kl_pos_y.Insert({
+			);
+			elem.kl_pos_y.InsertValue(
 				.time = keyframe_t,
 				.value = mp_world_space.y
-			});
+			);
 		}
 
 		if (HotKeys.Mute.IsPressed()) {

@@ -137,6 +137,12 @@ struct CustomLayerFloat {
 	KeyframeLayer<float> kl_value;
 }
 
+struct CustomLayerVec2 {
+	Vec2^ value;
+	KeyframeLayer<Vec2> kl_value;
+}
+
+
 struct CustomLayerStr {
 	char^^ value;
 }
@@ -217,6 +223,7 @@ struct CustomLayerList {
 
 choice CustomLayerKind {
 	CustomLayerFloat,
+	CustomLayerVec2,
 	CustomLayerStr,
 	CustomLayerList,
 }
@@ -228,6 +235,9 @@ struct CustomLayer {
 	void UpdateState(float lt) {
 		switch (kind) {
 			CustomLayerFloat it -> {
+				it.kl_value.Set(it.value, lt);
+			},
+			CustomLayerVec2 it -> {
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerStr -> {
@@ -246,38 +256,41 @@ struct CustomLayer {
 		let tl = global_tl + v2(0, dimens.y * i);
 
 		switch (kind) {
-			CustomLayerFloat it -> {
-				let& em = kind as CustomLayerFloat;
-				assert(^it == ^em, "i thought ^it == ^em....?!!");
-				em.kl_value.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+			CustomLayerFloat it -> { // TODO: use it (fix compiler issue: "CustomLayerKind __tpp_local_320 = (*(tpp_this)).kind;" .... need to detect non-temporary expr and use pointer!!!!)
+				KeyframeLayerUI_Float(it.kl_value, global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				incr++;
+			},
+			CustomLayerVec2 it -> { // TODO: use it (fix compiler issue: "CustomLayerKind __tpp_local_320 = (*(tpp_this)).kind;" .... need to detect non-temporary expr and use pointer!!!!)
+				// let& em = kind as CustomLayerVec2;
+				incr++;
+
+				int i = incr;
+				let tl = global_tl + v2(0, dimens.y * i);
+
+				d.Text(name, (tl.x - 100 + 10) as .., tl.y as .., 16, Colors.Orange); // label
 				incr++;
 			},
 			CustomLayerStr it -> {
-				let& em = kind as CustomLayerStr;
-				assert(^it == ^em, "i thought ^it == ^em....?!!");
-
 				int i = incr;
 				let tl = global_tl + v2(0, dimens.y * i);
 
 				d.Text(name, (tl.x - 100 + 10) as .., tl.y as .., 16, Colors.Orange); // label
 				// d.Text(*em.value, tl.x as .., tl.y as .., 16, Colors.Green);
 
-				char^ change_text = TextBox(UiElementID.ID(em.value, 0), *em.value, Rectangle.FromV(tl, dimens), 16);
+				char^ change_text = TextBox(UiElementID.ID(it.value, 0), *it.value, Rectangle.FromV(tl, dimens), 16);
 
 				if (change_text != NULL) {
 					// println(t"edited to be: {change_text=}");
-					*em.value = change_text;
+					*it.value = change_text;
 					// NOTE: be careful! this points straight to textbox's buffer
 				}
 				
 				incr++;
 			},
 			CustomLayerList it -> { // it is NOT ref!!??
-				let& em = kind as CustomLayerList;
-				assert(^it == ^em, "i thought ^it == ^em....?!!");
-				em.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
 				incr++;
-				for (let& layer in em.layers) {
+				for (let& layer in it.layers) {
 					layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
 				}
 			}
@@ -613,35 +626,35 @@ struct Element {
             }
 
             if (ListContainsString(data.headers, "X")) {
-                kl_pos_x.Insert({
-                    .time = keyframe_t,
-                    .value = row.get_float(t"X")
-                });
+                kl_pos_x.InsertValue(
+                    keyframe_t,
+                    row.get_float(t"X")
+				);
             }
             if (ListContainsString(data.headers, "Y")) {
-                kl_pos_y.Insert({
-                    .time = keyframe_t,
-                    .value = row.get_float(t"Y")
-                });
+                kl_pos_y.InsertValue(
+                    keyframe_t,
+                    row.get_float(t"Y")
+				);
             }
             if (ListContainsString(data.headers, "Opacity")) {
-                kl_opacity.Insert({
-                    .time = keyframe_t,
-                    .value = row.get_float(t"Opacity")
-                });
+                kl_opacity.InsertValue(
+                    keyframe_t,
+                    row.get_float(t"Opacity")
+				);
             }
             if (ListContainsString(data.headers, "Rotation")) {
-                kl_rotation.Insert({
-                    .time = keyframe_t,
-                    .value = row.get_float(t"Rotation")
-                });
+                kl_rotation.InsertValue(
+                    keyframe_t,
+                    row.get_float(t"Rotation")
+				);
             }
             if (ListContainsString(data.headers, "Scale")) {
 
-                kl_scale.Insert({
-                    .time = keyframe_t,
-                    .value = row.get_float(t"Scale")
-                });
+                kl_scale.InsertValue(
+                    keyframe_t,
+                    row.get_float(t"Scale")
+				);
             }
         }
     }

@@ -117,7 +117,7 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 		}
 	}
 
-	char^ contents = t"{structure.name}^ ptr = c:calloc(1, sizeof<{structure.name}>); List<CustomStructMemberHandle> members = .(); {member_contents} return {'{'} :ptr, :members {'}'};";
+	char^ contents = t"{structure.name}^ ptr = c:calloc(1, sizeof<{structure.name}>); *ptr = {'{'}{'}'}; List<CustomStructMemberHandle> members = .(); {member_contents} return {'{'} :ptr, :members {'}'};";
 
 	char^ code = f"CustomStructHandle __scriptgen_NewFxArgs_{structure.name}() {'{'}{contents}{'}'}"; // TODO: mem-leak?
 
