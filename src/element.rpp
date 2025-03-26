@@ -283,19 +283,14 @@ struct CustomLayer {
 					*it.value = change_text;
 					// NOTE: be careful! this points straight to textbox's buffer
 				}
+				incr++;
 			},
 			CustomLayerList it -> { // it is NOT ref!!??
-				println("who what where when?");
-				// it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
-				//
-				// let& em = kind as CustomLayerList;
-				// assert(^it == ^em, "i thought ^it == ^em....???!!");
-				// em.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
-				//
-				// incr++;
-				// for (let& layer in it.layers) {
-				// 	layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
-				// }
+				it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
+				incr++;
+				for (let& layer in it.layers) {
+					layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
+				}
 			}
 		}
 
