@@ -223,7 +223,7 @@ struct ProjectSave {
 		}
 	}
 
-	static void Create(Path project_dir_path, char^ name) {
+  static void Create(Path project_dir_path, char^ name) {
 		io.mkdir(project_dir_path);
 
 		yaml_object manifest = make_yaml_object();
@@ -331,8 +331,8 @@ void LeftPanelUI() {
 			if (strlen(file_path) > 0) {
 				// Load data and apply to keyframe
 				Data data = Data(file_path);
-				// elements.get(selected_elem_i).ApplyKeyframeData(data);
-				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
+				elements.get(selected_elem_i).ApplyKeyframeData(data);
+				// elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
 				data_list.add(data);
 				show_add_element_options = false;
 			}

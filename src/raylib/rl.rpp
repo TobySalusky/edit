@@ -544,6 +544,7 @@ struct Drawer {
 
 	// NOTE: more
 	void Circle(Vec2 pos, float rad, Color color) -> c:DrawCircleV(pos.v(), rad, color);
+	void Triangle(Vec2 p1, Vec2 p2, Vec2 p3, Color color) -> c:DrawTriangle(p1.v(), p2.v(), p3.v(), color);
 
 	void Line(Vec2 p1, Vec2 p2, float thickness, Color color) -> c:DrawLineEx(p1.v(), p2.v(), thickness, color);
 
