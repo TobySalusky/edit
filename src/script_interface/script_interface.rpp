@@ -9,16 +9,43 @@ struct FxArgs {
 	Vec2 scale;
 	float rotation;
 	Color color;
+	// float lt;
+	// TODO: local-time, global-time, proportion_done, inverse_proportion_done
 }
 
 // struct CustomStructMemberTypeInt {}
 struct CustomStructMemberTypeFloat {}
+struct CustomStructMemberTypeDouble {}
+
+struct CustomStructMemberTypeBool {}
+
+struct CustomStructMemberTypeUChar {}
+struct CustomStructMemberTypeChar {}
+struct CustomStructMemberTypeUShort {}
+struct CustomStructMemberTypeShort {}
+struct CustomStructMemberTypeUInt {}
+struct CustomStructMemberTypeInt {}
+struct CustomStructMemberTypeULong {}
+struct CustomStructMemberTypeLong {}
+
+struct CustomStructMemberTypeStr {} // (i.e. char^)
+struct CustomStructMemberTypeVec2 {}
+struct CustomStructMemberTypeColor {}
+
 struct CustomStructMemberTypeList {
 	CustomStructMemberType^ elem_t; // malloced!!
-	List<float>^ fs;
+	void^ list_ptr; // type-erased List<...>^
 
 	// TODO: delete()
 }
+
+struct CustomStructMemberTypeCustomStruct {
+	CustomStructHandle^ handle; // NOTE: malloced!
+	char^ type_name_str;
+
+	// TODO: delete()
+}
+
 // struct CustomStructMemberTypeBool {}
 // struct CustomStructMemberTypeCustomStruct {
 // 	CustomStructHandle handle;
@@ -26,12 +53,26 @@ struct CustomStructMemberTypeList {
 
 // Vec2 -> two Float fields
 choice CustomStructMemberType {
-	// CustomStructMemberTypeInt,
 	CustomStructMemberTypeFloat,
+	CustomStructMemberTypeDouble,
+
+	CustomStructMemberTypeBool,
+
+	CustomStructMemberTypeUChar,
+	CustomStructMemberTypeChar,
+	CustomStructMemberTypeUShort,
+	CustomStructMemberTypeShort,
+	CustomStructMemberTypeUInt,
+	CustomStructMemberTypeInt,
+	CustomStructMemberTypeULong,
+	CustomStructMemberTypeLong,
+
+	CustomStructMemberTypeStr,
+	CustomStructMemberTypeVec2,
+	CustomStructMemberTypeColor,
+
 	CustomStructMemberTypeList,
-	// CustomStructMemberTypeBool,
 	// CustomStructMemberTypeCustomStruct,
-	;
 }
 
 struct CustomStructMemberHandle {

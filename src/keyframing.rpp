@@ -2,16 +2,111 @@ import theming;
 import rl;
 import std;
 
-struct Keyframe {
-	float value;
-	float time;
+struct InterpolationFns {
+	// easing function
+	static float Linear(float t) -> t;
+	static float EaseInOutSine(float t) -> -(Math.cos(Math.PI * t) - 1) / 2;
+	static float EaseInSine(float t) -> 1.0 - Math.cos((t * Math.PI) / 2);
+	static float EaseOutSine(float t) -> Math.sin((t * Math.PI) / 2);
+
+	static float InterpolateModed(float t, KeyframeInterpolationMode from_out, KeyframeInterpolationMode to_in) {
+		// if (from_out is KeyframeInterpolationMode.Linear) { // TODO: crashes lsp
+		if (from_out == .Linear && to_in == .Linear) { return Linear(t); }
+		if (from_out == .Ease && to_in == .Ease) { return EaseInOutSine(t); }
+		if (from_out == .Linear && to_in == .Ease) { return EaseInSine(t); }
+		if (from_out == .Ease && to_in == .Linear) { return EaseOutSine(t); }
+
+		panic(t"UNKNOWN configuariotn for InterpolateModed: {from_out as int=} {to_in as int=}");
+		return 0;
+	}
 }
 
-struct KeyframeLayer {
-	List<Keyframe> keyframes;
+struct KeyframeInterpolator<T> { }
+struct KeyframeInterpolator=<float> {
+	static float Interpolate(Keyframe<float>& from, Keyframe<float>& to, float t) {
+		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
+		return from.value * (1.0 - pt) + to.value * pt;
+	}
+}
+struct KeyframeInterpolator=<Vec2> {
+	static Vec2 Interpolate(Keyframe<Vec2>& from, Keyframe<Vec2>& to, float t) {
+		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
+		return from.value.scale(1.0 - pt) + to.value.scale(pt);
+	}
+}
+
+struct KeyframeInterpolator=<int> {
+	static int Interpolate(Keyframe<int>& from, Keyframe<int>& to, float t) {
+		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
+		return from.value + (((to.value - from.value) as float) * pt) as int;
+	}
+}
+
+struct KeyframeInterpolator=<Color> {
+	static Color Interpolate(Keyframe<Color>& from, Keyframe<Color>& to, float t) {
+		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
+		return {
+			.r = from.value.r + (((to.value.r - from.value.r) as float) * pt) as int,
+			.g = from.value.g + (((to.value.g - from.value.g) as float) * pt) as int,
+			.b = from.value.b + (((to.value.b - from.value.b) as float) * pt) as int,
+			.a = from.value.a + (((to.value.a - from.value.a) as float) * pt) as int,
+		};
+	}
+}
+
+enum KeyframeInterpolationMode {
+	Linear,
+	Ease,
+	;
+
+	bool operator:==(Self other) -> this as int == other as int;
+	bool operator:!=(Self other) -> this as int != other as int;
+}
+
+struct Keyframe<T> {
+	T value;
+	float time;
+	KeyframeInterpolationMode in_interpolation_mode;
+	KeyframeInterpolationMode out_interpolation_mode;
+}
+
+void KeyframeLayerUI_Float(KeyframeLayer<float>& kl_layer, Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
+	int i = incr;
+	let tl = global_tl + v2(0, dimens.y * i);
+
+	d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
+	d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
+
+	if (mouse.GetPos().Between(tl - v2(90, 0), tl + v2(0, dimens.y)) && mouse.LeftClickPressed()) {
+		Vec2 _dims = (tl + v2(0, dimens.y)) - (tl - v2(90, 0));
+		Vec2 delta = mouse.GetPos() - (tl - v2(90, 0));
+		float value = (delta.x / _dims.x) * 300;
+
+		println(t"setting value to: {value} {(tl - v2(90, 0)).x} {(tl - v2(90, 0)).y} {(tl + v2(0, dimens.y)).x} {(tl + v2(0, dimens.y)).y}");
+		println(t"name of layer being set is: {name}");
+
+		kl_layer.InsertValue(curr_local_time, value);
+	}
+
+	Vec2 from = tl + v2(0, dimens.y / 2);
+	Vec2 to = from + v2(dimens.x, 0);
+	for (int i = 0; i != kl_layer.keyframes.size; i++;) {
+		let keyframe = kl_layer.keyframes.get(i);
+		float t = keyframe.time / max_elem_time;
+		float it = 1.0 - t;
+
+		Vec2 circle_v = from * v2(it, it) + to * v2(t, t);
+		d.Circle(circle_v, 0.2 * dimens.y, hex("FFFFFFAA"));
+
+		d.TextTemp(t"{i}", circle_v);
+	}
+}
+
+struct KeyframeLayer<T> {
+	List<Keyframe<T>> keyframes;
 	// bool activated;
 
-	construct() -> { .keyframes = .() };
+	construct() -> { .keyframes = List<Keyframe<T>>() };
 
 	bool HasValue() {
 		return 
@@ -19,8 +114,8 @@ struct KeyframeLayer {
 		keyframes.size > 0;
 	}
 
-	Keyframe BestFrom(float time) {
-		Keyframe best = keyframes.get(0);
+	Keyframe<T> BestFrom(float time) {
+		Keyframe<T> best = keyframes.get(0);
 		for (let keyframe in keyframes) {
 			if (keyframe.time <= time) {
 				best = keyframe;
@@ -29,7 +124,7 @@ struct KeyframeLayer {
 		return best;
 	}
 
-	Keyframe BestTo(float time) {
+	Keyframe<T> BestTo(float time) {
 		for (let keyframe in keyframes) {
 			if (keyframe.time > time) {
 				return keyframe;
@@ -38,11 +133,13 @@ struct KeyframeLayer {
 		return keyframes.get(keyframes.size - 1);
 	}
 
-	float GetValue(float time) {
+	T GetValue(float time) {
 		if (!this.HasValue()) { panic("No value! [GetValue]"); }
 
-		Keyframe from = this.BestFrom(time);
-		Keyframe to = this.BestTo(time);
+		Keyframe<T> from = this.BestFrom(time);
+		Keyframe<T> to = this.BestTo(time);
+
+		// TODO: skip interpolation when before/after first/last
 
 		float t_range = to.time - from.time;
 		if (t_range == 0) { t_range = 1; } // TODO: almost equal to zero?
@@ -50,51 +147,16 @@ struct KeyframeLayer {
 		float t = (time - from.time) / t_range;
 		float it = 1.0 - t;
 
-		return from.value * it + to.value * t;
+		return KeyframeInterpolator<T>.Interpolate(from, to, t);
 	}
 
-	void SetFloat(float^ f_setter, float time) {
+	void Set(T^ setter, float time) {
 		if (!this.HasValue()) { return; }
 
-		*f_setter = this.GetValue(time);
+		*setter = this.GetValue(time);
 	}
 
-	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
-		int i = incr;
-		let tl = global_tl + v2(0, dimens.y * i);
-
-		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
-		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
-
-		if (mouse.GetPos().Between(tl - v2(90, 0), tl + v2(0, dimens.y)) && mouse.LeftClickPressed()) {
-			Vec2 _dims = (tl + v2(0, dimens.y)) - (tl - v2(90, 0));
-			Vec2 delta = mouse.GetPos() - (tl - v2(90, 0));
-			float value = (delta.x / _dims.x) * 300;
-
-			println(t"setting value to: {value} {(tl - v2(90, 0)).x} {(tl - v2(90, 0)).y} {(tl + v2(0, dimens.y)).x} {(tl + v2(0, dimens.y)).y}");
-			println(t"name of layer being set is: {name}");
-
-			Insert({
-				:value,
-				.time = curr_local_time
-			});
-		}
-
-		Vec2 from = tl + v2(0, dimens.y / 2);
-		Vec2 to = from + v2(dimens.x, 0);
-		for (int i = 0; i != keyframes.size; i++;) {
-			let keyframe = keyframes.get(i);
-			float t = keyframe.time / max_elem_time;
-			float it = 1.0 - t;
-
-			Vec2 circle_v = from * v2(it, it) + to * v2(t, t);
-			d.Circle(circle_v, 0.2 * dimens.y, hex("FFFFFFAA"));
-
-			d.TextTemp(t"{i}", circle_v);
-		}
-	}
-
-	void Insert(Keyframe frame) {
+	void Insert(Keyframe<T> frame) {
 		for (int i = 0; i != keyframes.size; i++;) {
 			if (frame.time == keyframes.get(i).time) {
 				keyframes.get(i) = frame;
@@ -112,8 +174,17 @@ struct KeyframeLayer {
 		keyframes.add_at(frame, best);
 	}
 
+	void InsertValue(float time, T value) {
+		Insert({
+			:value,
+			:time,
+			.in_interpolation_mode = .Linear,
+			.out_interpolation_mode = .Linear,
+		});
+	}
+
 	void Clear() {
 		keyframes.delete();
-		keyframes = .();
+		keyframes = List<Keyframe<T>>();
 	}
 }

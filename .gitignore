@@ -17,3 +17,14 @@ test_resource/
 
 build/
 plugin_build/
+
+saves/**
+
+lr.sh
+pr.sh
+tr.sh
+
+audio.raw
+video.raw
+
+edit_video.mp4

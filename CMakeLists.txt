@@ -31,7 +31,7 @@ else()
 		"${FFMPEG_DIR}/lib/avformat.lib"
 		"${FFMPEG_DIR}/lib/avutil.lib"
 		"${FFMPEG_DIR}/lib/swscale.lib"
-    "${FFMPEG_DIR}/lib/swresample.lib"
+		"${FFMPEG_DIR}/lib/swresample.lib"
 	)
 endif()
 
@@ -39,10 +39,12 @@ endif()
 
 # Our Project
 
-file(GLOB EDIT_C_SOURCES "out/*.c")
-file(GLOB SCRIPT_C_SOURCES "test_out/*.c")
-
-add_executable(edit ${EDIT_C_SOURCES})
+if (APPLE)
+	add_executable(edit "out/__unity__.c")
+else()
+	# NOTE: this windows build does not -include-c-file:tinyfiledialogs.c --- because that causes issues with the inclusion of windows.h
+	add_executable(edit "out/__unity__.c" "include/tinyfiledialogs.c")
+endif()
 target_include_directories(edit PUBLIC include)
 target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
 
@@ -56,14 +58,15 @@ if (APPLE)
 	find_library(AVFORMAT NAMES avformat)
 	find_library(AVUTIL NAMES avutil)
 	find_library(SWSCALE NAMES swscale)
-	target_link_libraries(edit ${AVCODEC} ${AVFORMAT} ${AVUTIL} ${SWSCALE})
+	find_library(SWRESAMPLE NAMES swresample)
+	target_link_libraries(edit ${AVCODEC} ${AVFORMAT} ${AVUTIL} ${SWSCALE} ${SWRESAMPLE})
 
 else()
 	target_link_libraries(edit ${FFMPEG_LIBS})
-  file(COPY "${FFMPEG_DIR}/bin/" DESTINATION ${CMAKE_BINARY_DIR})
+	file(COPY "${FFMPEG_DIR}/bin/" DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
-add_library(script SHARED ${SCRIPT_C_SOURCES})
+add_library(script SHARED "test_out/__unity__.c")
 target_link_libraries(script raylib)
 target_include_directories(script PUBLIC include) # might not need all that..
 

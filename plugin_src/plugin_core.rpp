@@ -57,6 +57,16 @@ struct PluginCodegen {
 	char^ code;
 }
 
+struct PluginCodegenError {
+	char^ message;
+}
+
+choice PluginCodegenResult {
+	PluginCodegen,
+	PluginCodegenError,
+	;
+}
+
 struct PluginSyntaxExprVar {
 	char^ name;
 }

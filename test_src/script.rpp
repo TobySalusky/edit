@@ -9,118 +9,64 @@ import data;
 int CANVAS_WIDTH = 1200;
 int CANVAS_HEIGHT = 900;
 
+// @fx_args
+// struct PointSwarmArgs {
+// 	List<float> fs;
+// 	float dot_size;
+// }
+
+// @fx_fn
+// void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
+// 	for (int i in 0..(fs.size/2)) {
+// 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
+// 		d.Circle(p, dot_size, Colors.Red);
+//
+// 		for (int j in 0..(fs.size/2)) {
+// 			if (i != j) {
+// 				Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
+// 				d.Line(p, other_p, 3, Colors.Yellow);
+// 			}
+// 		}
+// 	}
+// }
+
 @fx_args
 struct PointSwarmArgs {
-	float dot_size;
-
-	List<float> fs;
-
-	void Draw() {
-		// println(t"PointSwarmArgs: {fs.size=}");
-		for (int i in 0..(fs.size/2)) {
-			Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
-			d.Circle(p, dot_size, Colors.Green);
-
-			for (int j in 0..(fs.size/2)) {
-				if (i != j) {
-					Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
-					d.Line(p, other_p, 3, Colors.Yellow);
-				}
-			}
-		}
-	}
+	List<float> fs = .();
+	float dot_size = 10;
 }
 
-@fx_fn
-void PointSwarm(FxArgs& args, PointSwarmArgs& margs) {
-	d.Circle(v2(200, 200), 10, Colors.Green);
-	margs.Draw();
-}
-
-
-// helper for `cool_effect` effect
-List<Vec2> GenPoints(int pixels_per) {
-	pixels_per = std.maxi(1, pixels_per);
-	List<Vec2> points = .();
-
-	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
-		points.add(.(i*pixels_per, 0));
-		points.add(.(i*pixels_per, CANVAS_HEIGHT));
-	}
-	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
-		points.add(.(0, i*pixels_per));
-		points.add(.(CANVAS_WIDTH, i*pixels_per));
-	}
-
-	return points;
-}
-// List<Vec2> points = GenPoints();
-
-// EFFECTS --------
-@fx_args
-struct CoolArgs {
-	float pixels_per;
-}
-
-@fx_fn
-void cool_effect(FxArgs& args, CoolArgs& margs) {
-	Vec2 center = args.pos + args.scale.divide(2);
-
-	let points = GenPoints(margs.pixels_per as int);
-	defer points.delete();
-	for (let p in points) {
-		d.Line(p, center, 3, Colors.Orange);
-	}
-
-	d.Circle(center, 11, Colors.Black);
-	d.Circle(center, 10, args.color);
-}
+// @fx_fn
+// void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
+// 	for (int i in 0..(fs.size/2)) {
+// 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
+// 		d.Circle(p, dot_size, Colors.Red);
+//
+// 		for (int j in 0..(fs.size/2)) {
+// 			if (i != j) {
+// 				Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
+// 				d.Line(p, other_p, 3, Colors.Yellow);
+// 			}
+// 		}
+// 	}
+// }
 
 @fx_args
-struct PerlinArgs {
-	float dot_size;
+struct StringWheelArgs {
+	List<char^> strs = .(); // list of string
+
+	char^ what = "nope";
+
+	float font_size = 32;
+	float rot = 30;
 }
 
 @fx_fn
-void perlin_field(FxArgs& args, PerlinArgs& margs) {
-	float factor = 0.1;
-	float pos_factor = 0.01;
-	int dot_size = std.maxi(margs.dot_size as int, 1);
-
-	Vec2 stride = .(CANVAS_WIDTH / dot_size, CANVAS_HEIGHT / dot_size);
-
-	for (int col in 0..dot_size) {
-		for (int row in 0..dot_size) {
-			float x = args.pos.x * pos_factor + factor * col;
-			float y = args.pos.y * pos_factor + factor * row;
-			float z = args.pos.x * pos_factor - args.pos.y * pos_factor / 2;
-
-			float noise = stb.perlin.turbulence_noise3(x, y, z, 2, 0.5, 6);
-			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, args.color, noise));
-		}
-	}
-}
-
-
-@fx_fn
-void MyFx2(FxArgs& args) {
-	// println(t"no margs, just args");
-}
-
-@fx_args
-struct MyArgs {
-	float bar1;
-	float bar2;
-	float bar3;
-
-	Vec2 my_scalar;
-}
-
-void Bar(float h, int col, Color color, Vec2 scalar) {
-	Vec2 p = v2(col as float * (150.0 + scalar.x), 800.0 - h);
-	Vec2 dims = v2(140, h);
-	d.Rect(p, dims * (scalar.divide(300) + v2(1, 1)), color);
-}
+void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
+	Vec2 screen_center = v2(CANVAS_WIDTH, CANVAS_HEIGHT).scale(0.5);
+	for (int i in 0..strs.size) {
+		float str_rot = rot + (360.0 / strs.size) * i;
+		d.TextAngle(strs.get(i), screen_center, .MiddleLeft, str_rot, font_size, Colors.White);
 
 @fx_fn
 void MyFx(FxArgs& args, using MyArgs& margs) {
@@ -302,6 +248,255 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color); // Main triangle
 	}
 }
+//
+// // // helper for `cool_effect` effect
+// // List<Vec2> GenPoints(int pixels_per) {
+// // 	pixels_per = std.maxi(1, pixels_per);
+// // 	List<Vec2> points = .();
+// //
+// // 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
+// // 		points.add(.(i*pixels_per, 0));
+// // 		points.add(.(i*pixels_per, CANVAS_HEIGHT));
+// // 	}
+// // 	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
+// // 		points.add(.(0, i*pixels_per));
+// // 		points.add(.(CANVAS_WIDTH, i*pixels_per));
+// // 	}
+// //
+// // 	return points;
+// // }
+// //
+// // // EFFECTS --------
+// // helper for `cool_effect` effect
+// List<Vec2> GenPoints(int pixels_per) {
+// 	pixels_per = std.maxi(1, pixels_per);
+// 	List<Vec2> points = .();
+//
+// 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
+// 		points.add(.(i*pixels_per, 0));
+// 		points.add(.(i*pixels_per, CANVAS_HEIGHT));
+// 	}
+// 	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
+// 		points.add(.(0, i*pixels_per));
+// 		points.add(.(CANVAS_WIDTH, i*pixels_per));
+// 	}
+//
+// 	return points;
+// }
+//
+// // EFFECTS --------
+// // @fx_args
+// // struct CoolArgs {
+// // 	float pixels_per;
+// // }
+// //
+// // @fx_fn
+// // void cool_effect(FxArgs& args, CoolArgs& margs) {
+// // 	Vec2 center = args.pos + args.scale.divide(2);
+// //
+// // 	let points = GenPoints(margs.pixels_per as int);
+// // 	defer points.delete();
+// // 	for (let p in points) {
+// // 		d.Line(p, center, 3, Colors.Orange);
+// // 	}
+// //
+// // 	d.Circle(center, 11, Colors.Black);
+// // 	d.Circle(center, 10, args.color);
+// // }
+// //
+// // @fx_args
+// // struct StringWheelArgs {
+// // 	List<char^> strs = .(); // list of string
+// //
+// // 	char^ what = "nope";
+// //
+// // 	float font_size = 32;
+// // 	float rot = 30;
+// // }
+// //
+// // @fx_fn
+// // void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
+// // 	Vec2 screen_center = v2(CANVAS_WIDTH, CANVAS_HEIGHT).scale(0.5);
+// // 	for (int i in 0..strs.size) {
+// // 		float str_rot = rot + (360.0 / strs.size) * i;
+// // 		d.TextAngle(strs.get(i), screen_center, .MiddleLeft, str_rot, font_size, Colors.White);
+// // 	}
+// // }
+// //
+// // // struct PointSwarmArgs {
+// // // 	List<float> fs = {};
+// // // }
+// // //
+// // // @fx_fn
+// // // void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
+// // // 	for (int i in 0..(fs.size/2)) {
+// // // 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
+// // // 		d.Circle(p, dot_size, Colors.Green);
+// // //
+// // // 		for (int j in 0..(fs.size/2)) {
+// // // 			if (i != j) {
+// // // 				Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
+// // // 				d.Line(p, other_p, 3, Colors.Yellow);
+// // // 			}
+// // // 		}
+// // // 	}
+// // // }
+// // //
+// // // // helper for `cool_effect` effect
+// // // List<Vec2> GenPoints(int pixels_per) {
+// // // 	pixels_per = std.maxi(1, pixels_per);
+// // // 	List<Vec2> points = .();
+// // //
+// // // 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
+// // // 		points.add(.(i*pixels_per, 0));
+// // // 		points.add(.(i*pixels_per, CANVAS_HEIGHT));
+// // // 	}
+// // // 	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
+// // // 		points.add(.(0, i*pixels_per));
+// // // 		points.add(.(CANVAS_WIDTH, i*pixels_per));
+// // // 	}
+// // //
+// // // 	return points;
+// // // }
+// // //
+// // // // EFFECTS --------
+// // // // @fx_args
+// // // // struct CoolArgs {
+// // // // 	float pixels_per;
+// // // // }
+// // // //
+// // // // @fx_fn
+// // // // void cool_effect(FxArgs& args, CoolArgs& margs) {
+// // // // 	Vec2 center = args.pos + args.scale.divide(2);
+// // // //
+// // // // 	let points = GenPoints(margs.pixels_per as int);
+// // // // 	defer points.delete();
+// // // // 	for (let p in points) {
+// // // // 		d.Line(p, center, 3, Colors.Orange);
+// // // // 	}
+// // // //
+// // // // 	d.Circle(center, 11, Colors.Black);
+// // // // 	d.Circle(center, 10, args.color);
+// // // // }
+// // // //
+// // // // @fx_args
+// // // // struct PerlinArgs {
+// // // // 	float dot_size;
+// // // // }
+// // // //
+// // // // @fx_fn
+// // // // void perlin_field(FxArgs& args, PerlinArgs& margs) {
+// // // // 	float factor = 0.1;
+// // // // 	float pos_factor = 0.01;
+// // // // 	int dot_size = std.maxi(margs.dot_size as int, 1);
+// // // //
+// // // // 	Vec2 stride = .(CANVAS_WIDTH / dot_size, CANVAS_HEIGHT / dot_size);
+// // // //
+// // // // 	for (int col in 0..dot_size) {
+// // // // 		for (int row in 0..dot_size) {
+// // // // 			float x = args.pos.x * pos_factor + factor * col;
+// // // // 			float y = args.pos.y * pos_factor + factor * row;
+// // // // 			float z = args.pos.x * pos_factor - args.pos.y * pos_factor / 2;
+// // // //
+// // // // 			float noise = stb.perlin.turbulence_noise3(x, y, z, 2, 0.5, 6);
+// // // // 			d.Circle(stride * v2(col, row), noise * 2 + 1, ColorLerp(Colors.Red, args.color, noise));
+// // // // 		}
+// // // // 	}
+// // // // }
+// // // //
+// // // //
+// // // // @fx_fn
+// // // // void MyFx2(FxArgs& args) {
+// // // // 	// println(t"no margs, just args");
+// // // // }
+// // // //
+// // // // @fx_args
+// // // // struct MyArgs {
+// // // // 	float bar1;
+// // // // 	float bar2;
+// // // // 	float bar3;
+// // // //
+// // // // 	Vec2 my_scalar;
+// // // // }
+// // // //
+// // // // void Bar(float h, int col, Color color, Vec2 scalar) {
+// // // // 	Vec2 p = v2(col as float * (150.0 + scalar.x), 800.0 - h);
+// // // // 	Vec2 dims = v2(140, h);
+// // // // 	d.Rect(p, dims * (scalar.divide(300) + v2(1, 1)), color);
+// // // // }
+// // // //
+// // // // @fx_fn
+// // // // void MyFx(FxArgs& args, using MyArgs& margs) {
+// // // // 	Bar(margs.bar1, 1, Colors.Red, margs.my_scalar);
+// // // // 	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
+// // // // 	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
+// // // // }
+// // // //
+// // // // @fx_args
+// // // // struct BarChartArgs {
+// // // // 	List<float> data;
+// // // // }
+// // // //
+// // // // @fx_fn
+// // // // void bar_chart(FxArgs& args, using BarChartArgs& margs) {
+// // // // 	int bar_count = margs.data.size;
+// // // //
+// // // // 	float max_bar_value = 0.0;
+// // // //     float spacing = 5.0;
+// // // //     float total_spacing = spacing * (bar_count - 1);
+// // // //     float bar_width = (args.scale.x - total_spacing) / bar_count;
+// // // //     float bar_height = args.scale.y;
+// // // //
+// // // // 	// Find max bar value
+// // // // 	for (int i in 0..bar_count) {
+// // // // 		float bar_value = margs.data.get(i);
+// // // // 		if (bar_value > max_bar_value) {
+// // // // 			max_bar_value = bar_value;
+// // // // 		}
+// // // // 	}
+// // // //
+// // // // 	// Draw bars
+// // // //     for (int i in 0..bar_count) {
+// // // //
+// // // // 		float bar_x = spacing + args.pos.x as float + i as float * (bar_width + spacing);
+// // // // 		float bar_value = margs.data.get(i);
+// // // // 		float current_bar_height = bar_value / max_bar_value * bar_height;
+// // // //         d.Rect(.(bar_x, args.pos.y + args.scale.y - current_bar_height), .(bar_width - 10, current_bar_height), args.color);
+// // // //     }
+// // // //
+// // // //     // Draw x-axis
+// // // //     d.Line(v2(args.pos.x, args.pos.y + args.scale.y), .(args.pos.x + args.scale.x, args.pos.y + args.scale.y), 2, Colors.White);
+// // // //     
+// // // // 	// Draw y-axis
+// // // //     d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
+// // // //
+// // // // 	// Draw x-axis ticks and labels
+// // // // 	for (int i in 0..bar_count) {
+// // // // 		char^ bar_label = t"bar {i+1}";
+// // // // 		int text_width = c:MeasureText(bar_label, 20);
+// // // // 		
+// // // // 		// Draw tick and text label
+// // // // 		float tick_x = args.pos.x as float + i as float * (bar_width + spacing) + bar_width / 2;
+// // // // 		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + 10 + args.scale.y), 2, Colors.White);
+// // // // 		d.Text(bar_label, tick_x as int - (text_width / 2) as int, args.pos.y as int + 15 + args.scale.y as int, 20, Colors.White);
+// // // // 	}
+// // // //
+// // // // 	// Draw y-axis ticks and labels
+// // // // 	float curr_y_label = 0.0;
+// // // // 	for (int i in 0..bar_count) {
+// // // // 		float curr_y_label = max_bar_value / bar_count * (i + 1);
+// // // // 		char^ curr_y_label_str = c:malloc(6);
+// // // // 		c:gcvt(curr_y_label, 3, curr_y_label_str);
+// // // // 		int text_width = c:MeasureText(curr_y_label_str, 20);
+// // // // 		defer c:free(curr_y_label_str);
+// // // //
+// // // // 		// Draw tick and text label
+// // // //
+// // // // 		int tick_y = args.pos.y as int + args.scale.y as int - (i + 1) * (bar_height as int / bar_count as int);
+// // // // 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
+// // // // 		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
+// // // // 	}
+// // // // }
 
 @fx_fn
 void scatterplot(FxArgs& args, using BarChartArgs& margs) {

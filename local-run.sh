@@ -1,1 +1,1 @@
-./scripts/mac/run.sh
+./scripts/mac/run.sh $@
