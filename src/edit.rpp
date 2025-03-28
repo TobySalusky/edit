@@ -1007,7 +1007,7 @@ void Update() {
 			.padding = { 16, 16, 16, 16 }, 
 			.childGap = 16 
 		}, 
-		.backgroundColor = Colors.Red 
+		.backgroundColor = Colors.Transparent 
 	}) {
 		#clay({ 
 			.id = CLAY_ID("InnerContainer"), 
