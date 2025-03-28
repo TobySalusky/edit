@@ -639,6 +639,8 @@ struct Element {
 						let layer_name = row.get(t"Name");
 						let value = row.get_float(t"Value");
 						let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
+						// let out_interpolation_mode = ListContainsString(data.headers, "OutInterpolationMode") ? row.get_int(t"OutInterpolationMode") | KeyframeInterpolationMode.Linear;
+						// let in_interpolation_mode = ListContainsString(data.headers, "InInterpolationMode") ? row.get_int(t"InInterpolationMode") | KeyframeInterpolationMode.Linear;
 	
 						if (!layer_map.has(layer_name)) {
 							layer_list.AddFloatLayer();
@@ -647,10 +649,12 @@ struct Element {
 							layer_map.put(layer_name, layer_list.layers.size - 1);
 						}
 	
-						(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
-							.time = keyframe,
-							.value = value
-						});
+						// (layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
+						// 	.time = keyframe,
+						// 	.value = value,
+						// 	.out_interpolation_mode = out_interpolation_mode,
+						// 	.in_interpolation_mode = in_interpolation_mode
+						// });
 					}
 				}
 			}

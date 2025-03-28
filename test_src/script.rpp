@@ -67,13 +67,15 @@ void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
 	for (int i in 0..strs.size) {
 		float str_rot = rot + (360.0 / strs.size) * i;
 		d.TextAngle(strs.get(i), screen_center, .MiddleLeft, str_rot, font_size, Colors.White);
-
-@fx_fn
-void MyFx(FxArgs& args, using MyArgs& margs) {
-	Bar(margs.bar1, 1, Colors.Red, margs.my_scalar);
-	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
-	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
+	}
 }
+
+// @fx_fn
+// void MyFx(FxArgs& args, using MyArgs& margs) {
+// 	Bar(margs.bar1, 1, Colors.Red, margs.my_scalar);
+// 	Bar(margs.bar2, 2, Colors.Orange, margs.my_scalar);
+// 	Bar(margs.bar3, 3, Colors.Yellow, margs.my_scalar);
+// }
 
 @fx_args
 struct BarChartArgs {
