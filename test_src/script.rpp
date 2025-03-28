@@ -79,8 +79,11 @@ void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
 
 @fx_args
 struct BarChartArgs {
-	List<float> data;
-	// List<float> data2;
+	List<float> data = .();
+	List<char^> strs = .();
+	char^ chart_title = "Bar Chart";
+	float font_size = 32;
+	float rot = 30;
 }
 
 @fx_fn
@@ -148,7 +151,7 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 	}
 
 	// Draw chart title
-	char^ title = t"Bar Chart";
+	char^ title = margs.chart_title;
 	int title_width = c:MeasureText(title, 30);
 	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
 }

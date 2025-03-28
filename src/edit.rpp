@@ -332,7 +332,7 @@ void LeftPanelUI() {
 				// Load data and apply to keyframe
 				Data data = Data(file_path);
 				elements.get(selected_elem_i).ApplyKeyframeData(data);
-				// elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
+				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
 				data_list.add(data);
 				show_add_element_options = false;
 			}
@@ -1097,8 +1097,8 @@ int main(int argc, char^^ argv) {
 
 	images.reserve(max_frames);
 
-	//AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
@@ -1107,7 +1107,6 @@ int main(int argc, char^^ argv) {
 
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 
 	selected_elem_i = 0;
 
