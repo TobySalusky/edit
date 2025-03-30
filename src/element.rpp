@@ -13,6 +13,7 @@ int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
 int KIND_IMAGE = 2;
 int KIND_FX_FN = 3;
+int KIND_VIDEO = 4;
 interface ElementImpl {
 
 	void Draw(Element^ e);
@@ -40,6 +41,9 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 		},
 		KIND_FX_FN -> {
 			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
+		},
+		KIND_VIDEO -> {
+			it = ImageElement.Make(yo.get_str("video_file_path"));
 		},
 		else -> {
 			it = RectElement.Make();
@@ -125,6 +129,36 @@ struct ImageElement : ElementImpl {
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
+}
+
+struct VideoElement : ElementImpl {
+	char^ video_file_path;
+	List<Texture> import_texture_list;
+	int i;
+
+	void SetImportTextureList(List<Texture> tex_list) {
+		i = 0;
+		import_texture_list = tex_list;
+	}
+	
+	void Draw(Element^ e) {
+		d.TextureAtSize(import_texture_list.get(i++), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+	}
+
+	int Kind() -> KIND_VIDEO;
+	void _FillYaml(yaml_object& yo) {
+		yo.put_literal("video_file_path", video_file_path);
+	}
+	void _FillFromYaml(yaml_object& yo) {
+		video_file_path = yo.get_str("video_file_path");
+	}
+
+	char^ ImplTypeStr() -> "video";
+	List<CustomLayer>^ CustomLayers() -> NULL;
+
+	static Self^ Make() {
+		return malloc(sizeof<Self>);
+	}
 }
 
 c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;

@@ -19,7 +19,7 @@ import rl;
 //============= FFMPEG HELPERS ====================================================
 struct FromEditToEncodeDecode {
 	List<Image>& images;
-	List<Image>& imported_images;
+	List<Texture>& imported_textures;
 	int canvas_width;
 	int canvas_height;
 
@@ -631,7 +631,8 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height)
 			img.setXY(x, y, c:pixel);
 		}
 	}
-	from_edit.imported_images.add(img);
+    Texture tex = c:LoadTextureFromImage(img); // These need to be unloaded after use
+	from_edit.imported_textures.add(tex);
 	c:c:`
 	av_freep(&rgb_frame->data[0]);  // Free the data
 	av_frame_free(&rgb_frame);       // Free the frame
@@ -669,7 +670,7 @@ static int output_video_frame(AVFrame *frame)
 	fill_rl_image(frame, width, height);
 
     /* write to rawvideo file */
-    fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
+    // fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
     return 0;
 }
 

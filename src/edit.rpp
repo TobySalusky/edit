@@ -51,7 +51,7 @@ Texture unmuted_icon;
 
 c:Sound fxMP3;
 
-List<Image> imported_images = .();
+List<Texture> imported_textures = .();
 
 List<Image> images = .();
 int max_images;
@@ -871,7 +871,12 @@ void GameTick() {
 			scanf("%s", video_path);
 			`;
 			ImportVideo(frame_rate, c:video_path);
-			println(t"successfully imported video containing {imported_images.size} frames!");
+			println(t"Successfully imported video containing {imported_textures.size} frames!");
+			char^ video_name = c:GetFileNameWithoutExt(c:video_path);
+			VideoElement^ ve = VideoElement.Make();
+			ve#SetImportTextureList(imported_textures);
+			AddNewElementAt(Element(ve, strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			SelectNewestElement();
 		}
 	}
 
@@ -925,7 +930,7 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 
 void SyncEncodingDecodingEditInfo() {
 	from_edit = {
-		:images, :imported_images, 
+		:images, :imported_textures, 
 		:canvas_width, :canvas_height,
 		.STREAM_DURATION = time_per_frame * max_frames,
 		.STREAM_FRAME_RATE = frame_rate,
