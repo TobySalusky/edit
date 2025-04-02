@@ -137,7 +137,7 @@ struct VideoElement : ElementImpl {
 	float dec_fr; // frame rate of video from decoding
 
 	void Draw(Element^ e, float current_time) {
-		d.TextureAtSize(frames.get((current_time * dec_fr) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		d.TextureAtSize(frames.get(((current_time - e#start_time) * dec_fr) as int % frames.size), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
 	int Kind() -> KIND_VIDEO;

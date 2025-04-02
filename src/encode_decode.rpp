@@ -319,7 +319,7 @@ static AVFrame *get_audio_frame(OutputStream *ost)
         return NULL;
 
     for (j = 0; j <frame->nb_samples; j++) {
-        v = (int)(sin(ost->t) * 10000);
+        v = 0;
         for (i = 0; i < ost->enc->ch_layout.nb_channels; i++)
             *q++ = v;
         ost->t     += ost->tincr;
