@@ -134,11 +134,10 @@ struct ImageElement : ElementImpl {
 struct VideoElement : ElementImpl {
 	char^ video_file_path;
 	List<Texture> frames;
-	float tb; // timebase of video from decoding
+	float dec_fr; // frame rate of video from decoding
 
 	void Draw(Element^ e, float current_time) {
-		printf(t"{tb}\n");
-		d.TextureAtSize(frames.get((current_time * tb) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		d.TextureAtSize(frames.get((current_time * dec_fr) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
 	int Kind() -> KIND_VIDEO;
@@ -152,10 +151,10 @@ struct VideoElement : ElementImpl {
 	char^ ImplTypeStr() -> "video";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make(List<Texture> video_frames, char^ video_path, float timebase) {
+	static Self^ Make(List<Texture> video_frames, char^ video_path, float frame_rate) {
 		return Box<Self>.Make({ .frames = video_frames,
 								.video_file_path = video_path,
-								.tb = timebase});
+								.dec_fr = frame_rate});
 	}
 }
 
