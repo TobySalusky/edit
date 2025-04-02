@@ -298,10 +298,23 @@ c:c:`
     // e.g. for LEFT_TO_RIGHT, borders will be vertical lines, and for TOP_TO_BOTTOM borders will be horizontal lines.
     // .betweenChildren borders will result in individual RECTANGLE render commands being generated.
     ushort betweenChildren = 0;
+
+	construct(ushort all_sides) -> {
+		.left = all_sides,
+		.right = all_sides,
+		.top = all_sides,
+		.bottom = all_sides,
+		.betweenChildren = 0,
+	};
 }
 @extern struct Clay_BorderElementConfig {
     Color color = Colors.Black; // Controls the color of all borders with width > 0. Conventionally represented as 0-255, but interpretation is up to the renderer.
     Clay_BorderWidth width = {}; // Controls the widths of individual borders. At least one of these should be > 0 for a BORDER render command to be generated.
+
+	construct(ushort all_sides, Color color) -> {
+		:color,
+		.width = .(all_sides)
+	};
 }
 
 @extern

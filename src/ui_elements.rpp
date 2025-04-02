@@ -1,6 +1,7 @@
 import rl;
 import theming;
 import std;
+import clay_lib;
 
 struct UiElementID {
 	void^ ptr;
@@ -247,3 +248,9 @@ TextInputState& GetTextInput(UiElementID id) {
 	return text_inputs.get(id);
 }
 TextInputState& GetTextInputNamed(char^ unique_name) -> GetTextInput(UiElementID.ID(unique_name));
+
+// struct Flex {
+// 	Clay_ElementDeclaration FloatEnd() -> {
+// 		
+// 	};
+// }
