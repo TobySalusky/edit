@@ -631,6 +631,7 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height)
 			img.setXY(x, y, c:pixel);
 		}
 	}
+    c:ImageFlipVertical(^img);
     Texture tex = c:LoadTextureFromImage(img); // These need to be unloaded after use
 	from_edit.imported_textures.add(tex);
 	c:c:`
@@ -818,7 +819,7 @@ static int get_format_from_sample_fmt(const char **fmt,
 
 // public interface to expose useful stuff to edit.rpp without too much clutter :)
 struct EncodingDecoding {
-	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path) {
+	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path, float& dec_tb) {
 		c:c:`
 		int ret = 0;
 
@@ -921,6 +922,8 @@ struct EncodingDecoding {
 				break;
 		}
 
+        float tb = ((float) video_stream->r_frame_rate.num) / (video_stream->r_frame_rate.den);
+
 		/* flush the decoders */
 		if (video_dec_ctx)
 			decode_packet(video_dec_ctx, NULL);
@@ -986,6 +989,10 @@ struct EncodingDecoding {
 		// 	char^ name = t"import_out/{imported_images.size %d05}.png";
 		// 	c:ExportImage(img, name);
 		// }
+
+        // Set out time base
+        dec_tb = c:tb;
+
 		return false;
 	}
 

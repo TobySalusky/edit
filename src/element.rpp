@@ -16,7 +16,7 @@ int KIND_FX_FN = 3;
 int KIND_VIDEO = 4;
 interface ElementImpl {
 
-	void Draw(Element^ e);
+	void Draw(Element^ e, float current_time);
 
 	char^ ImplTypeStr();
 
@@ -62,7 +62,7 @@ yaml_object ElementImplToYaml(ElementImpl^ impl) {
 }
 
 struct RectElement : ElementImpl {
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
 
@@ -77,7 +77,7 @@ struct RectElement : ElementImpl {
 }
 
 struct CircleElement : ElementImpl {
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
 
@@ -113,7 +113,7 @@ struct ImageCache {
 struct ImageElement : ElementImpl {
 	char^ file_path;
 	
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
@@ -133,16 +133,12 @@ struct ImageElement : ElementImpl {
 
 struct VideoElement : ElementImpl {
 	char^ video_file_path;
-	List<Texture> import_texture_list;
-	int i;
+	List<Texture> frames;
+	float tb; // timebase of video from decoding
 
-	void SetImportTextureList(List<Texture> tex_list) {
-		i = 0;
-		import_texture_list = tex_list;
-	}
-	
-	void Draw(Element^ e) {
-		d.TextureAtSize(import_texture_list.get(i++), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+	void Draw(Element^ e, float current_time) {
+		printf(t"{tb}\n");
+		d.TextureAtSize(frames.get((current_time * tb) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
 	int Kind() -> KIND_VIDEO;
@@ -156,8 +152,10 @@ struct VideoElement : ElementImpl {
 	char^ ImplTypeStr() -> "video";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make() {
-		return malloc(sizeof<Self>);
+	static Self^ Make(List<Texture> video_frames, char^ video_path, float timebase) {
+		return Box<Self>.Make({ .frames = video_frames,
+								.video_file_path = video_path,
+								.tb = timebase});
 	}
 }
 
@@ -347,7 +345,7 @@ struct CustomPureFnElement : ElementImpl {
 		fn_name = yo.get_str("fn_name");
 	}
 
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		let fn_getter_res = code_man.GetFn(t"__scriptgen_NewFxFn_{fn_name}"); // creates handle
 
 		switch (fn_getter_res) {
@@ -609,8 +607,8 @@ struct Element {
 		d.Circle(pos + scale * v2(0.5, 0.5), 10, hex("9999FF55"));
 	}
 
-	void Draw() {
-		content_impl#Draw(^this);
+	void Draw(float current_time) {
+		content_impl#Draw(^this, current_time);
 		// d.RectRot(pos, scale, rotation, color);
 	}
 
