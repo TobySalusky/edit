@@ -13,9 +13,10 @@ int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
 int KIND_IMAGE = 2;
 int KIND_FX_FN = 3;
+int KIND_VIDEO = 4;
 interface ElementImpl {
 
-	void Draw(Element^ e);
+	void Draw(Element^ e, float current_time);
 
 	char^ ImplTypeStr();
 
@@ -41,6 +42,9 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 		KIND_FX_FN -> {
 			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
 		},
+		KIND_VIDEO -> {
+			it = ImageElement.Make(yo.get_str("video_file_path"));
+		},
 		else -> {
 			it = RectElement.Make();
 		}
@@ -58,7 +62,7 @@ yaml_object ElementImplToYaml(ElementImpl^ impl) {
 }
 
 struct RectElement : ElementImpl {
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
 
@@ -73,7 +77,7 @@ struct RectElement : ElementImpl {
 }
 
 struct CircleElement : ElementImpl {
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
 
@@ -109,7 +113,7 @@ struct ImageCache {
 struct ImageElement : ElementImpl {
 	char^ file_path;
 	
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
@@ -125,6 +129,33 @@ struct ImageElement : ElementImpl {
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
+}
+
+struct VideoElement : ElementImpl {
+	char^ video_file_path;
+	List<Texture> frames;
+	float dec_fr; // frame rate of video from decoding
+
+	void Draw(Element^ e, float current_time) {
+		d.TextureAtSize(frames.get((current_time * dec_fr) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+	}
+
+	int Kind() -> KIND_VIDEO;
+	void _FillYaml(yaml_object& yo) {
+		yo.put_literal("video_file_path", video_file_path);
+	}
+	void _FillFromYaml(yaml_object& yo) {
+		video_file_path = yo.get_str("video_file_path");
+	}
+
+	char^ ImplTypeStr() -> "video";
+	List<CustomLayer>^ CustomLayers() -> NULL;
+
+	static Self^ Make(List<Texture> video_frames, char^ video_path, float frame_rate) {
+		return Box<Self>.Make({ .frames = video_frames,
+								.video_file_path = video_path,
+								.dec_fr = frame_rate});
+	}
 }
 
 c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
@@ -313,7 +344,7 @@ struct CustomPureFnElement : ElementImpl {
 		fn_name = yo.get_str("fn_name");
 	}
 
-	void Draw(Element^ e) {
+	void Draw(Element^ e, float current_time) {
 		let fn_getter_res = code_man.GetFn(t"__scriptgen_NewFxFn_{fn_name}"); // creates handle
 
 		switch (fn_getter_res) {
@@ -575,8 +606,8 @@ struct Element {
 		d.Circle(pos + scale * v2(0.5, 0.5), 10, hex("9999FF55"));
 	}
 
-	void Draw() {
-		content_impl#Draw(^this);
+	void Draw(float current_time) {
+		content_impl#Draw(^this, current_time);
 		// d.RectRot(pos, scale, rotation, color);
 	}
 
