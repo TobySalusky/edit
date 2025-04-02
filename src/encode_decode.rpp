@@ -819,7 +819,7 @@ static int get_format_from_sample_fmt(const char **fmt,
 
 // public interface to expose useful stuff to edit.rpp without too much clutter :)
 struct EncodingDecoding {
-	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path, float& dec_tb) {
+	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path, float& dec_frame_rate) {
 		c:c:`
 		int ret = 0;
 
@@ -991,7 +991,7 @@ struct EncodingDecoding {
 		// }
 
         // Set out time base
-        dec_tb = c:tb;
+        dec_frame_rate = c:tb;
 
 		return false;
 	}
