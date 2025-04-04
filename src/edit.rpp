@@ -969,15 +969,16 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	SetMode(.Running);
 }
 
-typdef struct {
-	int x;
-	int y;
-	int w;
-	int h;
-} face;
 
 void test_pipes() {
 	c:c:`
+	typedef struct {
+		int x;
+		int y;
+		int w;
+		int h;
+	} face;
+
     FILE *pipe = popen("python piping.py", "r");
     if (!pipe) {
         fprintf(stderr, "Failed to launch Python script: %s\n", strerror(errno));
