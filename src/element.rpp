@@ -177,7 +177,7 @@ struct FaceElement : ElementImpl {
 		d.RectRot(Vec2(f.x, f.y), Vec2(f.w, f.x), e#rotation, e#color);
 	}
 
-	int Kind() -> KIND_IMAGE;
+	int Kind() -> KIND_FACE;
 	void _FillYaml(yaml_object& yo) {
 	}
 	void _FillFromYaml(yaml_object& yo) {
