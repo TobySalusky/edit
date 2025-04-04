@@ -9,6 +9,7 @@ import ui_elements;
 import data;
 import yaml;
 import encode_decode;
+import face;
 
 int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
@@ -46,6 +47,9 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 		},
 		KIND_VIDEO -> {
 			it = VideoElement.Make(yo.get_str("video_file_path"));
+		},
+		KIND_FACE -> {
+			it = FaceElement.Make();
 		},
 		else -> {
 			it = RectElement.Make();
@@ -166,24 +170,26 @@ struct VideoElement : ElementImpl {
 }
 
 struct FaceElement : ElementImpl {
-	char^ file_path;
+	List<Face> face_data;
 	
 	void Draw(Element^ e, float current_time) {
-		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		Face f = face_data.get(((current_time - e#start_time) * 5) as int);
+		d.RectRot(Vec2(f.x, f.y), Vec2(f.w, f.x), e#rotation, e#color);
 	}
 
 	int Kind() -> KIND_IMAGE;
 	void _FillYaml(yaml_object& yo) {
-		yo.put_literal("file_path", file_path);
 	}
 	void _FillFromYaml(yaml_object& yo) {
-		file_path = yo.get_str("file_path");
 	}
 
-	char^ ImplTypeStr() -> "img";
+	char^ ImplTypeStr() -> "face";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
+	static Self^ Make() {
+		List<Face> face_data = cv_pipe();
+		return Box<Self>.Make({ .face_data = face_data });
+	}
 }
 
 c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;

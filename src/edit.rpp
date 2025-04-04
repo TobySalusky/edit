@@ -25,7 +25,6 @@ import clay_lib;
 import clay_app;
 
 c:import "tinyfiledialogs.h";
-c:import "json.h";
 
 c:import <"stdio.h">;
 c:import <"stdlib.h">;
@@ -969,73 +968,6 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	SetMode(.Running);
 }
 
-
-void test_pipes() {
-	c:c:`
-	typedef struct {
-		int x;
-		int y;
-		int w;
-		int h;
-	} face;
-
-    FILE *pipe = popen("python piping.py", "r");
-    if (!pipe) {
-        fprintf(stderr, "Failed to launch Python script: %s\n", strerror(errno));
-    }
-
-    printf("OpenCV Results:\n");
-    printf("----------------\n");
-    
-    // Read all output lines
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-
-
-    
-    while ((read = getline(&line, &len, pipe)) != -1) {
-        // Remove trailing newline if present
-        if (line[read - 1] == '\n')
-            line[read - 1] = '\0';
-        
-		struct json_value_s *root = json_parse(line, strlen(line));
-    
-		struct json_object_s* object = json_value_as_object(root);
-		struct json_object_element_s* x_element = object->start;
-		struct json_number_s* x_number = json_value_as_number(x_element->value);
-		int x = atoi(x_number->number);
-
-		struct json_object_element_s* y_element = x_element->next;
-		struct json_number_s* y_number = json_value_as_number(y_element->value);
-		int y = atoi(y_number->number);
-
-		struct json_object_element_s* w_element = y_element->next;
-		struct json_number_s* w_number = json_value_as_number(w_element->value);
-		int w = atoi(w_number->number);
-
-		struct json_object_element_s* h_element = w_element->next;
-		struct json_number_s* h_number = json_value_as_number(h_element->value);
-		int h = atoi(h_number->number);
-		
-        printf("Received: %s\n", line);
-        printf("x: %d y: %d w: %d h: %d\n", x, w, y, h);
-
-		face test = {x, y, w, h};
-
-
-    }
-    
-    free(line);
-    
-    // Check for errors
-    int status = pclose(pipe);
-    if (status == -1) {
-        perror("Error closing pipe");
-    }
-	`;
-    }
-
 void OnFileDropped() {
 	FilePathList dropped_file_path_list = FilePathList.Load();
 	defer dropped_file_path_list.Unload();
@@ -1177,8 +1109,6 @@ int main(int argc, char^^ argv) {
 	muted_icon = LoadIcon(t"assets/muted.png");
 	unmuted_icon = LoadIcon(t"assets/unmuted.png");
 
-	test_pipes();
-
 	images.reserve(max_frames);
 
 	//AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
@@ -1188,6 +1118,7 @@ int main(int argc, char^^ argv) {
 	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
 	AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
+	AddNewElementAt(Element(FaceElement.Make(), "Face", 0, 3, -1, v2(0, 0), v2(100, 100)));
 
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
