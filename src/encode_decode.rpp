@@ -586,7 +586,7 @@ static int video_frame_count = 0;
 static int audio_frame_count = 0;
 `;
 
-void fill_rl_image(c:AVFrame^ pict, int width, int height)
+void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Texture> &imported_textures)
 {
 	Image img = c:GenImageColor(width, height, c:BLACK);
 	c:c:`
@@ -633,17 +633,16 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height)
 	}
     c:ImageFlipVertical(^img);
     Texture tex = c:LoadTextureFromImage(img); // These need to be unloaded after use
-	from_edit.imported_textures.add(tex);
+	imported_textures.add(tex);
 	c:c:`
 	av_freep(&rgb_frame->data[0]);  // Free the data
 	av_frame_free(&rgb_frame);       // Free the frame
 	`;
 }
 
-c:c:`
-
-static int output_video_frame(AVFrame *frame)
+int output_video_frame(c:AVFrame ^frame, List<Texture>& imported_textures)
 {
+    c:c:`
     if (frame->width != width || frame->height != height ||
         frame->format != pix_fmt) {
         /* To handle this change, one could call av_image_alloc again and
@@ -667,14 +666,16 @@ static int output_video_frame(AVFrame *frame)
     av_image_copy2(video_dst_data, video_dst_linesize,
                    frame->data, frame->linesize,
                    pix_fmt, width, height);
-				   
-	fill_rl_image(frame, width, height);
-
+	;`
+	fill_rl_image(c:frame, c:width, c:height, imported_textures);
+    c:c:`
     /* write to rawvideo file */
     // fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
+    `;
     return 0;
 }
 
+c:c:`
 static int output_audio_frame(AVFrame *frame)
 {
     size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
@@ -694,9 +695,10 @@ static int output_audio_frame(AVFrame *frame)
 
     return 0;
 }
-
-static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
+`;
+int decode_packet(c:AVCodecContext^ dec, c:AVPacket ^pkt, List<Texture>& imported_textures)
 {
+    c:c:`
     int ret = 0;
 
     // submit the packet to the decoder
@@ -721,16 +723,20 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 
         // write the frame data to output file
         if (dec->codec->type == AVMEDIA_TYPE_VIDEO)
-            ret = output_video_frame(frame);
+            `;
+            c:ret = output_video_frame(c:frame, imported_textures);
+            c:c:`
         else
             ret = output_audio_frame(frame);
 
         av_frame_unref(frame);
     }
+    `;
 
-    return ret;
+    return c:ret;
 }
 
+c:c:`
 static int open_codec_context(int *stream_idx,
                               AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
@@ -819,8 +825,8 @@ static int get_format_from_sample_fmt(const char **fmt,
 
 // public interface to expose useful stuff to edit.rpp without too much clutter :)
 struct EncodingDecoding {
-	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path, float& dec_frame_rate) {
-		c:c:`
+	static bool ImportVideoImpl(char^ input_file_name_no_path, float& dec_frame_rate, List<Texture>& imported_textures) {
+        c:c:`
 		int ret = 0;
 
 		// if (argc != 4) {
@@ -914,21 +920,21 @@ struct EncodingDecoding {
 			// check if the packet belongs to a stream we are interested in, otherwise
 			// skip it
 			if (pkt->stream_index == video_stream_idx)
-				ret = decode_packet(video_dec_ctx, pkt);
+				ret = decode_packet(video_dec_ctx, pkt, imported_textures);
 			else if (pkt->stream_index == audio_stream_idx)
-				ret = decode_packet(audio_dec_ctx, pkt);
+				ret = decode_packet(audio_dec_ctx, pkt, imported_textures);
 			av_packet_unref(pkt);
 			if (ret < 0)
 				break;
 		}
 
-        float tb = ((float) video_stream->r_frame_rate.num) / (video_stream->r_frame_rate.den);
+        float frame_rate = ((float) video_stream->r_frame_rate.num) / (video_stream->r_frame_rate.den);
 
 		/* flush the decoders */
 		if (video_dec_ctx)
-			decode_packet(video_dec_ctx, NULL);
+			decode_packet(video_dec_ctx, NULL, imported_textures);
 		if (audio_dec_ctx)
-			decode_packet(audio_dec_ctx, NULL);
+			decode_packet(audio_dec_ctx, NULL, imported_textures);
 
 		printf("Demuxing succeeded.\n");
 
@@ -981,17 +987,9 @@ struct EncodingDecoding {
 		av_free(video_dst_data[0]);
 
 		`;
-		// Check that imported_images is populated
-		// while (!imported_images.is_empty()) {
-		// 	Image img = imported_images.pop_back();
-		// 	defer(img.Unload());
-		// 	// Texture tex = c:LoadTextureFromImage(img);
-		// 	char^ name = t"import_out/{imported_images.size %d05}.png";
-		// 	c:ExportImage(img, name);
-		// }
 
         // Set out time base
-        dec_frame_rate = c:tb;
+        dec_frame_rate = c:frame_rate;
 
 		return false;
 	}

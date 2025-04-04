@@ -872,10 +872,10 @@ void GameTick() {
 			printf("\nInput file path, include extension: \n>");
 			scanf("%s", video_path);
 			`;
-			ImportVideo(frame_rate, c:video_path);
-			println(t"Successfully imported video containing {imported_textures.size} frames!");
+			// ImportVideo(c:video_path);
+			// println(t"Successfully imported video containing {imported_textures.size} frames!");
 			char^ video_name = c:GetFileNameWithoutExt(c:video_path);
-			AddNewElementAt(Element(VideoElement.Make(imported_textures, c:video_path, dec_frame_rate), strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			AddNewElementAt(Element(VideoElement.Make(c:video_path), strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
 			SelectNewestElement();
 		}
 	}
@@ -930,16 +930,16 @@ void VideoPlayPauseMuteUI(Vec2 center_pos) {
 
 void SyncEncodingDecodingEditInfo() {
 	from_edit = {
-		:images, :imported_textures, 
+		:images, :imported_textures,
 		:canvas_width, :canvas_height,
 		.STREAM_DURATION = time_per_frame * max_frames,
 		.STREAM_FRAME_RATE = frame_rate
 	};
 }
 
-bool ImportVideo(int framerate, char^ input_file_name_no_path) {
+bool ImportVideo(char^ input_file_name_no_path) {
 	SyncEncodingDecodingEditInfo();
-	return EncodingDecoding.ImportVideoImpl(framerate, input_file_name_no_path, dec_frame_rate);
+	return EncodingDecoding.ImportVideoImpl(input_file_name_no_path, dec_frame_rate, imported_textures);
 }
 
 void ExportVideoThreadMain() {

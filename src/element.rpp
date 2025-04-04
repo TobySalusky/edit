@@ -8,12 +8,14 @@ import script_interface;
 import ui_elements;
 import data;
 import yaml;
+import encode_decode;
 
 int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
 int KIND_IMAGE = 2;
 int KIND_FX_FN = 3;
 int KIND_VIDEO = 4;
+int KIND_FACE = 5;
 interface ElementImpl {
 
 	void Draw(Element^ e, float current_time);
@@ -43,7 +45,7 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
 		},
 		KIND_VIDEO -> {
-			it = ImageElement.Make(yo.get_str("video_file_path"));
+			it = VideoElement.Make(yo.get_str("video_file_path"));
 		},
 		else -> {
 			it = RectElement.Make();
@@ -151,10 +153,15 @@ struct VideoElement : ElementImpl {
 	char^ ImplTypeStr() -> "video";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make(List<Texture> video_frames, char^ video_path, float frame_rate) {
-		return Box<Self>.Make({ .frames = video_frames,
-								.video_file_path = video_path,
-								.dec_fr = frame_rate});
+	static Self^ Make(char^ video_path) {
+		float dec_fr = 0;
+		List<Texture> imported_textures = .();
+		EncodingDecoding.ImportVideoImpl(video_path, dec_fr, imported_textures);
+		return Box<Self>.Make({ 
+			.video_file_path = video_path,
+			.frames = imported_textures,
+			.dec_fr = dec_fr
+		});
 	}
 }
 
