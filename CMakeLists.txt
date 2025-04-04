@@ -63,7 +63,7 @@ if (APPLE)
 
 else()
 	target_link_libraries(edit ${FFMPEG_LIBS})
-	# file(COPY "${FFMPEG_DIR}/bin/" DESTINATION ${CMAKE_BINARY_DIR})
+	file(COPY "${FFMPEG_DIR}/bin/" DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
 add_library(script SHARED "test_out/__unity__.c")
