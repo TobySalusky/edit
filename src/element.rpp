@@ -165,6 +165,27 @@ struct VideoElement : ElementImpl {
 	}
 }
 
+struct FaceElement : ElementImpl {
+	char^ file_path;
+	
+	void Draw(Element^ e, float current_time) {
+		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+	}
+
+	int Kind() -> KIND_IMAGE;
+	void _FillYaml(yaml_object& yo) {
+		yo.put_literal("file_path", file_path);
+	}
+	void _FillFromYaml(yaml_object& yo) {
+		file_path = yo.get_str("file_path");
+	}
+
+	char^ ImplTypeStr() -> "img";
+	List<CustomLayer>^ CustomLayers() -> NULL;
+
+	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
+}
+
 c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
 c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
 c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
