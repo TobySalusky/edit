@@ -134,6 +134,10 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 
     /* find the encoder */
     *codec = avcodec_find_encoder(codec_id);
+    if ((*codec)->id == AV_CODEC_ID_MPEG4) {
+        *codec = avcodec_find_encoder_by_name("libopenh264");
+    }
+    printf("\n ==========  %s  ==========\n",(*codec)->name);
     if (!(*codec)) {
         fprintf(stderr, "Could not find encoder for '%s'\n",
                 avcodec_get_name(codec_id));
@@ -177,7 +181,6 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         break;
 
     case AVMEDIA_TYPE_VIDEO:
-        c->codec_id = codec_id;
 
         c->bit_rate = 16000000; // High intensity graphics look bad with lower bit-rates
         /* Resolution must be a multiple of two. */
