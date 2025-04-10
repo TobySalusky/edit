@@ -157,8 +157,10 @@ struct VideoElement : ElementImpl {
 		float dec_fr = 0;
 		List<Texture> imported_textures = .();
 		EncodingDecoding.ImportVideoImpl(video_path, dec_fr, imported_textures);
+		printf("VIDEO FILE PATH %s\n", video_path);
+		char^ vfp = strdup(video_path);
 		return Box<Self>.Make({ 
-			.video_file_path = video_path,
+			.video_file_path = vfp,
 			.frames = imported_textures,
 			.dec_fr = dec_fr
 		});
