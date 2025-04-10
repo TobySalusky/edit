@@ -170,10 +170,28 @@ struct VideoElement : ElementImpl {
 }
 
 struct FaceElement : ElementImpl {
-	List<Face> face_data;
-	
+	List<Face> face_data = .();
+	Texture open = LoadTextureFromFile("popcat_open.jpg");
+	Texture close = LoadTextureFromFile("popcat_close.jpg");
+
+	c:Sound pop = c:LoadSound("assets/pop.mp3");
+	bool popping = true;
+
 	void Draw(Element^ e, float current_time) {
 		Face f = face_data.get(((current_time - e#start_time) * 30) as int % face_data.size);
+		if (popping == false && f.m == 1) {
+			popping = true;
+			c:PlaySound(pop);
+		}
+		if (f.m == 0) {
+			popping = false;
+		}
+		if (f.m == 1) {
+			d.TextureAtSize(open, f.x, f.y, f.w, f.h);
+		}
+		else {
+			d.TextureAtSize(close, f.x, f.y, f.w, f.h);
+		}
 	}
 
 	int Kind() -> KIND_FACE;

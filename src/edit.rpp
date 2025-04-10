@@ -1093,9 +1093,9 @@ int main(int argc, char^^ argv) {
 	defer c:UnloadSound(fxMP3);
 
 	c:SetMasterVolume(master_volume);
-	c:PlaySound(fxMP3);
+	//c:PlaySound(fxMP3);
 
-	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
+	//SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
 
 	canvas = make_render_texture(1200, 900);
 
