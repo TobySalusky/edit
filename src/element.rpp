@@ -174,7 +174,6 @@ struct FaceElement : ElementImpl {
 	
 	void Draw(Element^ e, float current_time) {
 		Face f = face_data.get(((current_time - e#start_time) * 30) as int % face_data.size);
-		d.RectRot(Vec2(f.x, f.y), Vec2(f.w, f.h), e#rotation, e#color);
 	}
 
 	int Kind() -> KIND_FACE;

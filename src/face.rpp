@@ -6,11 +6,12 @@ struct Face {
 	int y;
 	int w;
 	int h;
+	int m;
 }
 
 List<Face> cv_pipe() {
 	
-	List<Face> face_data;
+	List<Face> face_data = .();
 
 	c:c:`
     FILE *pipe = popen("python piping.py", "r");
@@ -32,7 +33,9 @@ List<Face> cv_pipe() {
         // Remove trailing newline if present
         if (line[read - 1] == '\n')
             line[read - 1] = '\0';
+
         
+
 		struct json_value_s *root = json_parse(line, strlen(line));
     
 		struct json_object_s* object = json_value_as_object(root);
@@ -51,11 +54,15 @@ List<Face> cv_pipe() {
 		struct json_object_element_s* h_element = w_element->next;
 		struct json_number_s* h_number = json_value_as_number(h_element->value);
 		int h = atoi(h_number->number);
-		
-        // printf("Received: %s\n", line);
-        // printf("x: %d y: %d w: %d h: %d\n", x, w, y, h);
 
-		Face f = {x, y, w, h};
+		struct json_object_element_s* m_element = h_element->next;
+		struct json_number_s* m_number = json_value_as_number(m_element->value);
+		int m = atoi(m_number->number);
+		
+        printf("Received: %s\n", line);
+        printf("x: %d y: %d w: %d h: %d m: %d\n", x, w, y, h, m);
+
+		Face f = {x, y, w, h, m};
 		`;
 		face_data.add(c:f);
 		c:c:`
