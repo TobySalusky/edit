@@ -616,18 +616,17 @@ struct Element {
 		this.data = data;
 	}
 
-	// Apply keyframe data to an element's keyframes
-    void ApplyKeyframeData(Data data, float start_time = 0.0, float frame_offset = 0.1) {
-        let frame_time = start_time;
-
-		// Custom float data
-		if (content_impl#CustomLayers() != NULL && ListContainsString(data.headers, "Value")) {
+	void ApplyKeyframeData(Data data, float start_time = 0.0, float frame_offset = 0.1) {
+		let frame_time = start_time;
+	
+		// Handle custom layers
+		if (content_impl#CustomLayers() != NULL) {
 			for (let& layer in *content_impl#CustomLayers()) {
 				if (layer.kind is CustomLayerList) {
 					let& layer_list = layer.kind as CustomLayerList;
 					StrMap<int> layer_map = .();
 	
-					// Create a map of layer names to CustomLayerFloat
+					// Create a map of layer names to layer indices
 					for (let i = 0; i < layer_list.layers.size; i++;) {
 						let layer_name = layer_list.layers.get(i).name;
 						layer_map.put(layer_name, i);
@@ -637,71 +636,91 @@ struct Element {
 					for (let i = 0; i < data.data.size; i++;) {
 						let row = data.data.get(i);
 						let layer_name = row.get(t"Name");
-						let value = row.get_float(t"Value");
-						let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
-						let out_interpolation_mode = KeyframeInterpolationMode.Linear;
-						let in_interpolation_mode = KeyframeInterpolationMode.Linear;
 	
 						if (!layer_map.has(layer_name)) {
-							layer_list.AddFloatLayer();
+							// Add a new layer if it doesn't exist
+							if (ListContainsString(data.headers, "Value")) {
+								layer_list.AddFloatLayer();
+							} else if (ListContainsString(data.headers, "Text")) {
+								layer_list.AddStrLayer();
+							}
+	
 							let new_layer = ^layer_list.layers.get(layer_list.layers.size - 1);
 							new_layer#name = layer_name;
 							layer_map.put(layer_name, layer_list.layers.size - 1);
 						}
-	
-						(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
-							.time = keyframe,
-							.value = value,
-							.out_interpolation_mode = out_interpolation_mode,
-							.in_interpolation_mode = in_interpolation_mode
-						});
+
+							// Handle float values
+							if (ListContainsString(data.headers, "Value") && !StringContains(row.get(t"Value"),"\"")) {
+								let value = row.get_float(t"Value");
+								let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
+								let out_interpolation_mode = KeyframeInterpolationMode.Linear;
+								let in_interpolation_mode = KeyframeInterpolationMode.Linear;
+		
+								(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
+									.time = keyframe,
+									.value = value,
+									.out_interpolation_mode = out_interpolation_mode,
+									.in_interpolation_mode = in_interpolation_mode
+								});
+							}
+		
+							// // Handle string values
+							// if (ListContainsString(data.headers, "Value") && StringContains(row.get(t"Value"),"\"")) {
+							// 	let text_value = row.get(t"Value");
+							// 	println(t"found text value: {text_value}");
+							// 	(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerStr).value.Set({
+							// 		.time = keyframe,
+							// 		.value = text_value,
+							// 		.out_interpolation_mode = out_interpolation_mode,
+							// 		.in_interpolation_mode = in_interpolation_mode
+							// 	});
+							// }
 					}
 				}
 			}
 		}
-
+	
 		// Default keyframed parameters
-        for (let& row in data.data) {
-            let keyframe_t = frame_time;
-            frame_time = frame_time + frame_offset;
-            if (ListContainsString(data.headers, "Time")) {
-                keyframe_t = row.get_float(t"Time");
-            }
-
-            if (ListContainsString(data.headers, "X")) {
-                kl_pos_x.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"X")
+		for (let& row in data.data) {
+			let keyframe_t = frame_time;
+			frame_time = frame_time + frame_offset;
+			if (ListContainsString(data.headers, "Time")) {
+				keyframe_t = row.get_float(t"Time");
+			}
+	
+			if (ListContainsString(data.headers, "X")) {
+				kl_pos_x.InsertValue(
+					keyframe_t,
+					row.get_float(t"X")
 				);
-            }
-            if (ListContainsString(data.headers, "Y")) {
-                kl_pos_y.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"Y")
+			}
+			if (ListContainsString(data.headers, "Y")) {
+				kl_pos_y.InsertValue(
+					keyframe_t,
+					row.get_float(t"Y")
 				);
-            }
-            if (ListContainsString(data.headers, "Opacity")) {
-                kl_opacity.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"Opacity")
+			}
+			if (ListContainsString(data.headers, "Opacity")) {
+				kl_opacity.InsertValue(
+					keyframe_t,
+					row.get_float(t"Opacity")
 				);
-            }
-            if (ListContainsString(data.headers, "Rotation")) {
-                kl_rotation.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"Rotation")
+			}
+			if (ListContainsString(data.headers, "Rotation")) {
+				kl_rotation.InsertValue(
+					keyframe_t,
+					row.get_float(t"Rotation")
 				);
-            }
-            if (ListContainsString(data.headers, "Scale")) {
-
-                kl_scale.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"Scale")
+			}
+			if (ListContainsString(data.headers, "Scale")) {
+				kl_scale.InsertValue(
+					keyframe_t,
+					row.get_float(t"Scale")
 				);
-
-            }
-        }
-    }
+			}
+		}
+	}
 }
 
 // KeyframeLayer make_interesting_layer_x() {
