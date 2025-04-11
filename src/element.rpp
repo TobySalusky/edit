@@ -137,9 +137,19 @@ struct VideoElement : ElementImpl {
 	char^ video_file_path;
 	List<Texture> frames;
 	float dec_fr; // frame rate of video from decoding
+	float speed = 1;
+	float start_offset = 0; // offset from start of video in seconds
+	bool loaded = false;
+	bool wrap = true;
+
+	float CalculateMaximumDuration() {
+		float max_duration = (frames.size as float / (dec_fr * speed)) - start_offset;
+		return max_duration;
+	}
 
 	void Draw(Element^ e, float current_time) {
-		d.TextureAtSize(frames.get(((current_time - e#start_time) * dec_fr) as int % frames.size), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		int frame_idx = ((current_time - (e#start_time - start_offset)) * (dec_fr * speed)) as int % frames.size; 
+		d.TextureAtSize(frames.get(frame_idx), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
 
 	int Kind() -> KIND_VIDEO;
@@ -157,7 +167,6 @@ struct VideoElement : ElementImpl {
 		float dec_fr = 0;
 		List<Texture> imported_textures = .();
 		EncodingDecoding.ImportVideoImpl(video_path, dec_fr, imported_textures);
-		printf("VIDEO FILE PATH %s\n", video_path);
 		char^ vfp = strdup(video_path);
 		return Box<Self>.Make({ 
 			.video_file_path = vfp,

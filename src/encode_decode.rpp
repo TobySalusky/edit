@@ -591,7 +591,7 @@ static int audio_frame_count = 0;
 
 void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Texture> &imported_textures)
 {
-	Image img = c:GenImageColor(width, height, c:BLACK);
+	Image img = c:GenImageColor(width, height, c:BLACK); // may not be thread safe
 	c:c:`
 	struct SwsContext *sws_ctx = NULL;
 	AVFrame* rgb_frame = av_frame_alloc();

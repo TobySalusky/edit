@@ -627,6 +627,10 @@ void UpdateState() {
 		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
 			elem.UpdateState(current_time);
 		}
+		// if (elem.content_impl#Kind() == KIND_VIDEO) {
+		// 	VideoElement^ vid = (c:elem#content_impl.ptr);
+		// 	go_with(ImportVideoThread, vid);
+		// }
 	}
 }
 
@@ -654,6 +658,11 @@ void ExportVideoThread() {
 	SetMode(.Paused);
 	SetFrame(0);
 }
+
+// void ImportVideoThread(void^ user_data) {
+// 	VideoElement^ vid = user_data;
+// 	EncodingDecoding.ImportVideoImpl(strdup(vid#video_file_path), vid#dec_fr, vid#frames);
+// }
 
 void DrawProgressBar(Vec2 tl, Vec2 dimens, Color bg, Color fg, float amount) {
 	d.Rect(tl, dimens, bg);
@@ -875,7 +884,8 @@ void GameTick() {
 			// ImportVideo(c:video_path);
 			// println(t"Successfully imported video containing {imported_textures.size} frames!");
 			char^ video_name = c:GetFileNameWithoutExt(c:video_path);
-			AddNewElementAt(Element(VideoElement.Make(c:video_path), strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			VideoElement^ ve = VideoElement.Make(c:video_path);
+			AddNewElementAt(Element(ve, strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
 			SelectNewestElement();
 		}
 	}
@@ -937,10 +947,10 @@ void SyncEncodingDecodingEditInfo() {
 	};
 }
 
-bool ImportVideo(char^ input_file_name_no_path) {
-	SyncEncodingDecodingEditInfo();
-	return EncodingDecoding.ImportVideoImpl(input_file_name_no_path, dec_frame_rate, imported_textures);
-}
+// bool ImportVideo(char^ input_file_name_no_path) {
+// 	SyncEncodingDecodingEditInfo();
+// 	return EncodingDecoding.ImportVideoImpl(input_file_name_no_path, dec_frame_rate, imported_textures);
+// }
 
 void ExportVideoThreadMain() {
 	ExportVideo(frame_rate, "out", "edit_video");
