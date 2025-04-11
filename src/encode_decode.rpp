@@ -19,7 +19,6 @@ import rl;
 //============= FFMPEG HELPERS ====================================================
 struct FromEditToEncodeDecode {
 	List<Image>& images;
-	List<Texture>& imported_textures;
 	int canvas_width;
 	int canvas_height;
 
@@ -589,7 +588,7 @@ static int video_frame_count = 0;
 static int audio_frame_count = 0;
 `;
 
-void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Texture> &imported_textures)
+void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Image> &imported_images)
 {
 	Image img = c:GenImageColor(width, height, c:BLACK); // may not be thread safe
 	c:c:`
@@ -635,15 +634,14 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Texture> &import
 		}
 	}
     c:ImageFlipVertical(^img);
-    Texture tex = c:LoadTextureFromImage(img); // These need to be unloaded after use
-	imported_textures.add(tex);
+	imported_images.add(img);
 	c:c:`
 	av_freep(&rgb_frame->data[0]);  // Free the data
 	av_frame_free(&rgb_frame);       // Free the frame
 	`;
 }
 
-int output_video_frame(c:AVFrame ^frame, List<Texture>& imported_textures)
+int output_video_frame(c:AVFrame ^frame, List<Image>& imported_images)
 {
     c:c:`
     if (frame->width != width || frame->height != height ||
@@ -670,7 +668,7 @@ int output_video_frame(c:AVFrame ^frame, List<Texture>& imported_textures)
                    frame->data, frame->linesize,
                    pix_fmt, width, height);
 	;`
-	fill_rl_image(c:frame, c:width, c:height, imported_textures);
+	fill_rl_image(c:frame, c:width, c:height, imported_images);
     c:c:`
     /* write to rawvideo file */
     // fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
@@ -699,7 +697,7 @@ static int output_audio_frame(AVFrame *frame)
     return 0;
 }
 `;
-int decode_packet(c:AVCodecContext^ dec, c:AVPacket ^pkt, List<Texture>& imported_textures)
+int decode_packet(c:AVCodecContext^ dec, c:AVPacket ^pkt, List<Image>& imported_images)
 {
     c:c:`
     int ret = 0;
@@ -727,7 +725,7 @@ int decode_packet(c:AVCodecContext^ dec, c:AVPacket ^pkt, List<Texture>& importe
         // write the frame data to output file
         if (dec->codec->type == AVMEDIA_TYPE_VIDEO)
             `;
-            c:ret = output_video_frame(c:frame, imported_textures);
+            c:ret = output_video_frame(c:frame, imported_images);
             c:c:`
         else
             ret = output_audio_frame(frame);
@@ -828,7 +826,7 @@ static int get_format_from_sample_fmt(const char **fmt,
 
 // public interface to expose useful stuff to edit.rpp without too much clutter :)
 struct EncodingDecoding {
-	static bool ImportVideoImpl(char^ input_file_name_no_path, float& dec_frame_rate, List<Texture>& imported_textures) {
+	static bool ImportVideoImpl(char^ input_file_name_no_path, float& dec_frame_rate, List<Image>& imported_images) {
         c:c:`
 		int ret = 0;
 
@@ -923,9 +921,9 @@ struct EncodingDecoding {
 			// check if the packet belongs to a stream we are interested in, otherwise
 			// skip it
 			if (pkt->stream_index == video_stream_idx)
-				ret = decode_packet(video_dec_ctx, pkt, imported_textures);
+				ret = decode_packet(video_dec_ctx, pkt, imported_images);
 			else if (pkt->stream_index == audio_stream_idx)
-				ret = decode_packet(audio_dec_ctx, pkt, imported_textures);
+				ret = decode_packet(audio_dec_ctx, pkt, imported_images);
 			av_packet_unref(pkt);
 			if (ret < 0)
 				break;
@@ -935,9 +933,9 @@ struct EncodingDecoding {
 
 		/* flush the decoders */
 		if (video_dec_ctx)
-			decode_packet(video_dec_ctx, NULL, imported_textures);
+			decode_packet(video_dec_ctx, NULL, imported_images);
 		if (audio_dec_ctx)
-			decode_packet(audio_dec_ctx, NULL, imported_textures);
+			decode_packet(audio_dec_ctx, NULL, imported_images);
 
 		printf("Demuxing succeeded.\n");
 
