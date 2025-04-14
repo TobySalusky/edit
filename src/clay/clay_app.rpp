@@ -79,7 +79,7 @@ struct EditClayApp {
 		while (!rl.WindowShouldClose())    // Detect window close button or ESC key
 		{
 			if (reinitializeClay) {
-				Clay.SetMaxElementCount(8192);
+				Clay.SetMaxElementCount(8192); // TODO: UM WHAT?
 				totalMemorySize = Clay.MinMemorySize();
 				clayMemory = Clay.CreateArenaWithCapacityAndMemory(totalMemorySize);
 				Clay.Initialize(clayMemory, Clay_Dimensions { rl.GetScreenWidth() as float, rl.GetScreenHeight() as float }, Clay_ErrorHandler{ HandleClayErrors, NULL });

@@ -2,7 +2,7 @@ import std;
 import rl;
 
 c:import <"float.h">;
-c:import "clay__dev.h";
+c:import "claydev.h";
 
 c:`
 extern void Clay_Raylib_Initialize(int width, int height, const char *title, unsigned int flags);
@@ -13,7 +13,7 @@ extern void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fon
 
 c:c:`
 #define CLAY_IMPLEMENTATION
-#include "clay__dev.h" // clay implementation, should be in ONE C FILE ONLY
+#include "claydev.h" // clay implementation, should be in ONE C FILE ONLY
 // #include "clay_renderer_raylib.c" // clay renderer implementation, should be in ONE C FILE ONLY
 `;
 
