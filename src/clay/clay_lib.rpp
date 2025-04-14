@@ -2,7 +2,7 @@ import std;
 import rl;
 
 c:import <"float.h">;
-c:import "clay.h";
+c:import "clay__dev.h";
 
 c:`
 extern void Clay_Raylib_Initialize(int width, int height, const char *title, unsigned int flags);
@@ -13,7 +13,7 @@ extern void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fon
 
 c:c:`
 #define CLAY_IMPLEMENTATION
-#include "clay.h" // clay implementation, should be in ONE C FILE ONLY
+#include "clay__dev.h" // clay implementation, should be in ONE C FILE ONLY
 // #include "clay_renderer_raylib.c" // clay renderer implementation, should be in ONE C FILE ONLY
 `;
 
@@ -63,6 +63,9 @@ c:c:`
 // Note: Clay_String is not guaranteed to be null terminated. It may be if created from a literal C string,
 // but it is also used to represent slices.
 @extern struct Clay_String {
+    // Set this boolean to true if the char* data underlying this string will live for the entire lifetime of the program.
+    // This will automatically be set for strings created with CLAY_STRING, as the macro requires a string literal.
+    bool isStaticallyAllocated = false;
     int length = 0;
     // The underlying character memory. Note: this will not be copied and will not extend the lifetime of the underlying memory.
     char^ chars = NULL;
@@ -90,6 +93,9 @@ c:c:`
     uint offset = 0; // A numerical offset applied after computing the hash from stringId.
     uint baseId = 0; // A base hash value to start from, for example the parent element ID is used when calculating CLAY_ID_LOCAL().
     Clay_String stringId = {}; // The string id to hash.
+	construct(char^ str_that_will_live_to_next_frame, uint offset = 0) { // TODO: does that mean into next frame, or till?
+		return Clay__HashString(.(str_that_will_live_to_next_frame), offset, 0);
+	}
 }
 
 @extern struct Clay__SizingType {} // extern enum?
@@ -106,12 +112,25 @@ c:c:`
 @extern struct Clay_Sizing {
     Clay_SizingAxis width = {}; // Controls the width sizing of the element, along the x axis.
     Clay_SizingAxis height = {};  // Controls the height sizing of the element, along the y axis.
+	construct(float fixed_width, float fixed_height) -> {
+		.width = CLAY_SIZING_FIXED(fixed_width),
+		.height = CLAY_SIZING_FIXED(fixed_height),
+	};
+
+	static Self Grow() -> {
+		.width = CLAY_SIZING_GROW(),
+		.height = CLAY_SIZING_GROW(),
+	};
 }
 @extern struct Clay_Padding {
     ushort left = 0; // uint16_t's
     ushort right = 0;
     ushort top = 0;
     ushort bottom = 0;
+
+	construct (ushort padding_all_sides) -> {
+		padding_all_sides, padding_all_sides, padding_all_sides, padding_all_sides
+	};
 }
 
 @extern struct Clay_LayoutAlignmentX { }
@@ -261,7 +280,7 @@ c:c:`
 
 @extern struct Clay_TextElementConfig {
 	// A pointer that will be transparently passed through to the resulting render command.
-    // void^ userData = NULL;
+    void^ userData = NULL;
     // The RGBA color of the font to render, conventionally specified as 0-255.
     Color textColor = Colors.Black;
     // An integer transparently passed to Clay_MeasureText to identify the font to use.
@@ -283,10 +302,6 @@ c:c:`
     // CLAY_TEXT_ALIGN_CENTER - Horizontally aligns wrapped lines of text to the center of their bounding box.
     // CLAY_TEXT_ALIGN_RIGHT - Horizontally aligns wrapped lines of text to the right hand side of their bounding box.
     Clay_TextAlignment textAlignment = CLAY_TEXT_ALIGN_LEFT;
-    // When set to true, clay will hash the entire text contents of this string as an identifier for its internal
-    // text measurement cache, rather than just the pointer and length. This will incur significant performance cost for
-    // long bodies of text.
-    bool hashStringContents = false;
 }
 
 @extern struct Clay_BorderWidth {
@@ -327,7 +342,7 @@ struct Clay_ElementDeclaration {
     // Controls the background color of the resulting element.
     // By convention specified as 0-255, but interpretation is up to the renderer.
     // If no other config is specified, .backgroundColor will generate a RECTANGLE render command, otherwise it will be passed as a property to IMAGE or CUSTOM render commands.
-    Color backgroundColor = Colors.White;
+    Color backgroundColor = Colors.Transparent;
     // Controls the "radius", or corner rounding of elements, including rectangles, borders and images.
     Clay_CornerRadius cornerRadius = .(0);
     // Controls settings related to image elements.
@@ -480,6 +495,9 @@ struct Clay {
 	// This ID can be calculated either with CLAY_ID() for string literal IDs, or Clay_GetElementId for dynamic strings.
 	static Clay_ElementData GetElementData(Clay_ElementId id) -> c:Clay_GetElementData(id);
 
+	// NOTE: CUSTOM
+	static Rectangle GetBoundingBox(Clay_ElementId id) -> Clay.GetElementData(id).boundingBox;
+
 	// Returns true if Clay's internal debug tools are currently enabled.
 	static bool IsDebugModeEnabled() -> c:Clay_IsDebugModeEnabled();
 	// Enables and disables visibility culling. By default, Clay will not generate render commands for elements whose bounding box is entirely outside the screen.
@@ -530,15 +548,15 @@ struct Clay {
 // To regenerate the same ID outside of layout declaration when using utility functions such as Clay_PointerOver, use the Clay_GetElementId function.
 @extern Clay_ElementId CLAY_ID(char^ str_literal);
 
-// A version of CLAY_ID that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
-@extern Clay_ElementId CLAY_SID(char^ str);
+// // A version of CLAY_ID that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
+// @extern Clay_ElementId CLAY_SID(char^ str);
 
 // Used for generating ids for sequential elements (such as in a for loop) without having to construct dynamic strings at runtime.
 // Note this macro only works with String literals and won't compile if used with a char* variable. To use a heap allocated char* string as an ID, use CLAY_SIDI.
 @extern Clay_ElementId CLAY_IDI(char^ str_literal, int offset);
 
-// A version of CLAY_IDI that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
-@extern Clay_ElementId CLAY_SIDI(char^ str, int offset);
+// // A version of CLAY_IDI that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
+// @extern Clay_ElementId CLAY_SIDI(char^ str, int offset);
 
 // CLAY_ID_LOCAL() is used to generate and attach a Clay_ElementId to a layout element during declaration.
 // Unlike CLAY_ID which needs to be globally unique, a local ID is based on the ID of it's parent and only needs to be unique among its siblings.
@@ -546,16 +564,16 @@ struct Clay {
 // Note this macro only works with String literals and won't compile if used with a char* variable. To use a heap allocated char* string as an ID, use CLAY_SID_LOCAL.
 @extern Clay_ElementId CLAY_ID_LOCAL(char^ str_literal);
 
-// A version of CLAY_ID_LOCAL that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
-@extern Clay_ElementId CLAY_SID_LOCAL(char^ str_literal);
+// // A version of CLAY_ID_LOCAL that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
+// @extern Clay_ElementId CLAY_SID_LOCAL(char^ str_literal);
 
 // An offset version of CLAY_ID_LOCAL. Generates a Clay_ElementId string id from the provided char *label, combined with the int index.
 // Used for generating ids for sequential elements (such as in a for loop) without having to construct dynamic strings at runtime.
 // Note this macro only works with String literals and won't compile if used with a char* variable. To use a heap allocated char* string as an ID, use CLAY_SIDI_LOCAL.
 @extern Clay_ElementId CLAY_IDI_LOCAL(char^ str_literal, int offset);
 
-// A version of CLAY_IDI_LOCAL that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
-@extern Clay_ElementId CLAY_SIDI_LOCAL(char^ str, int offset);
+// // A version of CLAY_IDI_LOCAL that can be used with heap allocated char * data. The underlying char data will not be copied internally and should live until at least the next frame.
+// @extern Clay_ElementId CLAY_SIDI_LOCAL(char^ str, int offset);
 
 /// STYLING --------------------------------------------------------------------
 // The element will be sized to fit its children (plus padding and gaps), up to max. If max is left unspecified, it will default to FLOAT_MAX. When elements are compressed to fit into a smaller parent, this element will not shrink below min.
@@ -574,3 +592,7 @@ struct Clay {
 @extern void CLAY_TEXT(Clay_String str, Clay_TextElementConfig^ ptr_from_CLAY_TEXT_CONFIG);
 // TODO: see if this is necessary...
 @extern Clay_TextElementConfig^ CLAY_TEXT_CONFIG(Clay_TextElementConfig config); // stores the config and returns as a ptr, for use in CLAY_TEXT
+
+void clay_text(char^ str_that_must_exist_til_next_frame, Clay_TextElementConfig config) {
+	CLAY_TEXT(.(str_that_must_exist_til_next_frame), c:Clay__StoreTextElementConfig(config));
+}

@@ -8,6 +8,8 @@ import script_interface;
 import ui_elements;
 import data;
 import yaml;
+import clay_lib;
+import ui_elements;
 
 int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
@@ -98,7 +100,7 @@ struct ImageCache {
 		if (cache.has(file_path)) {
 			return cache.get(file_path);
 		}
-		Texture tex = LoadTextureFromFile(file_path);
+		Texture tex = rl.LoadTexture(file_path);
 		cache.put(file_path, tex);
 		return tex;
 	}
@@ -182,6 +184,21 @@ struct CustomLayerList {
 
 	List<CustomLayer> layers;
 	void^ list_ptr;
+	bool immutable = false; // constant # of elements!
+
+	void AddLayer() {
+		switch (type) {
+			CustomStructMemberTypeFloat -> {
+				AddFloatLayer();
+			},
+			CustomStructMemberTypeStr -> {
+				AddStrLayer();
+			},
+			else -> {
+				println("[DEBUG]: CustomLayerList AddLayer - unimpl type!!");
+			}
+		}
+	}
 
 	void AddFloatLayer() {
 		let fs = list_ptr as List<float>^;
@@ -256,11 +273,24 @@ choice CustomLayerKind {
 	CustomLayerVec2,
 	CustomLayerStr,
 	CustomLayerList,
+	;
 }
 
+struct CustomLayerUIParams {
+	float max_elem_time;
+	float curr_local_time;
+}
+
+
+float custom_layer_timeline_width = GlobalSettings.get_float("custom_layer_timeline_width", 100);
+
+PanelExpander custom_layer_timeline_expander = { ^custom_layer_timeline_width, "custom_layer_timeline_width", .min = 100, .reverse = true };
 struct CustomLayer {
 	char^ name;
 	CustomLayerKind kind;
+	// TODO: bool keyed = false; ?
+
+	bool deleted_member = false; // true when this used to be a named member, but has since been removed/renamed
 
 	void UpdateState(float lt) {
 		switch (kind) {
@@ -281,53 +311,153 @@ struct CustomLayer {
 		}
 	}
 
-	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
-		int i = incr;
-		let tl = global_tl + v2(0, dimens.y * i);
-
-		switch (kind) {
-			CustomLayerFloat it -> { // TODO: use it (fix compiler issue: "CustomLayerKind __tpp_local_320 = (*(tpp_this)).kind;" .... need to detect non-temporary expr and use pointer!!!!)
-				KeyframeLayerUI_Float(it.kl_value, global_tl, dimens, max_elem_time, curr_local_time, name, incr);
-				incr++;
-			},
-			CustomLayerVec2 it -> { // TODO: use it (fix compiler issue: "CustomLayerKind __tpp_local_320 = (*(tpp_this)).kind;" .... need to detect non-temporary expr and use pointer!!!!)
-				// let& em = kind as CustomLayerVec2;
-				incr++;
-
-				int i = incr;
-				let tl = global_tl + v2(0, dimens.y * i);
-
-				d.Text(name, (tl.x - 100 + 10) as .., tl.y as .., 16, Colors.Orange); // label
-				incr++;
-			},
-			CustomLayerStr it -> {
-				int i = incr;
-				let tl = global_tl + v2(0, dimens.y * i);
-
-				d.Text(name, (tl.x - 100 + 10) as .., tl.y as .., 16, Colors.Orange); // label
-				// d.Text(*em.value, tl.x as .., tl.y as .., 16, Colors.Green);
-
-				char^ change_text = TextBox(UiElementID.ID(it.value, 0), *it.value, Rectangle.FromV(tl, dimens), 16);
-
-				if (change_text != NULL) {
-					// println(t"edited to be: {change_text=}");
-					*it.value = change_text;
-					// NOTE: be careful! this points straight to textbox's buffer
+	void UI(using CustomLayerUIParams params) {
+		#clay({
+			.layout = {
+				// TODO: ?
+				.sizing = {
+					.width = CLAY_SIZING_GROW(),
+					.height = CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = {
+					.y = CLAY_ALIGN_Y_CENTER
 				}
-				incr++;
-			},
-			CustomLayerList it -> { // it is NOT ref!!??
-				it.UI(global_tl, dimens, max_elem_time, curr_local_time, name, incr);
-				incr++;
-				for (let& layer in it.layers) {
-					layer.UI(global_tl, dimens, max_elem_time, curr_local_time, layer.name, incr);
+			}
+		}) {
+			#clay({
+				.layout = {
+					.sizing = {
+						.width = CLAY_SIZING_FIXED(100),
+						.height = CLAY_SIZING_GROW(),
+					},
+					.childAlignment = {
+						.y = CLAY_ALIGN_Y_CENTER
+					}
+				},
+				.scroll = { .horizontal = true }
+			}) {
+				clay_text(name, {
+					.fontSize = rem(1),
+					.textColor = Colors.White,
+				});
+			}
+
+			Clay_ElementId content_id = .(t"{^this}-content");
+			#clay({
+				.id = content_id,
+				.layout = {
+					.sizing = Clay_Sizing.Grow(),
+					.childAlignment = {
+						.y = CLAY_ALIGN_Y_CENTER
+					}
+				},
+				.scroll = { .horizontal = true },
+			}) {
+				// CONTENT PART
+				switch (kind) {
+					CustomLayerFloat it -> {
+						let changed = SlidingFloatTextBox(.(t"{it.value}"), *it.value);
+						if (changed is Some) {
+							it.kl_value.InsertValue(curr_local_time, changed as Some);
+							it.kl_value.Set(it.value, curr_local_time);
+						}
+					},
+					CustomLayerVec2 it -> {
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingFloatTextBox(.(t"{it.value}-x"), it.value#x);
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, v2(changed as Some, it.value#y));
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingFloatTextBox(.(t"{it.value}-y"), it.value#y);
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, v2(it.value#x, changed as Some));
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+					},
+					CustomLayerStr it -> {
+						Rectangle rect = Clay.GetBoundingBox(content_id);
+						char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
+
+						if (change_text != NULL) {
+							println(t"edited to be: {change_text=}");
+							*it.value = change_text;
+							// NOTE: be careful! this points straight to textbox's buffer
+						}
+					},
+					CustomLayerList it -> { // it is NOT ref!!??
+						if (!it.immutable) {
+							if (ClayButton("+", .(t"{^this}-add"), Clay_Sizing.Grow(), rem(1))) {
+								it.AddLayer();
+							}
+						}
+					}
+				}
+			}
+
+			custom_layer_timeline_expander.Update();
+
+			// TIMELINE PART
+			Clay_ElementId timeline_id = .(t"{^this}-timeline");
+			#clay({
+				.id = timeline_id,
+				.layout = {
+					.sizing = {
+						.width = CLAY_SIZING_FIXED(custom_layer_timeline_width),
+						.height = CLAY_SIZING_GROW()
+					}
+				},
+			}) {
+				Rectangle rect = Clay.GetElementData(timeline_id).boundingBox;
+
+				switch (kind) {
+					CustomLayerFloat it -> {
+						// TODO: keyframe-layer UI
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
+					},
+					CustomLayerVec2 it -> {
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
+					},
+					else -> {
+						// nothing...
+					}
 				}
 			}
 		}
 
-	}
+		if (kind is CustomLayerList) {
+			let& list = kind as CustomLayerList;
 
-	bool deleted_member; // true when this used to be a named member, but has since been removed/renamed
+			for (let& child in list.layers) {
+				child.UI(params);
+			}
+		}
+
+	}
 }
 
 
@@ -500,18 +630,15 @@ struct Element {
 	
 	// transform-related/common args
 	Vec2 pos;
-	KeyframeLayer<float> kl_pos_x;
-	KeyframeLayer<float> kl_pos_y;
+
+	CustomLayer default_layers; // CustomLayerList
 
 	Vec2 scale;
-	KeyframeLayer<float> kl_scale;
 	bool uniform_scale; // TODO:
 
 	float rotation;
-	KeyframeLayer<float> kl_rotation;
 
 	float opacity;
-	KeyframeLayer<float> kl_opacity;
 
 	Color color;
 
@@ -561,6 +688,78 @@ struct Element {
 		serialize.finish();
 	}
 
+	CustomLayerFloat& _GetFloatLayer(int i) {
+		return ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerFloat;
+
+	}
+
+	CustomLayerVec2& _GetVec2Layer(int i) {
+		return ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerVec2;
+	}
+
+	KeyframeLayer<Vec2>& kl_pos() -> _GetVec2Layer(0).kl_value;
+	KeyframeLayer<float>& kl_scale() -> _GetFloatLayer(2).kl_value;
+	KeyframeLayer<float>& kl_rot() -> _GetFloatLayer(3).kl_value;
+	KeyframeLayer<float>& kl_opacity() -> _GetFloatLayer(4).kl_value;
+
+	void _LinkDefaultLayerToVec2(int i, Vec2^ vp) {
+		let& float_layer = ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerVec2;
+		float_layer.value = vp;
+	}
+
+	void _LinkDefaultLayerToFloat(int i, float^ fp) {
+		let& float_layer = ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerFloat;
+		float_layer.value = fp;
+	}
+	void LinkDefaultLayers() {
+		_LinkDefaultLayerToVec2( 0,  ^pos);
+		_LinkDefaultLayerToFloat(1, ^scale.x);
+		_LinkDefaultLayerToFloat(2, ^rotation);
+		_LinkDefaultLayerToFloat(3, ^opacity);
+	}
+
+	static CustomLayer CreateUnititializedDefaultLayers() {
+		List<CustomLayer> layers = {};
+		layers.add({
+			.name = "pos",
+			.kind = CustomLayerVec2{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+		layers.add({
+			.name = "scale",
+			.kind = CustomLayerFloat{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+		layers.add({
+			.name = "rotation",
+			.kind = CustomLayerFloat{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+		layers.add({
+			.name = "opacity",
+			.kind = CustomLayerFloat{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+
+		return {
+			.name = "Standard Properties",
+			.kind = CustomLayerList{
+				:layers,
+				.type = CustomStructMemberTypeFloat{}, // TODO: ????
+				.list_ptr = NULL, // TODO: ?
+				.immutable = true,
+			}
+		};
+	}
+
 	// name: pass NULL for auto-generated name
 	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, int layer, Vec2 pos, Vec2 scale) -> {
 		:content_impl,
@@ -571,17 +770,13 @@ struct Element {
 		.rotation = 0,
 		.opacity = 1,
 		.color = c:GREEN,
-		.kl_pos_x = .(),
-		.kl_pos_y = .(),
-		.kl_rotation = .(),
-		.kl_opacity = .(),
-		.kl_scale = .(),
 		.visible = true,
 		.data = NULL,
 		.err_msg = NULL,
 		:start_time,
 		:duration,
 		:layer,
+		.default_layers = Self.CreateUnititializedDefaultLayers()
 	};
 
 	// TODO: make sure that inclusion/exclusion is done right here
@@ -612,15 +807,11 @@ struct Element {
 	}
 
 	void UpdateState(float t) {
+		LinkDefaultLayers();
+
 		float lt = t - start_time;
-		kl_pos_x.Set(^pos.x, lt);
-		kl_pos_y.Set(^pos.y, lt);
-
-		kl_scale.Set(^scale.x, lt);
-		kl_scale.Set(^scale.y, lt);
-
-		kl_rotation.Set(^rotation, lt);
-		kl_opacity.Set(^opacity, lt);
+		default_layers.UpdateState(lt);
+		scale.y = scale.x; // uniform scale
 
 		// TODO: color
 
@@ -636,11 +827,13 @@ struct Element {
 	}
 
 	void ClearTimelinesCompletely() {
-		kl_pos_x.Clear();
-		kl_pos_y.Clear();
-		kl_scale.Clear();
-		kl_rotation.Clear();
-		kl_opacity.Clear();
+		// TODO:
+		println("TODO: ClearTimelinesCompletely");
+		// kl_pos_x.Clear();
+		// kl_pos_y.Clear();
+		// kl_scale.Clear();
+		// kl_rotation.Clear();
+		// kl_opacity.Clear();
 	}
 
 	void ApplyData(Data^ data) {
@@ -700,36 +893,36 @@ struct Element {
             }
 
             if (ListContainsString(data.headers, "X")) {
-                kl_pos_x.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"X")
-				);
+				panic("TODO: rae");
+    //             kl_pos_x().InsertValue(
+    //                 keyframe_t,
+    //                 row.get_float(t"X")
+				// );
             }
             if (ListContainsString(data.headers, "Y")) {
-                kl_pos_y.InsertValue(
-                    keyframe_t,
-                    row.get_float(t"Y")
-				);
+				panic("TODO: rae");
+    //             kl_pos_y().InsertValue(
+    //                 keyframe_t,
+    //                 row.get_float(t"Y")
+				// );
             }
-            if (ListContainsString(data.headers, "Opacity")) {
-                kl_opacity.InsertValue(
+            if (ListContainsString(data.headers, "Scale")) {
+                kl_scale().InsertValue(
                     keyframe_t,
-                    row.get_float(t"Opacity")
+                    row.get_float(t"Scale")
 				);
             }
             if (ListContainsString(data.headers, "Rotation")) {
-                kl_rotation.InsertValue(
+                kl_rot().InsertValue(
                     keyframe_t,
                     row.get_float(t"Rotation")
 				);
             }
-            if (ListContainsString(data.headers, "Scale")) {
-
-                kl_scale.InsertValue(
+            if (ListContainsString(data.headers, "Opacity")) {
+                kl_opacity().InsertValue(
                     keyframe_t,
-                    row.get_float(t"Scale")
+                    row.get_float(t"Opacity")
 				);
-
             }
         }
     }

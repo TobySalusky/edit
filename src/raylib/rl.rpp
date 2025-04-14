@@ -304,6 +304,12 @@ struct Raylib {
     void UpdateCamera(Camera^ camera, int mode) -> c:UpdateCamera(camera, mode);      // Update camera position for selected mode
     void UpdateCameraPro(Camera^ camera, Vec3 movement, Vec3 rotation, float zoom) -> c:UpdateCameraPro(camera, movement, rotation, zoom); // Update camera movement/rotation
 	// =================================
+
+
+
+	// TODO: stuff
+    Texture LoadTexture(char^ file_path) -> c:LoadTexture(file_path);                                                       // Load texture from file into GPU memory (VRAM)
+	Image LoadImageFromTexture(Texture texture) -> c:LoadImageFromTexture(texture);
 }
 
 Raylib rl;
@@ -332,51 +338,51 @@ Vec2 Vec2_right = v2(1, 0);
 
 	c:Vector2 v() -> c:Vector2{ .x = this.x, .y = this.y };
 	
-	Vec2 operator:+(Vec2 other) -> c:Vector2Add(this.v(), other.v());
+	Vec2 operator:+(Vec2 other) -> c:Vector2Add(v(), other.v());
 	// Vector2 Vector2AddValue(Vector2 v, float add);
-	Vec2 operator:-(Vec2 other) -> c:Vector2Subtract(this.v(), other.v());
+	Vec2 operator:-(Vec2 other) -> c:Vector2Subtract(v(), other.v());
 	// Vector2 Vector2SubtractValue(Vector2 v, float sub);
-	float length() -> c:Vector2Length(this.v());
-	float length_sqr() -> c:Vector2LengthSqr(this.v());
+	float length() -> c:Vector2Length(v());
+	float length_sqr() -> c:Vector2LengthSqr(v());
 
-	float dot_product(Vec2 other) -> c:Vector2DotProduct(this.v(), other.v());
+	float dot_product(Vec2 other) -> c:Vector2DotProduct(v(), other.v());
 
 	float mag() -> this.distance(Vec2{ .x = 0, .y = 0 }); // TODO: mag_squared!!
-	float distance(Vec2 other) -> c:Vector2Distance(this.v(), other.v());
-	float distance_sqr(Vec2 other) -> c:Vector2DistanceSqr(this.v(), other.v());
+	float distance(Vec2 other) -> c:Vector2Distance(v(), other.v());
+	float distance_sqr(Vec2 other) -> c:Vector2DistanceSqr(v(), other.v());
 
 	float angle0() -> this.angle(Vec2{ .x = 1, .y = 0 });
-	float angle(Vec2 other) -> c:Vector2Angle(this.v(), other.v());
+	float angle(Vec2 other) -> c:Vector2Angle(v(), other.v());
 
-	Vec2 operator:*(Vec2 other) -> c:Vector2Multiply(this.v(), other.v());
+	Vec2 operator:*(Vec2 other) -> c:Vector2Multiply(v(), other.v());
 	// TODO: make this also operator (need overloads)
-	Vec2 scale(float scale) -> c:Vector2Scale(this.v(), scale);
+	Vec2 scale(float scale) -> c:Vector2Scale(v(), scale);
 
 	// TODO: operator:- (uop support!)
-	Vec2 negate() -> c:Vector2Negate(this.v());
+	Vec2 negate() -> c:Vector2Negate(v());
 
-	Vec2 operator:/(Vec2 other) -> c:Vector2Divide(this.v(), other.v());
+	Vec2 operator:/(Vec2 other) -> c:Vector2Divide(v(), other.v());
 	Vec2 divide(float divisor) -> v2(this.x / divisor, this.y / divisor);
 	// TODO: operator:/(float xxx)
 
-	Vec2 normalize() -> c:Vector2Normalize(this.v());
+	Vec2 normalize() -> c:Vector2Normalize(v());
 
 	// NOTE: uses rough equality... do we want that?
-	bool operator:==(Vec2 other) -> c:Vector2Equals(this.v(), other.v());
+	bool operator:==(Vec2 other) -> c:Vector2Equals(v(), other.v());
 	// TODO: forgot to impl op:!=
 	bool operator:!=(Vec2 other) -> !(this == other);
 
-	Vec2 lerp(Vec2 other, float amount) -> c:Vector2Lerp(this.v(), other.v(), amount);
+	Vec2 lerp(Vec2 other, float amount) -> c:Vector2Lerp(v(), other.v(), amount);
 
 	// NOTE: what does this even do?
-	Vec2 move_towards(Vec2 other, float maxDistance) -> c:Vector2MoveTowards(this.v(), other.v(), maxDistance);
+	Vec2 move_towards(Vec2 other, float maxDistance) -> c:Vector2MoveTowards(v(), other.v(), maxDistance);
 
-	Vec2 reflect(Vec2 normal) -> c:Vector2Reflect(this.v(), normal.v());
-	Vec2 rotate(float angle) -> c:Vector2Rotate(this.v(), angle);
+	Vec2 reflect(Vec2 normal) -> c:Vector2Reflect(v(), normal.v());
+	Vec2 rotate(float angle) -> c:Vector2Rotate(v(), angle);
 	// NOTE: what? is this (1/x, 1/y)?
-	Vec2 invert() -> c:Vector2Invert(this.v());
-	Vec2 clamp(Vec2 min, Vec2 max) -> c:Vector2Clamp(this.v(), min.v(), max.v());
-	Vec2 clamp_value(float min, float max) -> c:Vector2ClampValue(this.v(), min, max);
+	Vec2 invert() -> c:Vector2Invert(v());
+	Vec2 clamp(Vec2 min, Vec2 max) -> c:Vector2Clamp(v(), min.v(), max.v());
+	Vec2 clamp_value(float min, float max) -> c:Vector2ClampValue(v(), min, max);
 
 	// TODO: other
 	// Vector2 Vector2Transform(Vector2 v, Matrix mat);
@@ -468,12 +474,12 @@ void pv(Vec2 v) {
 }
 
 struct Cursor {
-	void Show() -> c:ShowCursor();
-	void Hide() -> c:HideCursor();
-	bool Is_Hidden() -> c:IsCursorHidden();
-	void Lock() -> c:EnableCursor();
-	void Unlock() -> c:DisableCursor();
-	bool IsOnScreen() -> c:IsCursorOnScreen();
+	static void Show() -> c:ShowCursor();
+	static void Hide() -> c:HideCursor();
+	static bool IsHidden() -> c:IsCursorHidden();
+	static void Lock() -> c:EnableCursor();
+	static void Unlock() -> c:DisableCursor();
+	static bool IsOnScreen() -> c:IsCursorOnScreen();
 }
 
 struct Window {
@@ -582,6 +588,12 @@ struct Drawer {
 	// TODO: width/height
 	void Texture(Texture texture, Vec2 pos) {
 		c:DrawTextureRec(texture, texture.SourceRect(), pos.v(), c:WHITE);
+	}
+	
+	void FlippedTexture(Texture texture, Vec2 pos) {
+		Rectangle source_rect = texture.SourceRect();
+		source_rect.height *= -1;
+		c:DrawTextureRec(texture, source_rect, pos.v(), c:WHITE);
 	}
 
 	void TextureAtSize(Texture texture, float x, float y, float width, float height) {
@@ -789,10 +801,15 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 	}
 
 	bool Contains(Vec2 v) -> v.Between(this.tl(), this.br()); 
+
+	char^ to_tstring() -> t"Rect({x=}, {y=}, {width=}, {height=})";
+	char^ to_string() -> f"Rect({x=}, {y=}, {width=}, {height=})";
 }
 
 struct Point { // not a real raylib type, but is convenient
 	int x; int y;
+
+	char^ to_tstring() -> t"({x}, {y})";
 	char^ to_string() -> f"({x}, {y})";
 
 	Point operator:+(Point other) -> { .x = x + other.x, .y = y + other.y };
@@ -823,7 +840,7 @@ struct Point { // not a real raylib type, but is convenient
 	int height;
 
 	Rectangle SourceRect() -> {
-		.x = 0, .y = 0, :width, .height = -height // NOTE: negative height! - corrects for flipped storage!
+		.x = 0, .y = 0, :width, :height // NOTE: negative height! - corrects for flipped storage!
 	};
 
 	// WARNING: !!!
@@ -940,14 +957,6 @@ struct ShaderLocationHandle { // stack/mem Shader must stay valid!
 
 Shader make_shader(char^ fragFileName) -> c:LoadShader(0, fragFileName);
 
-Texture LoadTextureFromFile(char^ file_path) {
-	Image img = c:LoadImage(file_path);
-	defer img.Unload();
-
-	c:ImageFlipVertical(^img); // TODO: flip vertical
-	return c:LoadTextureFromImage(img);
-}
-
 //  3D ---------------------------------
 @extern struct Camera {
     Vec3 position;       // Camera position
@@ -982,8 +991,6 @@ Texture LoadTextureFromFile(char^ file_path) {
     int boneCount;          // Number of bones
 
     // OpenGL identifiers
-    // unsigned int vaoId;     // OpenGL Vertex Array Object id
-    int ^vboId;    // OpenGL Vertex Buffer Objects id (default vertex data)
     // unsigned int vaoId;     // OpenGL Vertex Array Object id
     int ^vboId;    // OpenGL Vertex Buffer Objects id (default vertex data)
 }

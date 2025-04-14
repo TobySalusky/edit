@@ -30,6 +30,16 @@ int CANVAS_HEIGHT = 900;
 // 	}
 // }
 
+struct MyStruct {
+	int a;
+	char^ bbb;
+}
+
+MyStruct my_struct = {
+	.a = ,
+	.bbb = ,
+};
+
 @fx_args
 struct PointSwarmArgs {
 	List<float> fs = .();

@@ -19,14 +19,20 @@ struct ScrollbarData
 ScrollbarData scrollbarData = {};
 
 void HandleClayErrors(Clay_ErrorData errorData) {
-    printf("%s", errorData.errorText.chars);
+    println(t"{errorData.errorText.chars}");
     if (errorData.errorType == CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED) {
         reinitializeClay = true;
         Clay.SetMaxElementCount(Clay.GetMaxElementCount() * 2);
     } else if (errorData.errorType == CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED) {
         reinitializeClay = true;
         Clay.SetMaxMeasureTextCacheWordCount(Clay.GetMaxMeasureTextCacheWordCount() * 2);
-    }
+    } else if (errorData.errorType == CLAY_ERROR_TYPE_INTERNAL_ERROR) {
+		println("[CLAY INTERNAL ERROR]: ...crashing on purpose to debug with GDB!");
+		char^ v_ptr = NULL;
+		*v_ptr = 'a';
+	} else {
+		panic(t"HandleClayErrors - unhandled case! {errorData.errorType as c:int as int}");
+	}
 }
 
 c:`typedef void (*EditClayAppMainLoopUpdateFn)(void);`;
@@ -44,23 +50,30 @@ struct EditClayApp {
 
 		// TODO: logging config by flag?
 		// rl.SetTraceLogLevel(c:LOG_WARNING ~| c:LOG_ERROR);  // Log flags? -- comment out to see if I/O or shader stuff is working!
-		Clay.Raylib_Initialize(window_width, window_height, name, c:FLAG_VSYNC_HINT ~| c:FLAG_WINDOW_RESIZABLE ~| c:FLAG_WINDOW_HIGHDPI ~| c:FLAG_MSAA_4X_HINT);
+		// NOTE: removed - c:FLAG_WINDOW_HIGHDPI  (believe it was causing windows issues)
+		Clay.Raylib_Initialize(window_width, window_height, name, c:FLAG_VSYNC_HINT ~| c:FLAG_WINDOW_RESIZABLE ~| c:FLAG_MSAA_4X_HINT);
 		Clay.Initialize(clayMemory, Clay_Dimensions{ rl.GetScreenWidth() as float, rl.GetScreenHeight() as float }, error_handler);
 
 		// fonst.get(FONT_ID_BODY_24)
-		fonts.add(c:LoadFontEx("assets/fonts/Roboto-Regular.ttf", 48, 0, 400));
+		fonts.add(c:LoadFontEx("assets/fonts/Roboto-Regular.ttf", 48, NULL, 0));
 		c:SetTextureFilter(fonts.get(0).texture, c:TEXTURE_FILTER_BILINEAR);
 		// fonst.get(FONT_ID_BODY_16)
-		fonts.add(c:LoadFontEx("assets/fonts/Roboto-Regular.ttf", 32, 0, 400));
+		fonts.add(c:LoadFontEx("assets/fonts/Roboto-Regular.ttf", 32, NULL, 0));
 		c:SetTextureFilter(fonts.get(1).texture, c:TEXTURE_FILTER_BILINEAR);
-		Clay.SetMeasureTextFunction(c:Raylib_MeasureText, fonts.data);
+		void^^ user_ptr_arr = malloc(sizeof<void^> * 2);
+		int^ font_count_ptr = malloc(sizeof<int^>);
+		*font_count_ptr = fonts.size;
+
+		user_ptr_arr[0] = fonts.data;
+		user_ptr_arr[1] = font_count_ptr;
+		Clay.SetMeasureTextFunction(c:Raylib_MeasureText, user_ptr_arr);
 	}
 
 	static void Deinit() {
 		Clay.Raylib_Close();
 	}
 
-	static void MainLoop(c:EditClayAppMainLoopUpdateFn update_fn) {
+	static void MainLoop(c:EditClayAppMainLoopUpdateFn update_fn, c:EditClayAppMainLoopUpdateFn render_after_fn) {
 		// Main game loop
 		rl.SetTargetFPS(60);
 		while (!rl.WindowShouldClose())    // Detect window close button or ESC key
@@ -72,11 +85,11 @@ struct EditClayApp {
 				Clay.Initialize(clayMemory, Clay_Dimensions { rl.GetScreenWidth() as float, rl.GetScreenHeight() as float }, Clay_ErrorHandler{ HandleClayErrors, NULL });
 				reinitializeClay = false;
 			}
-			_UpdateDrawFrame(update_fn);
+			_UpdateDrawFrame(update_fn, render_after_fn);
 		}
 	}
 
-	static void _UpdateDrawFrame(c:EditClayAppMainLoopUpdateFn update_fn) {
+	static void _UpdateDrawFrame(c:EditClayAppMainLoopUpdateFn update_fn, c:EditClayAppMainLoopUpdateFn render_after_fn) {
 		Vec2 mouseWheelDelta = c:GetMouseWheelMoveV();
 		float mouseWheelX = mouseWheelDelta.x;
 		float mouseWheelY = mouseWheelDelta.y;
@@ -128,6 +141,9 @@ struct EditClayApp {
 		rl.BeginDrawing();
 		rl.ClearBackground(Colors.Black);
 		Clay.Raylib_Render(renderCommands, fonts.data);
+
+		render_after_fn();
+
 		rl.EndDrawing();
 		// printf("render time: %f ms\n", (rl.GetTime() - currentTime) * 1000);
 

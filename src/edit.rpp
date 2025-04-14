@@ -18,6 +18,7 @@ import script_interface;
 import yaml;
 import global_settings;
 import hotkey;
+import cursor;
 
 import encode_decode;
 
@@ -35,6 +36,7 @@ Vec2 window_dimens = v2(window_width, window_height);
 int canvas_width = 1200;
 int canvas_height = 900;
 
+RenderTexture canvas_temp; // actual texture drawn to, gets flipped vertically to become final `canvas`
 RenderTexture canvas;
 
 Texture eye_open_icon;
@@ -124,10 +126,6 @@ struct RepeatingTimer {
 
 RepeatingTimer check_code_timer = .(0.25);
 
-Texture LoadIcon(char^ path) {
-	return LoadTextureFromFile(path);
-}
-
 char^ OpenImageFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
 	filters[0] = "*.png";
@@ -149,7 +147,7 @@ char^ OpenImageFileDialog(char^ title) {
 }
 
 char^ OpenDataFileDialog(char^ title) {
-	char^^ filters = malloc(sizeof<char^> * 3);
+	char^^ filters = malloc(sizeof<char^> * 1);
 	filters[0] = "*.csv";
 	defer free(filters);
 
@@ -295,7 +293,7 @@ float new_element_default_duration = 0.5;
 bool look_at_controls = false;
 bool show_add_element_options = false;
 
-int left_panel_width = GlobalSettings.get_int("left_panel_width", 300);
+float left_panel_width = GlobalSettings.get_float("left_panel_width", 300);
 void LeftPanelUI() {
 	d.Rect(v2(0, 0), v2(left_panel_width, window_height), theme.panel);
 	d.Rect(v2(left_panel_width, 0), v2(1, window_height), theme.panel_border);
@@ -359,8 +357,11 @@ void LeftPanelUI() {
 	d.RectR(.(0, 0, left_panel_width, 32), theme.button);
 	let& selected_elem = elements.get(selected_elem_i);
 	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
-	KeyframeTimelineUI();
+	// KeyframeTimelineUI();
+
+	// SlidingFloatTextBox(.("my_f"), my_f);
 }
+// float my_f = 10;
 
 struct TimelineState {
 	bool dragging_elem;
@@ -395,7 +396,7 @@ void ElementTimelineUI() {
 	float height = element_timeline_ui_height;
 	float layer_height = height / show_layers;
 
-	float whole_width = window_width - left_panel_width;
+	float whole_width = window_width as float - left_panel_width;
 	Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
 	Vec2 whole_dimens = v2(whole_width, height);
 	Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
@@ -537,10 +538,11 @@ void ElementTimelineUI() {
 }
 
 bool keyframe_timeline_dragging = false;
+// TODO: move over!
 void KeyframeTimelineUI() {
 	int info_width = 100;
 	// int width = window_width - left_panel_width - info_width;
-	int width = left_panel_width;
+	int width = left_panel_width as ..;
 	int height = keyframe_timeline_ui_height;
 
 	int y_start = 32;
@@ -571,20 +573,13 @@ void KeyframeTimelineUI() {
 	float max_elem_time = selected_elem.duration;
 
 	float curr_lt = current_time - selected_elem.start_time;
-	KeyframeLayerUI_Float(selected_elem.kl_pos_x, tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
-	KeyframeLayerUI_Float(selected_elem.kl_pos_y, tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
-	KeyframeLayerUI_Float(selected_elem.kl_scale, tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
-	KeyframeLayerUI_Float(selected_elem.kl_rotation, tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
-	KeyframeLayerUI_Float(selected_elem.kl_opacity, tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
+	// KeyframeLayerUI_Float(selected_elem.kl_pos_x, tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
+	// KeyframeLayerUI_Float(selected_elem.kl_pos_y, tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
+	// KeyframeLayerUI_Float(selected_elem.kl_scale, tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
+	// KeyframeLayerUI_Float(selected_elem.kl_rotation, tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
+	// KeyframeLayerUI_Float(selected_elem.kl_opacity, tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
 
-	if (selected_elem.content_impl#CustomLayers() != NULL) {
-		// println(t"ui for {selected_elem.content_impl#CustomLayers()#size}");
-		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
-			// println(t"ui for {layer.name}");
-			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
-			layer.UI(tl, kl_dimens, max_elem_time, curr_lt, layer.name, i);
-		}
-	}
+	// .UI(max_elem_time, curr_lt, layer.name, i);
 
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		keyframe_timeline_dragging = true;
@@ -631,7 +626,7 @@ void UpdateState() {
 }
 
 void DrawFrameToCanvas() {
-	canvas.Begin();
+	canvas_temp.Begin();
 	d.ClearBackground(theme.bg);
 	for (int i in 0..layers.size) {
 		for (let& elem in elements) {
@@ -645,6 +640,10 @@ void DrawFrameToCanvas() {
 		elements.get(selected_elem_i).DrawGizmos();
 	}
 
+	canvas_temp.End();
+
+	canvas.Begin(); // rendering to another render texture flips it again haha
+		d.Texture(canvas_temp.texture, { 0, 0 });
 	canvas.End();
 }
 
@@ -722,7 +721,8 @@ void CullEmptyLayers() {
 }
 
 Vec2 GetMousePosWorldSpace() {
-	let canvas_rect = CanvasRect();
+	// TODO: fix this???
+	let canvas_rect = canvas_rect;
 	return (mouse.GetPos() - canvas_rect.tl()) / (canvas_rect.dimen() / window_dimens);
 }
 
@@ -732,8 +732,12 @@ void UpdateWindowSize(int width, int height) {
 	window_dimens = v2(width, height);
 }
 
-bool init = false;
+PanelExpander left_panel_expander = { ^left_panel_width, "left_panel_width", .min = 100 };
+
+bool first_frame = true;
 void GameTick() {
+	cursor_type = .Default;
+
 	ui_element_activated_this_frame = false;
 
 	if (window_width != rl.GetScreenWidth() || window_height != rl.GetScreenHeight()) {
@@ -811,9 +815,9 @@ void GameTick() {
 		if (export_state.frames_rendered < max_frames) {
 			// Images of format type: PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 == 7 (by raylib.h)
 			// Appears equivalent to PIX_FMT_RGBA of FFMPEG
-			Image img = c:LoadImageFromTexture(canvas.texture);
+			Image img = rl.LoadImageFromTexture(canvas.texture);
 			if (export_type == ExportType.INTERNAL) {
-				c:ImageFlipVertical(^img);
+				// c:ImageFlipVertical(^img); NOTE: rae commented out, don't think we need now but may be wrong :) (have not checked)
 				c:c:`
 				//pthread_mutex_lock(&images_lock);
 				//while (images.size >= images.capacity) {
@@ -838,9 +842,9 @@ void GameTick() {
 		}
 	}
 
-	let canvas_rect = CanvasRect();
-	d.TextureAtRect(canvas, canvas_rect);
-	d.RectOutlineR(canvas_rect, theme.bg);
+	// let canvas_rect = CanvasRect();
+	// d.TextureAtRect(canvas, canvas_rect);
+	// d.RectOutlineR(canvas_rect, theme.bg);
 
 	if (!is_exporting()) {
 		if (mouse.LeftClickPressed()) {
@@ -856,13 +860,9 @@ void GameTick() {
 		if (HotKeys.KeyAtCurrentPosition.IsPressed() || HotKeys.Alternative_KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
 			let& elem = elements.get(selected_elem_i);
 			float keyframe_t = std.clamp(current_time - elem.start_time, 0, elem.duration);
-			elem.kl_pos_x.InsertValue(
-				.time = keyframe_t,
-				.value = mp_world_space.x
-			);
-			elem.kl_pos_y.InsertValue(
-				.time = keyframe_t,
-				.value = mp_world_space.y
+			elem.kl_pos().InsertValue(
+				keyframe_t,
+				mp_world_space
 			);
 		}
 
@@ -881,18 +881,18 @@ void GameTick() {
 	}
 
 	if (HotKeys.Temp_LeftSidebar_Less.IsPressed()) {
-		left_panel_width = GlobalSettings.set_int("left_panel_width", left_panel_width - 50);
+		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width - 50);
 	}
 
 	if (HotKeys.Temp_LeftSidebar_More.IsPressed()) {
-		left_panel_width = GlobalSettings.set_int("left_panel_width", left_panel_width + 50);
+		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width + 50);
 	}
 
 	if (!ui_hidden) {
 		LeftPanelUI();
 		ElementTimelineUI();
 	}
-	VideoPlayPauseMuteUI(PlaceVideoPlayPauseMuteUI()); // TODO: fade out when non-interacted in ui-hidden mode!
+	// VideoPlayPauseMuteUI(PlaceVideoPlayPauseMuteUI()); // TODO: fade out when non-interacted in ui-hidden mode!
 
 	if (is_exporting()) {
 		DrawExportProgressOverlay();
@@ -902,31 +902,46 @@ void GameTick() {
 		focused_ui_elem_id = UiElementID.ID(NULL);
 	}
 
-	// Update();
+	LayoutUI();
+	if (first_frame || rl.IsWindowResized()) {
+		Clay.EndLayout(); // throw out initial render
+		Clay.BeginLayout();
+		LayoutUI();
+		first_frame = false;
+	}
+}
+
+void RenderAfter() {
+	if (cursor_type != .Default) {
+		Cursor.Hide();
+		d.TextureAtRect(cursor_type.GetTexture(), RectCenter(mouse.GetPos(), Vec2_one.scale(40)));
+	} else {
+		Cursor.Show();
+	}
 }
 
 float video_play_pause_mute_ui_height = 32;
 
-Vec2 PlaceVideoPlayPauseMuteUI() {
-	let canvas_rect = CanvasRect();
-	return v2(canvas_rect.center().x, canvas_rect.b() - (video_play_pause_mute_ui_height / 2 + 10));
-}
-
-void VideoPlayPauseMuteUI(Vec2 center_pos) {
-	// play/pause (center) | mute
-	float b_size = video_play_pause_mute_ui_height;
-	Vec2 b_dim = v2(b_size, b_size);
-	Vec2 ref = center_pos - b_dim.divide(2);
-	Vec2 x_delta = v2(b_size + 10, 0);
-	
-	if (ButtonIcon(ref, b_dim, mode == .Paused ? play_icon | pause_icon)) {
-		SetMode((mode == .Paused) ? ApplicationMode.Running | ApplicationMode.Paused);
-	}
-
-	if (ButtonIcon(ref + x_delta, b_dim, muted ? muted_icon | unmuted_icon)) {
-		SetMute(!muted);
-	}
-}
+// Vec2 PlaceVideoPlayPauseMuteUI() {
+// 	let canvas_rect = CanvasRect();
+// 	return v2(canvas_rect.center().x, canvas_rect.b() - (video_play_pause_mute_ui_height / 2 + 10));
+// }
+//
+// void VideoPlayPauseMuteUI(Vec2 center_pos) {
+// 	// play/pause (center) | mute
+// 	float b_size = video_play_pause_mute_ui_height;
+// 	Vec2 b_dim = v2(b_size, b_size);
+// 	Vec2 ref = center_pos - b_dim.divide(2);
+// 	Vec2 x_delta = v2(b_size + 10, 0);
+// 	
+// 	if (ButtonIcon(ref, b_dim, mode == .Paused ? play_icon | pause_icon)) {
+// 		SetMode((mode == .Paused) ? ApplicationMode.Running | ApplicationMode.Paused);
+// 	}
+//
+// 	if (ButtonIcon(ref + x_delta, b_dim, muted ? muted_icon | unmuted_icon)) {
+// 		SetMute(!muted);
+// 	}
+// }
 
 void SyncEncodingDecodingEditInfo() {
 	from_edit = {
@@ -994,71 +1009,138 @@ Rectangle UnCoveredArea() {
 		return .(0, 0, window_width, window_height);
 	}
 
-	return .(left_panel_width, 0, window_width - left_panel_width, window_height - (element_timeline_ui_height));
+	return .(left_panel_width, 0, window_width as float - left_panel_width, window_height - (element_timeline_ui_height));
 }
 
-Rectangle CanvasRect() -> UnCoveredArea().Inset(ui_hidden ? 0 | 10).FitIntoSelfWithAspectRatio(canvas_width, canvas_height);
+Rectangle canvas_rect = { 0, 0, 0, 0};
 
-void Update() {
+enum PanelDragDir {
+	Left, Right, Top, Bottom, 
+	Expand // only 1 expand per axis!
+}
+void SidePanelContents() {
+	Element& selected = elements.get(selected_elem_i);
+
+	CLAY_TEXT(.(t"Selected: {selected.name}"), CLAY_TEXT_CONFIG({
+		.fontSize = 32,
+		.textColor = Colors.White
+	}));
+	// // vert spacer ---
+	// #clay({ .layout = { .sizing = .(0, 16) } }) {}
+
+	let& selected_elem = elements.get(selected_elem_i);
+	float max_elem_time = selected_elem.duration;
+
+	float curr_local_time = current_time - selected_elem.start_time;
+
+	selected_elem.default_layers.UI({ :max_elem_time, :curr_local_time });
+
+	if (selected_elem.content_impl#CustomLayers() != NULL) {
+		// println(t"ui for {selected_elem.content_impl#CustomLayers()#size}");
+		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
+			// println(t"ui for {layer.name}");
+			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
+			layer.UI({ :max_elem_time, :curr_local_time });
+		}
+	}
+}
+
+void SidePanel() {
+
+	#clay({
+		.id = CLAY_ID("side-panel"),
+		.layout = {
+			.sizing = { CLAY_SIZING_FIXED(left_panel_width), CLAY_SIZING_GROW() },
+		},
+		.backgroundColor = theme.panel,
+	}) {
+		#clay({
+			.layout = {
+				.sizing = Clay_Sizing.Grow(),  
+				.layoutDirection = CLAY_TOP_TO_BOTTOM,
+			},
+		}) {
+			SidePanelContents();
+		}
+
+		left_panel_expander.Update();
+	}
+}
+
+void LayoutUI() {
 	// File drop listener
 	if (rl.IsFileDropped()) {
 		OnFileDropped();
 	}
 
     #clay({
-		.id = CLAY_ID("OuterContainer"),
+		.id = CLAY_ID("main"),
 		.layout = {
-			.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
-			.padding = { 16, 16, 16, 16 }, 
-			.childGap = 16 
+			.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(window_height - element_timeline_ui_height) },
+			// .padding = { .left = left_panel_width as int }
 		}, 
-		.backgroundColor = Colors.Transparent 
+		.backgroundColor = Colors.Transparent,
 	}) {
-		#clay({ 
-			.id = CLAY_ID("InnerContainer"), 
+		SidePanel();
+
+		#clay({
+			.id = CLAY_ID("video-area-wrapper"),
 			.layout = {
-				.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW(200, 800) },
-				.padding = { 16, 16, 16, 16 },
+				.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
+				.padding = .(16), 
 				.childGap = 16,
-				.layoutDirection = CLAY_TOP_TO_BOTTOM,
-				.childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } 
+				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
 			}, 
-			.backgroundColor = Colors.Blue 
+			.backgroundColor = Colors.Black,
 		}) {
-			for (int i in 0..7) {
-				El(i);
+			// NOTE: wrong on first render (render twice for first frame to avoid)
+			let parent_bounds = Clay.GetElementData(CLAY_ID("video-area-wrapper")).boundingBox;
+			parent_bounds.width -= 32; // 16 padding on each side!
+			parent_bounds.height -= 32;
+
+			// manually fit this element, since aspect-ratio image scaling causes it to overflow on GROW mode... :/
+			Rectangle fitted = parent_bounds.FitIntoSelfWithAspectRatio(canvas.width(), canvas.height());
+
+			#clay({
+				.id = CLAY_ID("video"),
+				.layout = {
+					.sizing = .(fitted.width, fitted.height),
+				}, 
+				.image = .(canvas.texture),
+			}) {
+				canvas_rect = Clay.GetElementData(CLAY_ID("video")).boundingBox;
 			}
 		}
 	}
 }
 
-void El(int i) {
-	#clay({
-		.id = CLAY_IDI("El", i),
-		.layout = { 
-			.sizing = {
-				.width = CLAY_SIZING_FIT(),
-				.height = CLAY_SIZING_FIT(),
-			}
-		},
-		.backgroundColor = Colors.Green
-	}) {
-		#clay({
-			.id = CLAY_IDI_LOCAL("img", i), // TODO: ???
-			.layout = { 
-				.sizing = {
-					.width = CLAY_SIZING_FIXED(64),
-					.height = CLAY_SIZING_FIXED(64),
-				}
-			},
-			.image = .(warning_icon),
-		}) {}
-
-		CLAY_TEXT(.(t"hi {i}"), CLAY_TEXT_CONFIG({
-			.fontSize = 64
-		}));
-	}
-}
+// void El(int i) {
+// 	#clay({
+// 		.id = CLAY_IDI("El", i),
+// 		.layout = { 
+// 			.sizing = {
+// 				.width = CLAY_SIZING_FIT(),
+// 				.height = CLAY_SIZING_FIT(),
+// 			}
+// 		},
+// 		.backgroundColor = Colors.Green
+// 	}) {
+// 		#clay({
+// 			.id = CLAY_IDI_LOCAL("img", i), // TODO: ???
+// 			.layout = { 
+// 				.sizing = {
+// 					.width = CLAY_SIZING_FIXED(64),
+// 					.height = CLAY_SIZING_FIXED(64),
+// 				}
+// 			},
+// 			.image = .(warning_icon),
+// 		}) {}
+//
+// 		CLAY_TEXT(.(t"hi {i}"), CLAY_TEXT_CONFIG({
+// 			.fontSize = 64
+// 		}));
+// 	}
+// }
 
 int main(int argc, char^^ argv) {
 	CommandLineArgs args = .(argc, argv);
@@ -1068,6 +1150,10 @@ int main(int argc, char^^ argv) {
 	EditClayApp.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}");
 	defer EditClayApp.Deinit();
 
+	// NOTE: (rae-TODO): FIX weirdness when GetScreenHeight >= actual-screen-height
+	// println(t"aa: {rl.GetScreenWidth()} {rl.GetRenderWidth()}");
+	// println(t"aa: {rl.GetScreenHeight()} {rl.GetRenderHeight()}");
+
 	defer GlobalSettings.SaveUpdates();
 
 	code_man.PreLoadTakeCareOfPreppedReload();
@@ -1076,6 +1162,7 @@ int main(int argc, char^^ argv) {
 
 	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
+	CursorType.LoadAssets();
 
 	// Audio init and close
 	c:InitAudioDevice();
@@ -1088,17 +1175,18 @@ int main(int argc, char^^ argv) {
 
 	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
 
+	canvas_temp = make_render_texture(1200, 900);
 	canvas = make_render_texture(1200, 900);
 
-	eye_open_icon = LoadIcon(t"assets/eye_open.png");
-	eye_closed_icon = LoadIcon(t"assets/eye_closed.png");
-	warning_icon = LoadIcon(t"assets/warning_dark.png");
-	image_icon = LoadIcon(t"assets/image.png");
+	eye_open_icon = rl.LoadTexture(t"assets/eye_open.png");
+	eye_closed_icon = rl.LoadTexture(t"assets/eye_closed.png");
+	warning_icon = rl.LoadTexture(t"assets/warning_dark.png");
+	image_icon = rl.LoadTexture(t"assets/image.png");
 
-	play_icon = LoadIcon(t"assets/play.png");
-	pause_icon = LoadIcon(t"assets/pause.png");
-	muted_icon = LoadIcon(t"assets/muted.png");
-	unmuted_icon = LoadIcon(t"assets/unmuted.png");
+	play_icon = rl.LoadTexture(t"assets/play.png");
+	pause_icon = rl.LoadTexture(t"assets/pause.png");
+	muted_icon = rl.LoadTexture(t"assets/muted.png");
+	unmuted_icon = rl.LoadTexture(t"assets/unmuted.png");
 
 	images.reserve(max_frames);
 
@@ -1127,7 +1215,7 @@ int main(int argc, char^^ argv) {
 		}
 	}
 
-	EditClayApp.MainLoop(GameTick);
+	EditClayApp.MainLoop(GameTick, RenderAfter);
 
     return 0;
 }
