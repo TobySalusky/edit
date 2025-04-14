@@ -175,7 +175,7 @@ struct CommandLineArgs {
 		for (int i in 0..argc) {
 			if (str_eq("-o", argv[i])) {
 				if (i+1 >= argc) { panic("-o requires parameter:project-name (local to ./saves/)"); }
-				// TODO: asserts backwards (in rpp)!!
+				// TODO: asserts backwards (in crust)!!
 				// assert(argc > i + 1,t);
 				open_project = argv[i + 1];
 			} else if (str_eq("-s", argv[i])) {

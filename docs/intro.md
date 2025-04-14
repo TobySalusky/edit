@@ -1,4 +1,4 @@
-# RPP INTRO
+# CRUST INTRO
 
 C-like language
 

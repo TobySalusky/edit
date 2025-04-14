@@ -26,7 +26,7 @@ struct FromEditToEncodeDecode {
 	int STREAM_FRAME_RATE;
 	float STREAM_DURATION;
 }
-FromEditToEncodeDecode from_edit; // NOTE: must set before calling anything here in edit.rpp
+FromEditToEncodeDecode from_edit; // NOTE: must set before calling anything here in edit.cr
 
 struct ExportState {
 	int total_frames;
@@ -817,7 +817,7 @@ static int get_format_from_sample_fmt(const char **fmt,
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// public interface to expose useful stuff to edit.rpp without too much clutter :)
+// public interface to expose useful stuff to edit.cr without too much clutter :)
 struct EncodingDecoding {
 	static bool ImportVideoImpl(int framerate, char^ input_file_name_no_path, float& dec_frame_rate) {
 		c:c:`

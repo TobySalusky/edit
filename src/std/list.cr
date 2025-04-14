@@ -12,7 +12,7 @@ struct List<T> {
 	};
 
 	static Self Reserved(int n) {
-		Self res = .(); // TODO(rpp): TODO: why was i getting an error here?? (can i not use own constructor in static fn!!)
+		Self res = .(); // TODO(cr): TODO: why was i getting an error here?? (can i not use own constructor in static fn!!)
 		res.reserve(n);
 		return res;
 	}

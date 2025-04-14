@@ -48,7 +48,7 @@ static inline char* strndup(const char* s, size_t n) {
     return p;
 }
 
-static inline int rpp_std_mkdir(const char* f) {
+static inline int crust_std_mkdir(const char* f) {
 	return _mkdir(f);
 }
 
@@ -122,7 +122,7 @@ static inline size_t getline(char** line, size_t* len, FILE* fp) {
 #else // MAC ====================================
 #include <sys/stat.h>
 
-static inline int rpp_std_mkdir(const char* f) {
+static inline int crust_std_mkdir(const char* f) {
 	return mkdir(f, 511); // 511 for flags we want :)
 }
 

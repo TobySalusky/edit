@@ -1010,5 +1010,5 @@ c:c:`
 
 // PROGRAM GLOBALS (CONVENIENT, WELL-INCLUDED LOCATION...) ------------------
 // these are not raylib things, they are for edit!!!!! but because of non-cyclic file includes, it's easiest to put here!
-// NOTE: these should not remain in rl.rpp for external use!!!
+// NOTE: these should not remain in rl.cr for external use!!!
 Vec2 mp_world_space; // mouse-pos-world-space

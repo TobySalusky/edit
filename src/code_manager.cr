@@ -41,7 +41,7 @@ struct CodeManager {
 				setup_fn();
 			},
 			char^ err -> {
-				panic(t"Error loading `script_setup` function. Make sure this is correctly named in script_main.rpp! Error: {err}");
+				panic(t"Error loading `script_setup` function. Make sure this is correctly named in script_main.cr! Error: {err}");
 			}
 		}
 	}

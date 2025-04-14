@@ -4,7 +4,7 @@ import script;
 import perlin;
 
 int main() {
-	println("script.rpp setup!");
+	println("script.cr setup!");
 	return 0;
 }
 

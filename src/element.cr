@@ -549,7 +549,7 @@ struct CustomPureFnElement : ElementImpl {
 												// println(t"{member.t is CustomStructMemberTypeList=}");
 												// println(t"{member.t is CustomStructMemberTypeCustomStruct=}");
 
-												println("unimplemented type element.rpp Draw()");
+												println("unimplemented type element.cr Draw()");
 												c:c:`printf("unimpl.kind == %d... omg!\n", member->t.kind);`;
 												panic("nope!");
 												return CustomLayerFloat{
@@ -589,7 +589,7 @@ struct CustomPureFnElement : ElementImpl {
 				e#err_msg = NULL;
 			},
 			char^ err -> {
-				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.rpp and is marked @fx_fn! Error: {err}";
+				e#err_msg = t"Failed to load effect `{fn_name}`. Make sure it exists and is correctly named in script.cr and is marked @fx_fn! Error: {err}";
 			}
 		}
 	}

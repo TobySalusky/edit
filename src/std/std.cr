@@ -679,7 +679,7 @@ struct IO_lib {
 
 	// false on failure
 	bool mkdir(char^ dir_path) {
-		if (c:rpp_std_mkdir(dir_path) == -1) { return false; }
+		if (c:crust_std_mkdir(dir_path) == -1) { return false; }
 		return true;
 	}
 

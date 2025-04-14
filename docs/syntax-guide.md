@@ -1,7 +1,7 @@
-# RPP SYNTAX
+# CRUST SYNTAX
 
 > this documentation doesn't cover everything yet, but should be enough to get you started
-> feel free to look at any of the .rpp files in the project to get a better feel for the language!
+> feel free to look at any of the .cr files in the project to get a better feel for the language!
 
 Builtin types:   `void, bool, char, short, int, long, uchar, ushort, uint, ulong, float, double`
 
@@ -24,7 +24,7 @@ void do_io(int a, float f) { // params are as you'd expect
 }
 ```
 
-```rpp
+```cr
 enum StructQuality {
     Wow, Amazing, Cool, Terrible;
 
@@ -127,7 +127,7 @@ import file_name;
 import map;
 
 void func() {
-    StrMap<int> age_map = .(); // lookup {char^: int} - from map.rpp;
+    StrMap<int> age_map = .(); // lookup {char^: int} - from map.cr;
     age_map.put("Adrian", 19);
 
     age_map.has("Adrian"); // -> true

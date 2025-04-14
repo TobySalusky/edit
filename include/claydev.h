@@ -9,7 +9,7 @@
     the following macro in exactly one file, _before_ including clay.h:
 
     #define CLAY_IMPLEMENTATION
-    #include "clay.h"
+    #include "claydev.h"
 
     See the examples folder for details.
 */

@@ -30,16 +30,6 @@ int CANVAS_HEIGHT = 900;
 // 	}
 // }
 
-struct MyStruct {
-	int a;
-	char^ bbb;
-}
-
-MyStruct my_struct = {
-	.a = ,
-	.bbb = ,
-};
-
 @fx_args
 struct PointSwarmArgs {
 	List<float> fs = .();
@@ -89,7 +79,7 @@ void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
 
 @fx_args
 struct BarChartArgs {
-	List<float> data;
+	List<float> data = {};
 	// List<float> data2;
 }
 
