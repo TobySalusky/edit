@@ -30,6 +30,9 @@ bool NoTextInputFocused() {
 
 bool ClayButton(char^ text, Clay_ElementId id, Clay_Sizing sizing, uint font_size = rem(1)) {
 	bool hovered = Clay.PointerOver(id);
+	if (hovered) {
+		cursor_type = .Pointer;
+	}
 
 	#clay({
 		:id,
@@ -55,6 +58,7 @@ bool Button(Vec2 tl, Vec2 dimens, char^ text) {
 	bool hovered = mouse.GetPos().Between(tl, br);
 
 	if (hovered) { // hover overlay-lighten
+		cursor_type = .Pointer;
 		d.RectBetween(tl, br, hex("FFFFFF11"));
 	}
 
@@ -239,6 +243,10 @@ char^ TextBox(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_S
 
 	bool hovered = Clay.PointerOver(clay_id);
 
+	if (hovered) {
+		cursor_type = .Textbox;
+	}
+
 	if (mouse.LeftClickPressed() && hovered) {
 		println("[DEBUG]: activating textbox!");
 		if (!input.is_active() && init_text != input.buffer) {
@@ -314,6 +322,7 @@ Opt<float> SlidingFloatTextBox(Clay_ElementId id, float& f, SlidingFloatTextBoxC
 
 	if (hovered) {
 		bg = theme.panel_border;
+		cursor_type = .SlideLeftRight;
 	}
 
 	#clay({
