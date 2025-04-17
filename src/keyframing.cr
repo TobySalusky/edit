@@ -17,7 +17,7 @@ struct InterpolationFns {
 		if (from_out == .Linear && to_in == .Ease) { return EaseInSine(t); }
 		if (from_out == .Ease && to_in == .Linear) { return EaseOutSine(t); }
 
-		panic(t"UNKNOWN configuariotn for InterpolateModed: {from_out as int=} {to_in as int=}");
+		panic(t"UNKNOWN configuration for InterpolateModed: {from_out as int=} {to_in as int=}");
 		return 0;
 	}
 }
@@ -29,6 +29,7 @@ struct KeyframeInterpolator=<float> {
 		return from.value * (1.0 - pt) + to.value * pt;
 	}
 }
+
 struct KeyframeInterpolator=<Vec2> {
 	static Vec2 Interpolate(Keyframe<Vec2>& from, Keyframe<Vec2>& to, float t) {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);

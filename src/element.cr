@@ -10,12 +10,14 @@ import data;
 import yaml;
 import clay_lib;
 import ui_elements;
+import encode_decode;
 
 int KIND_RECT = 0;
 int KIND_CIRCLE = 1;
 int KIND_IMAGE = 2;
 int KIND_FX_FN = 3;
 int KIND_VIDEO = 4;
+int KIND_FACE = 5;
 interface ElementImpl {
 
 	void Draw(Element^ e, float current_time);
@@ -45,7 +47,7 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
 		},
 		KIND_VIDEO -> {
-			it = ImageElement.Make(yo.get_str("video_file_path"));
+			it = VideoElement.Make(yo.get_str("video_file_path"));
 		},
 		else -> {
 			it = RectElement.Make();
@@ -135,11 +137,27 @@ struct ImageElement : ElementImpl {
 
 struct VideoElement : ElementImpl {
 	char^ video_file_path;
-	List<Texture> frames;
-	float dec_fr; // frame rate of video from decoding
+	List<Texture> frames; // set once loaded
+	float dec_fr; // frame rate of video from decoding; set once loaded
+	float speed = 1;
+	float start_offset = 0; // offset from start of video in seconds
+	bool loaded = false;
+	bool loading = false;
+	bool wrap = true;
+
+	float CalculateMaximumDuration() {
+		if (loaded) {
+			float max_duration = (frames.size as float / (dec_fr * speed)) - start_offset;
+			return max_duration;
+		}
+		return -1;
+	}
 
 	void Draw(Element^ e, float current_time) {
-		d.TextureAtSize(frames.get((current_time * dec_fr) as int), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		if (loaded) {
+			int frame_idx = ((current_time - (e#start_time - start_offset)) * (dec_fr * speed)) as int % frames.size; 
+			d.TextureAtSize(frames.get(frame_idx), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		}
 	}
 
 	int Kind() -> KIND_VIDEO;
@@ -153,10 +171,15 @@ struct VideoElement : ElementImpl {
 	char^ ImplTypeStr() -> "video";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make(List<Texture> video_frames, char^ video_path, float frame_rate) {
-		return Box<Self>.Make({ .frames = video_frames,
-								.video_file_path = video_path,
-								.dec_fr = frame_rate});
+	static Self^ Make(char^ video_path) {
+		float dec_fr = 0;
+		List<Texture> frames = .();
+		char^ vfp = strdup(video_path);
+		return Box<Self>.Make({ 
+			.video_file_path = vfp,
+			.frames = frames,
+			.dec_fr = dec_fr
+		});
 	}
 }
 
@@ -168,6 +191,16 @@ c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
 struct CustomLayerFloat {
 	float^ value;
 	KeyframeLayer<float> kl_value;
+}
+
+struct CustomLayerInt {
+	int^ value;
+	KeyframeLayer<int> kl_value;
+}
+
+struct CustomLayerColor {
+	Color^ value;
+	KeyframeLayer<Color> kl_value;
 }
 
 struct CustomLayerVec2 {
@@ -270,7 +303,9 @@ struct CustomLayerList {
 
 choice CustomLayerKind {
 	CustomLayerFloat,
+	CustomLayerInt,
 	CustomLayerVec2,
+	CustomLayerColor,
 	CustomLayerStr,
 	CustomLayerList,
 	;
@@ -297,7 +332,13 @@ struct CustomLayer {
 			CustomLayerFloat it -> {
 				it.kl_value.Set(it.value, lt);
 			},
+			CustomLayerInt it -> {
+				it.kl_value.Set(it.value, lt);
+			},
 			CustomLayerVec2 it -> {
+				it.kl_value.Set(it.value, lt);
+			},
+			CustomLayerColor it -> {
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerStr -> {
@@ -356,11 +397,14 @@ struct CustomLayer {
 				// CONTENT PART
 				switch (kind) {
 					CustomLayerFloat it -> {
-						let changed = SlidingFloatTextBox(.(t"{it.value}"), *it.value);
+						let changed = SlidingFloatTextBox(.(t"{it.value}"), it.value);
 						if (changed is Some) {
 							it.kl_value.InsertValue(curr_local_time, changed as Some);
 							it.kl_value.Set(it.value, curr_local_time);
 						}
+					},
+					CustomLayerInt it -> {
+						// TODO: int-sliding-textbox
 					},
 					CustomLayerVec2 it -> {
 						#clay({
@@ -374,7 +418,7 @@ struct CustomLayer {
 								}
 							}
 						}) {
-							let changed = SlidingFloatTextBox(.(t"{it.value}-x"), it.value#x);
+							let changed = SlidingFloatTextBox(.(t"{it.value}-x"), ^it.value#x);
 							if (changed is Some) {
 								it.kl_value.InsertValue(curr_local_time, v2(changed as Some, it.value#y));
 								it.kl_value.Set(it.value, curr_local_time);
@@ -392,12 +436,15 @@ struct CustomLayer {
 								}
 							}
 						}) {
-							let changed = SlidingFloatTextBox(.(t"{it.value}-y"), it.value#y);
+							let changed = SlidingFloatTextBox(.(t"{it.value}-y"), ^it.value#y);
 							if (changed is Some) {
 								it.kl_value.InsertValue(curr_local_time, v2(it.value#x, changed as Some));
 								it.kl_value.Set(it.value, curr_local_time);
 							}
 						}
+					},
+					CustomLayerColor it -> {
+						// TODO:
 					},
 					CustomLayerStr it -> {
 						Rectangle rect = Clay.GetBoundingBox(content_id);
@@ -632,6 +679,7 @@ struct Element {
 	Vec2 pos;
 
 	CustomLayer default_layers; // CustomLayerList
+	bool ready = false; // NOTE: never use an Element (specifically their layers) when not ready
 
 	Vec2 scale;
 	bool uniform_scale; // TODO:
@@ -698,24 +746,25 @@ struct Element {
 	}
 
 	KeyframeLayer<Vec2>& kl_pos() -> _GetVec2Layer(0).kl_value;
-	KeyframeLayer<float>& kl_scale() -> _GetFloatLayer(2).kl_value;
-	KeyframeLayer<float>& kl_rot() -> _GetFloatLayer(3).kl_value;
-	KeyframeLayer<float>& kl_opacity() -> _GetFloatLayer(4).kl_value;
+	KeyframeLayer<Vec2>& kl_scale() -> _GetVec2Layer(1).kl_value;
+	KeyframeLayer<float>& kl_rot() -> _GetFloatLayer(2).kl_value;
+	KeyframeLayer<float>& kl_opacity() -> _GetFloatLayer(3).kl_value;
 
 	void _LinkDefaultLayerToVec2(int i, Vec2^ vp) {
-		let& float_layer = ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerVec2;
+		let& float_layer = _GetVec2Layer(i);
 		float_layer.value = vp;
 	}
 
 	void _LinkDefaultLayerToFloat(int i, float^ fp) {
-		let& float_layer = ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerFloat;
+		let& float_layer = _GetFloatLayer(i);
 		float_layer.value = fp;
 	}
 	void LinkDefaultLayers() {
 		_LinkDefaultLayerToVec2( 0,  ^pos);
-		_LinkDefaultLayerToFloat(1, ^scale.x);
+		_LinkDefaultLayerToVec2(1, ^scale);
 		_LinkDefaultLayerToFloat(2, ^rotation);
 		_LinkDefaultLayerToFloat(3, ^opacity);
+		ready = true;
 	}
 
 	static CustomLayer CreateUnititializedDefaultLayers() {
@@ -729,7 +778,7 @@ struct Element {
 		});
 		layers.add({
 			.name = "scale",
-			.kind = CustomLayerFloat{
+			.kind = CustomLayerVec2{
 				.value = NULL,
 				.kl_value = .()
 			}
@@ -807,11 +856,9 @@ struct Element {
 	}
 
 	void UpdateState(float t) {
-		LinkDefaultLayers();
-
 		float lt = t - start_time;
 		default_layers.UpdateState(lt);
-		scale.y = scale.x; // uniform scale
+		// scale.y = scale.x; // uniform scale
 
 		// TODO: color
 
@@ -907,9 +954,10 @@ struct Element {
 				// );
             }
             if (ListContainsString(data.headers, "Scale")) {
+				float scale = row.get_float(t"Scale");
                 kl_scale().InsertValue(
                     keyframe_t,
-                    row.get_float(t"Scale")
+                    v2(scale, scale)
 				);
             }
             if (ListContainsString(data.headers, "Rotation")) {

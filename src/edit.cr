@@ -53,7 +53,8 @@ Texture unmuted_icon;
 
 c:Sound fxMP3;
 
-List<Texture> imported_textures = .();
+List<Image> imported_images = .();
+bool is_video_importing = false;
 
 List<Image> images = .();
 int max_images;
@@ -262,6 +263,9 @@ void AddLayersTill(int layer) {
 void AddNewElement(Element elem) {
 	AddLayersTill(elem.layer);
 	elements.add(elem);
+	for (let& elem in elements) { // NOTE: we need to link elements everytime one is added, since their addresses can change!
+		elem.LinkDefaultLayers();
+	}
 }
 
 // gets first layer at which there wouldn't be a collision if an element at this time/length were added!
@@ -619,8 +623,36 @@ bool ElementIsVisibleNow(Element& elem) {
 
 void UpdateState() {
 	for (let& elem in elements) {
+		if (elem.content_impl#Kind() == KIND_VIDEO) {
+			VideoElement^ vid = (c:elem#content_impl.ptr);
+			if (!vid#loaded && vid#loading && !is_video_importing) {
+				// convert images to textures
+				for (int i in 0..imported_images.size) {
+					Image& img = imported_images.get(i);
+					Texture tex = c:LoadTextureFromImage(img);
+					vid#frames.add(tex);
+					img.Unload();
+				}
+				// free image list
+				imported_images.delete();
+				imported_images = .();
+
+				vid#loaded = true;
+				vid#loading = false;
+			}
+		}
+	}
+	for (let& elem in elements) {
 		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
 			elem.UpdateState(current_time);
+		}
+		if (elem.content_impl#Kind() == KIND_VIDEO) {
+			VideoElement^ vid = (c:elem#content_impl.ptr);
+			if (!vid#loaded && !vid#loading && !is_video_importing) {
+				vid#loading = true;
+				is_video_importing = true;
+				go_with(ImportVideoThread, vid);
+			}
 		}
 	}
 }
@@ -652,6 +684,14 @@ void ExportVideoThread() {
 
 	SetMode(.Paused);
 	SetFrame(0);
+}
+
+// Currently, we do not support multiple simulataneous import threads
+// or overwritten video elements
+void ImportVideoThread(void^ user_data) {
+	VideoElement^ vid = user_data;
+	EncodingDecoding.ImportVideoImpl(strdup(vid#video_file_path), vid#dec_fr, imported_images);
+	is_video_importing = false;
 }
 
 void DrawProgressBar(Vec2 tl, Vec2 dimens, Color bg, Color fg, float amount) {
@@ -872,10 +912,11 @@ void GameTick() {
 			printf("\nInput file path, include extension: \n>");
 			scanf("%s", video_path);
 			`;
-			ImportVideo(frame_rate, c:video_path);
-			println(t"Successfully imported video containing {imported_textures.size} frames!");
+			// ImportVideo(c:video_path);
+			// println(t"Successfully imported video containing {imported_textures.size} frames!");
 			char^ video_name = c:GetFileNameWithoutExt(c:video_path);
-			AddNewElementAt(Element(VideoElement.Make(imported_textures, c:video_path, dec_frame_rate), strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			VideoElement^ ve = VideoElement.Make(c:video_path);
+			AddNewElementAt(Element(ve, strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
 			SelectNewestElement();
 		}
 	}
@@ -945,17 +986,17 @@ float video_play_pause_mute_ui_height = 32;
 
 void SyncEncodingDecodingEditInfo() {
 	from_edit = {
-		:images, :imported_textures, 
+		:images,
 		:canvas_width, :canvas_height,
 		.STREAM_DURATION = time_per_frame * max_frames,
 		.STREAM_FRAME_RATE = frame_rate
 	};
 }
 
-bool ImportVideo(int framerate, char^ input_file_name_no_path) {
-	SyncEncodingDecodingEditInfo();
-	return EncodingDecoding.ImportVideoImpl(framerate, input_file_name_no_path, dec_frame_rate);
-}
+// bool ImportVideo(char^ input_file_name_no_path) {
+// 	SyncEncodingDecodingEditInfo();
+// 	return EncodingDecoding.ImportVideoImpl(input_file_name_no_path, dec_frame_rate, imported_textures);
+// }
 
 void ExportVideoThreadMain() {
 	ExportVideo(frame_rate, "out", "edit_video");
@@ -977,7 +1018,7 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 void OnFileDropped() {
 	FilePathList dropped_file_path_list = FilePathList.Load();
 	defer dropped_file_path_list.Unload();
-	
+
 	for (int i in 0..dropped_file_path_list.count) {
 		char^ file_type = c:GetFileExtension(dropped_file_path_list.paths[i]);
 		char^ file_path = strdup(dropped_file_path_list.paths[i]);
@@ -997,6 +1038,11 @@ void OnFileDropped() {
 			Data data = Data(file_path);
 			data_list.add(data);
 			elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
+		} else if (strcmp(file_type, ".mp4") == 0) {
+			// Handle video file
+			char^ video_name = c:GetFileNameWithoutExt(file_path);
+			AddNewElementAt(Element(VideoElement.Make(file_path), strdup(video_name), current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			SelectNewestElement();
 		} else {
 			println(t"Unsupported file type: {file_type}");
 		}
@@ -1056,7 +1102,10 @@ void SidePanel() {
 	}) {
 		#clay({
 			.layout = {
-				.sizing = Clay_Sizing.Grow(),  
+				.sizing = {
+					.width = CLAY_SIZING_PERCENT(1),
+					.height = CLAY_SIZING_PERCENT(1),
+				},  
 				.layoutDirection = CLAY_TOP_TO_BOTTOM,
 			},
 		}) {

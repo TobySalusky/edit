@@ -315,7 +315,12 @@ struct GlobalSlidingFloatTextBoxState {
 	static float SLIDE_MULT = 1;
 }
 
-Opt<float> SlidingFloatTextBox(Clay_ElementId id, float& f, SlidingFloatTextBoxConfig config = {}) {
+Opt<float> SlidingFloatTextBox(Clay_ElementId id, float^ f, SlidingFloatTextBoxConfig config = {}) {
+	if (f == NULL) {
+		println("WARNING[SlidingFloatTextBox]: f == NULL");
+		return none;
+	}
+
 	Color bg = Colors.Transparent;
 
 	bool hovered = Clay.PointerOver(id);
@@ -330,7 +335,7 @@ Opt<float> SlidingFloatTextBox(Clay_ElementId id, float& f, SlidingFloatTextBoxC
 		.backgroundColor = bg,
 		.cornerRadius = .(4)
 	}) {
-		clay_text(talloc_sprintf("%.1f", f), { // NOTE: 1 decimal place!
+		clay_text(talloc_sprintf("%.1f", *f), { // NOTE: 1 decimal place!
 			.fontSize = config.font_size,
 			.textColor = Colors.Blue,
 		});
@@ -343,12 +348,12 @@ Opt<float> SlidingFloatTextBox(Clay_ElementId id, float& f, SlidingFloatTextBoxC
 	}
 	
 	if (hovered && mouse.LeftClickPressed()) {
-		GlobalSlidingFloatTextBoxState.fp_active = ^f;
+		GlobalSlidingFloatTextBoxState.fp_active = f;
 		GlobalSlidingFloatTextBoxState.drag_x_start = mouse.GetPos().x;
-		GlobalSlidingFloatTextBoxState.drag_value_start = f;
+		GlobalSlidingFloatTextBoxState.drag_value_start = *f;
 	}
 
-	if (^f == GlobalSlidingFloatTextBoxState.fp_active) {
+	if (f == GlobalSlidingFloatTextBoxState.fp_active) {
 		float x_diff = mouse.GetPos().x - GlobalSlidingFloatTextBoxState.drag_x_start;
 		return GlobalSlidingFloatTextBoxState.drag_value_start + x_diff * GlobalSlidingFloatTextBoxState.SLIDE_MULT;
 	}
