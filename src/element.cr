@@ -189,6 +189,11 @@ c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
 c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
 c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
 
+struct CustomLayerBool {
+	bool^ value;
+	KeyframeLayer<bool> kl_value;
+}
+
 struct CustomLayerFloat {
 	float^ value;
 	KeyframeLayer<float> kl_value;
@@ -222,6 +227,9 @@ struct CustomLayerList {
 
 	void AddLayer() {
 		switch (type) {
+			CustomStructMemberTypeBool -> {
+				AddBoolLayer();
+			},
 			CustomStructMemberTypeFloat -> {
 				AddFloatLayer();
 			},
@@ -240,6 +248,28 @@ struct CustomLayerList {
 			else -> {
 				println("[WARNING]: AddLayer {kind = ?} not impl!!");
 			}
+		}
+	}
+
+	void AddBoolLayer() {
+		let fs = list_ptr as List<bool>^;
+
+		fs#add(false); // TODO: check whether resized
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerBool{
+				.value = NULL, // NOTE: set below
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerBool).value = ^fs#get(i);
 		}
 	}
 
@@ -359,6 +389,7 @@ struct CustomLayerList {
 }
 
 choice CustomLayerKind {
+	CustomLayerBool,
 	CustomLayerFloat,
 	CustomLayerInt,
 	CustomLayerVec2,
@@ -386,6 +417,9 @@ struct CustomLayer {
 
 	void UpdateState(float lt) {
 		switch (kind) {
+			CustomLayerBool it -> {
+				it.kl_value.Set(it.value, lt);
+			},
 			CustomLayerFloat it -> {
 				it.kl_value.Set(it.value, lt);
 			},
@@ -453,6 +487,13 @@ struct CustomLayer {
 			}) {
 				// CONTENT PART
 				switch (kind) {
+					CustomLayerBool it -> {
+						// TODO: check-box UI
+						if (ClayButton(*it.value ? "x" | " ", .(t"{it.value}"), .(rem(1), rem(1)))) {
+							it.kl_value.InsertValue(curr_local_time, !(*it.value));
+							it.kl_value.Set(it.value, curr_local_time);
+						}
+					},
 					CustomLayerFloat it -> {
 						let changed = SlidingFloatTextBox(.(t"{it.value}"), it.value);
 						if (changed is Some) {
@@ -629,6 +670,9 @@ struct CustomLayer {
 				Rectangle rect = Clay.GetElementData(timeline_id).boundingBox;
 
 				switch (kind) {
+					CustomLayerBool it -> {
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
+					},
 					CustomLayerFloat it -> {
 						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
 					},
@@ -716,6 +760,10 @@ struct CustomPureFnElement : ElementImpl {
 										.name = member.name,
 										.deleted_member = false,
 										.kind = match (member.t) {
+											CustomStructMemberTypeBool -> CustomLayerBool{
+												.value = member.ptr,
+												.kl_value = .(),
+											},
 											CustomStructMemberTypeFloat -> CustomLayerFloat{
 												.value = member.ptr,
 												.kl_value = .(),
@@ -926,25 +974,22 @@ struct Element {
 		return ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerVec2;
 	}
 
+	CustomLayerColor& _GetColorLayer(int i) {
+		return ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerColor;
+	}
+
 	KeyframeLayer<Vec2>& kl_pos() -> _GetVec2Layer(0).kl_value;
 	KeyframeLayer<Vec2>& kl_scale() -> _GetVec2Layer(1).kl_value;
 	KeyframeLayer<float>& kl_rot() -> _GetFloatLayer(2).kl_value;
 	KeyframeLayer<float>& kl_opacity() -> _GetFloatLayer(3).kl_value;
+	KeyframeLayer<Color>& kl_color() -> _GetColorLayer(1).kl_value;
 
-	void _LinkDefaultLayerToVec2(int i, Vec2^ vp) {
-		let& float_layer = _GetVec2Layer(i);
-		float_layer.value = vp;
-	}
-
-	void _LinkDefaultLayerToFloat(int i, float^ fp) {
-		let& float_layer = _GetFloatLayer(i);
-		float_layer.value = fp;
-	}
 	void LinkDefaultLayers() {
-		_LinkDefaultLayerToVec2( 0,  ^pos);
-		_LinkDefaultLayerToVec2(1, ^scale);
-		_LinkDefaultLayerToFloat(2, ^rotation);
-		_LinkDefaultLayerToFloat(3, ^opacity);
+		_GetVec2Layer(0).value  = ^pos;
+		_GetVec2Layer(1).value  = ^scale;
+		_GetFloatLayer(2).value = ^rotation;
+		_GetFloatLayer(3).value = ^opacity;
+		_GetColorLayer(4).value = ^color;
 		ready = true;
 	}
 
@@ -974,6 +1019,13 @@ struct Element {
 		layers.add({
 			.name = "opacity",
 			.kind = CustomLayerFloat{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+		layers.add({
+			.name = "color",
+			.kind = CustomLayerColor{
 				.value = NULL,
 				.kl_value = .()
 			}

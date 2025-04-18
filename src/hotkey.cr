@@ -37,7 +37,8 @@ struct HotKeys {
 
 	// key as in keyframe
 	static HotKey KeyAtCurrentPosition  = HotKey.DvoKey(KEY.K, KEY.V);
-	static HotKey Alternative_KeyAtCurrentPosition  = HotKey.DvoKey(KEY.A, KEY.A);
+
+	static HotKey QuickAdd = HotKey.DvoKey(KEY.A, KEY.A);
 
 	static HotKey ToggleHideUIFullscreenPlayback  = HotKey.DvoKey(KEY.H, KEY.J);
 

@@ -23,6 +23,12 @@ struct InterpolationFns {
 }
 
 struct KeyframeInterpolator<T> { }
+struct KeyframeInterpolator=<bool> {
+	static bool Interpolate(Keyframe<bool>& from, Keyframe<bool>& to, float t) {
+		return from.value;
+	}
+}
+
 struct KeyframeInterpolator=<float> {
 	static float Interpolate(Keyframe<float>& from, Keyframe<float>& to, float t) {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);

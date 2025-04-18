@@ -309,7 +309,14 @@ struct Raylib {
 
 	// TODO: stuff
     Texture LoadTexture(char^ file_path) -> c:LoadTexture(file_path);                                                       // Load texture from file into GPU memory (VRAM)
+    Texture LoadTextureFromImage(Image img) -> c:LoadTextureFromImage(img);                                                       // Load texture from file into GPU memory (VRAM)
+    Texture LoadTextureFromImageDestructively(Image img_to_unload) {
+		defer img_to_unload.Unload();
+		return LoadTextureFromImage(img_to_unload);
+	}
 	Image LoadImageFromTexture(Texture texture) -> c:LoadImageFromTexture(texture);
+
+	Image GenImageColor(int width, int height, Color color) -> c:GenImageColor(width, height, color);                                           // Generate image: plain color
 }
 
 Raylib rl;
@@ -586,35 +593,35 @@ struct Drawer {
 	}
 
 	// TODO: width/height
-	void Texture(Texture texture, Vec2 pos) {
-		c:DrawTextureRec(texture, texture.SourceRect(), pos.v(), c:WHITE);
+	void Texture(Texture texture, Vec2 pos, Color color = Colors.White) {
+		c:DrawTextureRec(texture, texture.SourceRect(), pos.v(), color);
 	}
 	
-	void FlippedTexture(Texture texture, Vec2 pos) {
+	void FlippedTexture(Texture texture, Vec2 pos, Color color = Colors.White) {
 		Rectangle source_rect = texture.SourceRect();
 		source_rect.height *= -1;
-		c:DrawTextureRec(texture, source_rect, pos.v(), c:WHITE);
+		c:DrawTextureRec(texture, source_rect, pos.v(), color);
 	}
 
-	void TextureAtSize(Texture texture, float x, float y, float width, float height) {
+	void TextureAtSize(Texture texture, float x, float y, float width, float height, Color color = Colors.White) {
 		Rectangle dest = {
 			:x, :y, :width, :height
 		};
 
-		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, c:WHITE);
+		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
 
-	void TextureAtSizeV(Texture texture, Vec2 pos, Vec2 dimen) {
+	void TextureAtSizeV(Texture texture, Vec2 pos, Vec2 dimen, Color color = Colors.White) {
 		Rectangle dest = RectV(pos, dimen);
 
-		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, c:WHITE);
+		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
 
-	void TextureAtRect(Texture texture, Rectangle dest) {
-		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, c:WHITE);
+	void TextureAtRect(Texture texture, Rectangle dest, Color color = Colors.White) {
+		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
 
-	void TextureAtSizeVColor(Texture texture, Vec2 pos, Vec2 dimen, Color color) {
+	void TextureAtSizeVColor(Texture texture, Vec2 pos, Vec2 dimen, Color color = Colors.White) {
 		Rectangle dest = RectV(pos, dimen);
 
 		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
@@ -857,6 +864,7 @@ struct Point { // not a real raylib type, but is convenient
 
 // c:RenderTexture2D.texture -> c:Texture2D
 @extern struct RenderTexture {
+	construct (int width, int height) -> c:LoadRenderTexture(width, height);
 	Texture texture;
 
 	Texture into() -> texture;
@@ -881,8 +889,6 @@ struct Point { // not a real raylib type, but is convenient
 
 	void delete() -> c:UnloadRenderTexture(this); // NOTE: don't call texture.delete(), I assume???
 }
-
-RenderTexture make_render_texture(int width, int height) -> c:LoadRenderTexture(width, height);
 
 struct Mouse {
 	Vec2 GetPos() -> c:GetMousePosition(); // TODO: bad

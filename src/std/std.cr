@@ -633,6 +633,25 @@ struct IO_lib {
 		return stat_obj;
 	}
 
+	Result<file_stat, char^> stat_res(char^ file_path) {
+		file_stat stat_obj;
+		if (c:stat(file_path, ^stat_obj) != 0) {
+			char^ reason = match (errno) {
+				c:ENOENT -> "[ENOENT] File does not exist",
+				c:EACCES -> "[EACCES] Permission denied",
+				c:ENOTDIR -> "[ENOTDIR] Path of path prefix is not a directory",
+				c:ELOOP -> "[ELOOP] Too many symbolic links encountered while resolving path",
+				c:EFAULT -> "[EFAULT] pointer to stat structure is invalid",
+				c:ENOMEM -> "[ENOMEM] Insufficient kernel memory available",
+				c:EOVERFLOW -> "[EOVERFLOW] File size is too large to be represented in the stat structure",
+				else -> "Unknown"
+			};
+			return reason;
+		}
+
+		return stat_obj;
+	}
+
 	// false on failure
 	// DOES NOT APPEND \n
 	bool write_file_text(char^ file_path, char^ contents) {

@@ -1,8 +1,11 @@
 import std;
 import rl;
-import perlin; // used by `perlin_field` effect
-import list;
 import script_interface;
+import list;
+
+import perlin; // used by `perlin_field` effect
+
+import file_util;
 
 import data;
 
@@ -30,26 +33,60 @@ int CANVAS_HEIGHT = 900;
 // 	}
 // }
 
+
+
+Texture pixel = rl.LoadTextureFromImageDestructively(rl.GenImageColor(1, 1, Colors.White));
+
+@fx_args
+struct PathGradArgs {
+	int path_radius = 5; // TODO: range bounds
+	bool texture_mode = false;
+}
+
+Texture grass_texture = rl.LoadTexture("script_assets/path/grass.jpg");
+Texture brick_texture = rl.LoadTexture("script_assets/path/brick.jpg");
+RenderTexture render_target = RenderTexture(1200, 900);
+
+@fx_fn
+void PathGrad(FxArgs& args, using PathGradArgs& margs) {
+	Shader& path_grad_shader = ShaderHotReload.Get("script_assets/path/path_grad.frag");
+	Texture& path_img = TextureHotReload.Get("script_assets/path/p1.png");
+
+	if (!path_grad_shader.IsValid()) { return; }
+	// render_target.Begin();
+	// d.ClearBackground(Colors.Red);
+	path_grad_shader.Begin();
+		path_grad_shader.SetInt("path_radius", std.mini(path_radius, 100));
+		path_grad_shader.SetInt("texture_mode", texture_mode ? 1 | 0);
+		path_grad_shader.SetTexture("grass_texture", grass_texture);
+		path_grad_shader.SetTexture("brick_texture", brick_texture);
+		d.TextureAtSizeVColor(path_img, {0,0}, {1200, 900}, Colors.White);
+	path_grad_shader.End();
+	// render_target.End();
+	//
+	// d.Texture(render_target.texture, {0, 0});
+}
+
 @fx_args
 struct PointSwarmArgs {
-	List<float> fs = .();
+	List<Vec2> points = .();
 	float dot_size = 10;
 }
 
-// @fx_fn
-// void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
-// 	for (int i in 0..(fs.size/2)) {
-// 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
-// 		d.Circle(p, dot_size, Colors.Red);
-//
-// 		for (int j in 0..(fs.size/2)) {
-// 			if (i != j) {
-// 				Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
-// 				d.Line(p, other_p, 3, Colors.Yellow);
-// 			}
-// 		}
-// 	}
-// }
+@fx_fn
+void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
+	for (int i in 0..points.size) {
+		Vec2 p = points.get(i);
+		d.Circle(p, dot_size, Colors.Red);
+
+		for (int j in 0..points.size) {
+			if (i != j) {
+				Vec2 other_p = points.get(j);
+				d.Line(p, other_p, 3, Colors.Yellow);
+			}
+		}
+	}
+}
 
 @fx_args
 struct StringWheelArgs {

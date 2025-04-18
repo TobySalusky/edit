@@ -77,6 +77,7 @@ float dec_frame_rate = frame_rate;
 enum ApplicationMode {
 	Running, Exporting, Paused;
 	bool operator:==(Self other) -> this as int == other as int;
+	bool operator:!=(Self other) -> this as int != other as int;
 }
 
 ApplicationMode mode = .Running;
@@ -126,11 +127,6 @@ struct RepeatingTimer {
 }
 
 RepeatingTimer check_code_timer = .(0.25);
-
-char^ LoadingDotDotDotStr() {
-	float ps = rl.GetTime() - (rl.GetTime() as int);
-	return t"loading.{(ps > 0.33) ? "." | ""}{(ps > 0.66) ? "." | ""}";
-}
 
 char^ OpenImageFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
@@ -291,6 +287,11 @@ int FirstAvailableLayerAt(float start_time, float duration) {
 // sets elem to correct layer (NOTE: pass with layer=-1, for clarity)
 void AddNewElementAt(Element elem) {
 	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
+}
+
+void AddNewSelectedElementAt(Element elem) {
+	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
+	SelectNewestElement();
 }
 
 void SelectNewestElement() {
@@ -468,7 +469,7 @@ void ElementTimelineUI() {
 		char^ name_addendum = "";
 		if (elem.content_impl#Kind() == KIND_VIDEO) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
-			if (vid#loading) { name_addendum = t" ({LoadingDotDotDotStr()})"; }
+			if (vid#loading) { name_addendum = t" (loading{LoadingDotDotDotStr()})"; }
 		}
 		d.Text(t"{elem.name}{name_addendum}", x as int + 6, y as int + 6, 12, color_set.text);
 		d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
@@ -725,37 +726,6 @@ void DrawProgressBar(Vec2 tl, Vec2 dimens, Color bg, Color fg, float amount) {
 	d.Rect(tl, dimens * v2(amount, 1), fg);
 }
 
-void DrawExportProgressOverlay() {
-	Color shadow = hex("00000077");
-	d.Rect(v2(0, 0), window_dimens, shadow);
-
-	float width = 0.5 * window_width;
-	float height = 20 * 5 + 2 * 10;
-	Vec2 tl = window_dimens * v2(0.25, 0.5) - v2(0, height / 2);
-	Vec2 dimens = v2(width, height);
-	d.Rect(tl - v2(4, -1), dimens + v2(8, 3), hex("00000033"));
-	d.Rect(tl - v2(1, 1), dimens + v2(2, 2), Colors.Black);
-	d.Rect(tl, dimens, theme.panel);
-
-	Color progress_bg = hex("262626"); // gray
-	Color progress_fg = hex("afc7af"); // green
-
-	Vec2 pbar_tl = v2(tl.x + 20, tl.y + 20);
-	Vec2 pbar_dimens = v2(width - 40, 20);
-
-	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_rendered) as float / export_state.total_frames);
-
-	pbar_tl.y = pbar_tl.y + 30;
-	DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_written) as float / export_state.total_frames);
-
-	pbar_tl.y = pbar_tl.y + 30;
-	Color ffmpeg_load_pulse_color = 
-		export_state.is_ffmpegging
-			? ColorLerp(progress_bg, progress_fg, Sin01((rl.GetTime() - export_state.start_ffmpeg_time) * 5) * 0.7)
-			| progress_bg;
-	d.Rect(pbar_tl, pbar_dimens, ffmpeg_load_pulse_color);
-}
-
 void SetMute(bool mute) {
 	if (mute) {
 		c:SetMasterVolume(0.0);
@@ -800,17 +770,134 @@ void UpdateWindowSize(int width, int height) {
 
 PanelExpander left_panel_expander = { ^left_panel_width, "left_panel_width", .min = 100 };
 
-char^ ImportMovieModal_errmsg = NULL;
-void ImportMovieModalJustOpened() {
-	ImportMovieModal_set_errmsg(NULL);
+void DrawExportProgressOverlay() {
+	//
+	// DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_rendered) as float / export_state.total_frames);
+	//
+	// pbar_tl.y = pbar_tl.y + 30;
+	// DrawProgressBar(pbar_tl, pbar_dimens, progress_bg, progress_fg, (export_state.frames_written) as float / export_state.total_frames);
+	//
+	// pbar_tl.y = pbar_tl.y + 30;
+	// Color ffmpeg_load_pulse_color = 
+	// 	export_state.is_ffmpegging
+	// 		? ColorLerp(progress_bg, progress_fg, Sin01((rl.GetTime() - export_state.start_ffmpeg_time) * 5) * 0.7)
+	// 		| progress_bg;
+	// d.Rect(pbar_tl, pbar_dimens, ffmpeg_load_pulse_color);
+}
 
-	GetTextInput(UiElementID.ID("ImportMovieModal-file-input")).Activate();
+void ExportingModal(using ModalState& state) {
+	LoadingProgressBar(t"Rendering [{export_state.frames_rendered}/{export_state.total_frames} frames]", (export_state.frames_rendered) as float / export_state.total_frames);
+	LoadingProgressBar(t"Encoding [{export_state.frames_written}/{export_state.total_frames} frames]", (export_state.frames_written) as float / export_state.total_frames);
+	// TODO: is_ffmpegging
 }
-void ImportMovieModal_set_errmsg(char^ malloced_err_msg) {
-	if (ImportMovieModal_errmsg != NULL) { free(ImportMovieModal_errmsg); }
-	ImportMovieModal_errmsg = malloced_err_msg;
+
+// TODO: future e.g: MyCustomElem + ChromaKey(GREEN) + BlahCustomEffect
+// TODO: future e.g: my_imgs/*.png, vid.mp4, extra_audio.ogg
+void QuickAddModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("QuickAddModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Add: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("QuickAddModal-file-input"), .("QuickAddModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		string buf = string(textbox#buffer);
+		string text = buf.trim();
+		defer text.delete();
+
+		if (text == .("rect")) {
+			AddNewSelectedElementAt(Element(RectElement.Make(), "rect", current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+		} else if (text == .("circle")) {
+			AddNewSelectedElementAt(Element(CircleElement.Make(), "circle", current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+		}
+
+		if (text.contains(".")) {
+			if (io.file_exists(text)) {
+				ProcessDroppedFile(text, false);
+				CloseModal();
+			} else {
+				state.set_errmsg(f"File does not exist!");
+			}
+		} else {
+			switch (code_man.GetFn(text)) {
+				void^ handle -> {
+					// fn properly loaded
+					let name = strdup(text);
+					CustomPureFnElement^ fn_elem = CustomPureFnElement.Make(name);
+					AddNewSelectedElementAt(Element(fn_elem, name, current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+					CloseModal();
+				},
+				char^ err -> {
+					state.set_errmsg(f"Custom function error: {err}");
+				}
+			}
+		}
+
+
+		// if (io.file_exists(textbox#buffer)) {
+		//
+		// 	// char^ video_path = strdup(textbox#buffer);
+		// 	// char^ video_name = strdup(rl.GetFileNameWithoutExt(video_path)); // strdup-ed b/c GetFileNameWithoutExt returns static string
+		// 	// VideoElement^ ve = VideoElement.Make(video_path);
+		// 	// AddNewElementAt(Element(ve, video_name, current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+		// 	// SelectNewestElement();
+		// 	// CloseModal();
+		// } else {
+		// 	state.set_errmsg(f"File does not exist!");
+		// }
+	}
 }
-void ImportMovieModal() {
+
+void AddVideoFromPath(char^ path, Vec2 pos = {}) {
+	if (!io.file_exists(path)) {
+		println("[WARNING]: AddVideoFromPath path does not exist!");
+		return;
+	}
+
+	char^ video_path = strdup(path);
+	char^ video_name = strdup(rl.GetFileNameWithoutExt(video_path)); // strdup-ed b/c GetFileNameWithoutExt returns static string
+	VideoElement^ ve = VideoElement.Make(video_path);
+	AddNewSelectedElementAt(Element(ve, video_name, current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+}
+
+void ImportMovieModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("ImportMovieModal-file-input")).Activate();
+	}
+
 	TextInputState^ textbox;
 
 	#clay({
@@ -829,7 +916,7 @@ void ImportMovieModal() {
 		textbox = ^TextBoxMaintained(UiElementID.ID("ImportMovieModal-file-input"), .("ImportMovieModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
 	}
 
-	if (ImportMovieModal_errmsg != NULL) {
+	if (errmsg != NULL) {
 		#clay({
 			.layout = {
 				.sizing = {
@@ -839,7 +926,7 @@ void ImportMovieModal() {
 				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
 			}
 		}) {
-			clay_text(ImportMovieModal_errmsg, {
+			clay_text(errmsg, {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
@@ -848,14 +935,11 @@ void ImportMovieModal() {
 
 	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
 		if (io.file_exists(textbox#buffer)) {
-			char^ video_path = strdup(textbox#buffer);
-			char^ video_name = strdup(rl.GetFileNameWithoutExt(video_path)); // strdup-ed b/c GetFileNameWithoutExt returns static string
-			VideoElement^ ve = VideoElement.Make(video_path);
-			AddNewElementAt(Element(ve, video_name, current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
-			SelectNewestElement();
+			// TODO: check extension to see support?
+			AddVideoFromPath(textbox#buffer);
 			CloseModal();
 		} else {
-			ImportMovieModal_set_errmsg(f"File does not exist!");
+			state.set_errmsg(f"File does not exist!");
 		}
 	}
 }
@@ -893,10 +977,12 @@ void GameTick() {
 	}
 
 	// export movie
-	if (HotKeys.ExportMovie.IsPressed()) { // NOTE: E (export)
+	if (HotKeys.ExportMovie.IsPressed() && mode != .Exporting) { // NOTE: E (export)
 		SetMode(.Exporting);
 		export_state = make_export_state(max_frames);
 		SetFrame(0);
+
+		OpenModalFn(ExportingModal);
 	}
 
 	if (HotKeys.ToggleHideUIFullscreenPlayback.IsPressed()) {
@@ -983,7 +1069,7 @@ void GameTick() {
 			}
 		}
 
-		if (HotKeys.KeyAtCurrentPosition.IsPressed() || HotKeys.Alternative_KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
+		if (HotKeys.KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
 			let& elem = elements.get(selected_elem_i);
 			float keyframe_t = std.clamp(current_time - elem.start_time, 0, elem.duration);
 			elem.kl_pos().InsertValue(
@@ -993,8 +1079,11 @@ void GameTick() {
 		}
 
 		if (HotKeys.ImportMovie.IsPressed()) {
-			ImportMovieModalJustOpened();
 			OpenModalFn(ImportMovieModal);
+		}
+
+		if (HotKeys.QuickAdd.IsPressed()) { // NOTE: A (quick-add)
+			OpenModalFn(QuickAddModal);
 		}
 	}
 
@@ -1090,6 +1179,40 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	EncodingDecoding.ExportVideoImpl(imgw, imgh, framerate, folder_path, output_file_name_no_path);
 
 	SetMode(.Running);
+
+	CloseModalByFn(ExportingModal); // TODO: close specific modal? (by fn_ptr?)
+}
+
+void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
+	char^ file_path = strdup(file_path_in);
+	char^ file_type = c:GetFileExtension(file_path_in); // static string!! (don't hold)
+	// malloced image (the ImageElement is responsible for freeing)
+	// ^ TODO: make this ownership clearer!
+
+	Vec2 pos = v2(0, 0);
+	if (dropped_via_mouse) {
+		// pos = ...; // TODO: place at mouse position!
+	}
+	println(t"File dropped: {strcmp(file_type, ".png")}");
+	if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
+		// Handle image file
+		Image img = Image.Load(file_path);
+		defer img.Unload();
+		char^ img_name = c:GetFileNameWithoutExt(file_path);
+
+		AddNewSelectedElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, pos, v2(img.width, img.height)));
+
+	} else if (strcmp(file_type, ".csv") == 0) {
+		// Handle data file
+		Data data = Data(file_path);
+		data_list.add(data);
+		elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
+	} else if (strcmp(file_type, ".mp4") == 0) {
+		// Handle video file
+		AddVideoFromPath(file_path, pos);
+	} else {
+		println(t"Unsupported file type: {file_type}");
+	}
 }
 
 void OnFileDropped() {
@@ -1097,33 +1220,7 @@ void OnFileDropped() {
 	defer dropped_file_path_list.Unload();
 
 	for (int i in 0..dropped_file_path_list.count) {
-		char^ file_type = c:GetFileExtension(dropped_file_path_list.paths[i]);
-		char^ file_path = strdup(dropped_file_path_list.paths[i]);
-		// malloced image (the ImageElement is responsible for freeing)
-		// ^ TODO: make this ownership clearer!
-		println(t"File dropped: {strcmp(file_type, ".png")}");
-		if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
-			// Handle image file
-			Image img = Image.Load(file_path);
-			defer img.Unload();
-			char^ img_name = c:GetFileNameWithoutExt(file_path);
-			AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, mouse.GetPos(), v2(img.width, img.height)));
-			SelectNewestElement();
-
-		} else if (strcmp(file_type, ".csv") == 0) {
-			// Handle data file
-			Data data = Data(file_path);
-			data_list.add(data);
-			elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
-		} else if (strcmp(file_type, ".mp4") == 0) {
-			// Handle video file
-			char^ video_name = c:GetFileNameWithoutExt(file_path);
-			AddNewElementAt(Element(VideoElement.Make(file_path), strdup(video_name), current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
-			SelectNewestElement();
-		} else {
-			println(t"Unsupported file type: {file_type}");
-		}
-
+		ProcessDroppedFile(dropped_file_path_list.paths[i], true);
 	}
 }
 
@@ -1306,8 +1403,8 @@ int main(int argc, char^^ argv) {
 
 	SetMute(true); // NOTE: CURRENTLY MUTING FOR DEMO
 
-	canvas_temp = make_render_texture(1200, 900);
-	canvas = make_render_texture(1200, 900);
+	canvas_temp = RenderTexture(1200, 900);
+	canvas = RenderTexture(1200, 900);
 
 	eye_open_icon = rl.LoadTexture(t"assets/eye_open.png");
 	eye_closed_icon = rl.LoadTexture(t"assets/eye_closed.png");

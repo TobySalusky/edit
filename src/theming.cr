@@ -73,6 +73,9 @@ struct Theme {
 	Color keyframe_hover_highlight;
 	Color modal_bg_darken;
 	Color errmsg;
+
+	Color progress_bar_bg;
+	Color progress_bar_fg;
 }
 
 Theme MakeDarkTheme() -> {
@@ -112,6 +115,9 @@ Theme MakeDarkTheme() -> {
 	.keyframe_hover_highlight = hex("0000FF99"),
 	.modal_bg_darken = hex("00000033"),
 	.errmsg = hex("FF4444"),
+
+	.progress_bar_bg = hex("262626"), // gray
+	.progress_bar_fg = hex("afc7af"), // green
 };
 
 Theme theme = MakeDarkTheme();

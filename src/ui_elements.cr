@@ -9,6 +9,11 @@ uint root_font_size = GlobalSettings.get_int("root_font_size", 24);
 
 uint rem(float root_elem_font_size_mult) -> (root_elem_font_size_mult * root_font_size) as ..; // TODO: autocompletions for inline -> method params
 
+char^ LoadingDotDotDotStr() {
+	float ps = rl.GetTime() - (rl.GetTime() as int);
+	return t".{(ps > 0.33) ? "." | " "}{(ps > 0.66) ? "." | " "}";
+}
+
 struct UiElementID {
 	void^ ptr;
 	int i; // normally 0, unless ID_i
@@ -505,11 +510,27 @@ struct PanelExpander {
 	}
 }
 
-c:`typedef void(*void_fn_ptr_t)(void);`;
+c:`typedef void(*void_takes_ModalState_ref_fn_ptr_t)(ModalState*);`;
 struct ModalState {
+	bool just_opened = false;
 	// void^ user_data = NULL;
-	c:void_fn_ptr_t fn_ptr;
-	c:void_fn_ptr_t on_close_fn_ptr;
+	c:void_takes_ModalState_ref_fn_ptr_t fn_ptr;
+	c:void_takes_ModalState_ref_fn_ptr_t on_close_fn_ptr;
+
+	char^ errmsg = NULL;
+
+	void set_errmsg(char^ malloced_errmsg) {
+		if (errmsg != NULL) { free(errmsg); }
+		errmsg = malloced_errmsg;
+	}
+
+	void close() {
+		if (on_close_fn_ptr != NULL) {
+			on_close_fn_ptr(^this);
+		}
+
+		set_errmsg(NULL);
+	}
 }
 List<ModalState> _open_modal_states_add_next_frame;
 List<ModalState> open_modal_states;
@@ -546,7 +567,7 @@ void ModalUI(using ModalState& state) {
 					.layoutDirection = CLAY_TOP_TO_BOTTOM,
 				},
 			}) {
-				fn_ptr();
+				fn_ptr(^state);
 			}
 
 		}
@@ -560,25 +581,77 @@ void ModalUI(using ModalState& state) {
 void OpenModal(ModalState state) {
 	_open_modal_states_add_next_frame.add(state);
 }
-void OpenModalFn(c:void_fn_ptr_t fn_ptr, c:void_fn_ptr_t on_close_fn_ptr = NULL) {
+void OpenModalFn(c:void_takes_ModalState_ref_fn_ptr_t fn_ptr, c:void_takes_ModalState_ref_fn_ptr_t on_close_fn_ptr = NULL) {
 	OpenModal({ :fn_ptr, :on_close_fn_ptr  });
 }
 void CloseModal() { // closes top (current-most) modal!
 	if (!open_modal_states.is_empty()) {
 		println("[WARNING]: CloseModal called while open_modal_states was empty");
-		let popped = open_modal_states.pop_back(); // NOTE: copy
-		if (popped.on_close_fn_ptr != NULL) {
-			popped.on_close_fn_ptr();
+		open_modal_states.back().close();
+		open_modal_states.pop_back();
+	}
+}
+
+bool IsModalOpen(c:void_takes_ModalState_ref_fn_ptr_t fn_ptr) {
+	for (int i = open_modal_states.size - 1; i >= 0; i--;) {
+		let& modal_state = open_modal_states.get(i);
+		if (modal_state.fn_ptr == fn_ptr) {
+			return true;
 		}
 	}
+	return false;
+}
+
+void CloseModalByFn(c:void_takes_ModalState_ref_fn_ptr_t fn_ptr) {
+	for (int i = open_modal_states.size - 1; i >= 0; i--;) {
+		let& modal_state = open_modal_states.get(i);
+		if (modal_state.fn_ptr == fn_ptr) {
+			modal_state.close();
+			open_modal_states.remove_at(i);
+		}
+	}
+	// this can close 0-inf # of the specified fn_ptr modal!
 }
 void DisplayModals() {
 	for (let& modal_state in open_modal_states) {
 		ModalUI(modal_state);
+		modal_state.just_opened = false;
 	}
 
 	// add next frame so that inputs on the current frame won't be processed by auto-activated textboxes! (since this is common for modals)
 	while (!_open_modal_states_add_next_frame.is_empty()) {
-		open_modal_states.add(_open_modal_states_add_next_frame.pop_front());
+		open_modal_states.add(_open_modal_states_add_next_frame.pop_front() with { just_opened = true });
+	}
+}
+
+void LoadingProgressBar(char^ label, float proportion) {
+	// // Color color = ColorLerp(bg, fg, Sin01((rl.GetTime() - export_state.start_ffmpeg_time) * 5) * 0.7)
+	// bool done_loading  = proportion >= 1;
+	// Opt<char^> str = t"{label}{done_loading ? "" | LoadingDotDotDotStr()}: {proportion * 100.0 as int}";
+	Opt<char^> str = label;
+	ProgressBar(str, proportion, {
+		.width = CLAY_SIZING_GROW(),
+		.height = CLAY_SIZING_FIXED(rem(1.5)),
+	});
+}
+
+void ProgressBar(Opt<char^> label, float proportion, Clay_Sizing sizing, Color bg = theme.progress_bar_bg, Color fg = theme.progress_bar_fg, Color border = theme.panel_border) {
+	if (label is Some) {
+		clay_text(label as Some, { .fontSize = rem(1), .textColor = Colors.White });
+	}
+	#clay({
+		.layout = { :sizing },
+		.backgroundColor = bg,
+		.border = .(1, border),
+	}) {
+		#clay({
+			.backgroundColor = fg,
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_PERCENT(proportion),
+					CLAY_SIZING_GROW()
+				}
+			}
+		}) {}
 	}
 }
