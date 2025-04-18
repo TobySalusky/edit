@@ -244,7 +244,7 @@ c:c:`
     // Controls how mouse pointer events like hover and click are captured or passed through to elements underneath a floating element.
     // CLAY_POINTER_CAPTURE_MODE_CAPTURE (default) - "Capture" the pointer event and don't allow events like hover and click to pass through to elements underneath.
     // CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH - Transparently pass through pointer events like hover and click to elements underneath the floating element.
-    Clay_PointerCaptureMode pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE ;
+    Clay_PointerCaptureMode pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE;
     // Controls which element a floating element is "attached" to (i.e. relative offset from).
     // CLAY_ATTACH_TO_NONE (default) - Disables floating for this element.
     // CLAY_ATTACH_TO_PARENT - Attaches this floating element to its parent, positioned based on the .attachPoints and .offset fields.

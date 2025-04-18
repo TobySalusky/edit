@@ -64,12 +64,12 @@ SpreadSheet ParseSpreadSheet(Path p) {
     Strings lines = io.lines(p);
     defer lines.delete();
     
-    string header = s(lines.at(0));
+    string header = string(lines.at(0));
     let headers = header.trim_split(",").to_cstr_list();
     
     let rows = List<SpreadSheetRow>();
     for (int i = 1; i < lines.n; i++;) {
-        rows.add(ParseSpreadSheetRow(headers, s(lines.at(i))));
+        rows.add(ParseSpreadSheetRow(headers, string(lines.at(i))));
     }
     return { :headers, :rows };
 }

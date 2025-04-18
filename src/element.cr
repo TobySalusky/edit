@@ -24,7 +24,7 @@ interface ElementImpl {
 
 	char^ ImplTypeStr();
 
-	List<CustomLayer>^ CustomLayers();
+	CustomLayer^ CustomLayersList();
 
 	int Kind();
 	void _FillYaml(yaml_object& yo);
@@ -75,7 +75,7 @@ struct RectElement : ElementImpl {
 	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "rect";
-	List<CustomLayer>^ CustomLayers() -> NULL;
+	CustomLayer^ CustomLayersList() -> NULL;
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -90,7 +90,8 @@ struct CircleElement : ElementImpl {
 	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "circle";
-	List<CustomLayer>^ CustomLayers() -> NULL;
+	CustomLayer^ CustomLayersList() -> NULL;
+
 
 	static Self^ Make() -> malloc(sizeof<Self>);
 }
@@ -130,7 +131,7 @@ struct ImageElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "img";
-	List<CustomLayer>^ CustomLayers() -> NULL;
+	CustomLayer^ CustomLayersList() -> NULL;
 
 	static Self^ Make(char^ file_path) -> Box<Self>.Make({ :file_path });
 }
@@ -169,7 +170,7 @@ struct VideoElement : ElementImpl {
 	}
 
 	char^ ImplTypeStr() -> "video";
-	List<CustomLayer>^ CustomLayers() -> NULL;
+	CustomLayer^ CustomLayersList() -> NULL;
 
 	static Self^ Make(char^ video_path) {
 		float dec_fr = 0;
@@ -227,8 +228,17 @@ struct CustomLayerList {
 			CustomStructMemberTypeStr -> {
 				AddStrLayer();
 			},
+			CustomStructMemberTypeInt -> {
+				AddIntLayer();
+			},
+			CustomStructMemberTypeColor -> {
+				AddColorLayer();
+			},
+			CustomStructMemberTypeVec2 -> {
+				AddVec2Layer();
+			},
 			else -> {
-				println("[DEBUG]: CustomLayerList AddLayer - unimpl type!!");
+				println("[WARNING]: AddLayer {kind = ?} not impl!!");
 			}
 		}
 	}
@@ -256,6 +266,75 @@ struct CustomLayerList {
 		}
 	}
 
+	void AddIntLayer() {
+		let fs = list_ptr as List<int>^;
+
+		fs#add(0); // TODO: check whether resized
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerInt{
+				.value = NULL, // NOTE: set below
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		// set to float list internals!
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerInt).value = ^fs#get(i);
+		}
+	}
+
+	void AddVec2Layer() {
+		let fs = list_ptr as List<Vec2>^;
+
+		fs#add({});
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerVec2{
+				.value = NULL, // NOTE: set below
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		// set to float list internals!
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerVec2).value = ^fs#get(i);
+		}
+	}
+
+	void AddColorLayer() {
+		let fs = list_ptr as List<Color>^;
+
+		fs#add({ .r = 0, .g = 0, .b = 0, .a = 255 }); // NOTE: pure-black default?
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerColor{
+				.value = NULL, // NOTE: set below
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		// set to float list internals!
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerColor).value = ^fs#get(i);
+		}
+	}
+
 	void AddStrLayer() {
 		let fs = list_ptr as List<char^>^;
 
@@ -275,28 +354,6 @@ struct CustomLayerList {
 		// set to float list internals!
 		for (int i in 0..layers.size) {
 			(layers.get(i).kind as CustomLayerStr).value = ^fs#get(i);
-		}
-	}
-
-	void UI(Vec2 global_tl, Vec2 dimens, float max_elem_time, float curr_local_time, char^ name, int& incr) {
-		int i = incr;
-		let tl = global_tl + v2(0, dimens.y * i);
-
-		d.Text(name, (tl.x - 90) as.., tl.y as.., 16, Colors.White);
-		d.Text("[]", (tl.x - 90 + c:MeasureText(name, 16) + 2) as.., tl.y as.., 16, Colors.SkyBlue);
-
-		d.Rect(tl + v2(0, dimens.y), v2(dimens.x, 1), theme.panel_border);
-
-		if (Button(tl, dimens, "+")) {
-			@partial
-			switch (type) {
-				CustomStructMemberTypeFloat -> {
-					AddFloatLayer();
-				},
-				CustomStructMemberTypeStr -> {
-					AddStrLayer();
-				}
-			}
 		}
 	}
 }
@@ -405,6 +462,11 @@ struct CustomLayer {
 					},
 					CustomLayerInt it -> {
 						// TODO: int-sliding-textbox
+						let changed = SlidingIntTextBox(.(t"{it.value}"), it.value);
+						if (changed is Some) {
+							it.kl_value.InsertValue(curr_local_time, changed as Some);
+							it.kl_value.Set(it.value, curr_local_time);
+						}
 					},
 					CustomLayerVec2 it -> {
 						#clay({
@@ -444,14 +506,99 @@ struct CustomLayer {
 						}
 					},
 					CustomLayerColor it -> {
-						// TODO:
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingUCharTextBox(.(t"{it.value}-r"), ^it.value#r, { .min = 0, .max = 255 });
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+									r = changed as Some
+								});
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingUCharTextBox(.(t"{it.value}-g"), ^it.value#g, { .min = 0, .max = 255 });
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+									g = changed as Some
+								});
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingUCharTextBox(.(t"{it.value}-b"), ^it.value#b, { .min = 0, .max = 255 });
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+									b = changed as Some
+								});
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+
+						#clay({
+							.layout = {
+								.sizing = {
+									.width = CLAY_SIZING_FIXED(60),
+									.height = CLAY_SIZING_GROW(),
+								},
+								.childAlignment = {
+									.y = CLAY_ALIGN_Y_CENTER
+								}
+							}
+						}) {
+							let changed = SlidingUCharTextBox(.(t"{it.value}-a"), ^it.value#a, { .min = 0, .max = 255 });
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+									a = changed as Some
+								});
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						}
+
+						#clay({
+							.layout = {
+								.sizing = .(rem(1), rem(1)),
+							},
+							.backgroundColor = *it.value,
+							.border = .(1, theme.panel_border), // TODO: better color
+						}) {}
 					},
 					CustomLayerStr it -> {
 						Rectangle rect = Clay.GetBoundingBox(content_id);
 						char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
 
 						if (change_text != NULL) {
-							println(t"edited to be: {change_text=}");
 							*it.value = change_text;
 							// NOTE: be careful! this points straight to textbox's buffer
 						}
@@ -483,15 +630,23 @@ struct CustomLayer {
 
 				switch (kind) {
 					CustomLayerFloat it -> {
-						// TODO: keyframe-layer UI
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
+					},
+					CustomLayerInt it -> {
 						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
 					},
 					CustomLayerVec2 it -> {
 						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
 					},
-					else -> {
-						// nothing...
-					}
+					CustomLayerColor it -> {
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
+					},
+					CustomLayerStr it -> {
+						// NOTE: nothing rn
+					},
+					CustomLayerList it -> {
+						// ... list itself has no timeline
+					},
 				}
 			}
 		}
@@ -510,7 +665,7 @@ struct CustomLayer {
 
 struct CustomPureFnElement : ElementImpl {
 	char^ fn_name;
-	List<CustomLayer> custom_float_layers;
+	CustomLayer custom_layer_list;
 	Opt<CustomStructHandle> custom_args_handle;
 
 	int Kind() -> KIND_FX_FN;
@@ -555,9 +710,9 @@ struct CustomPureFnElement : ElementImpl {
 								// 	printf("%p %f %d\n", member.name, member.name, strlen(member.name));
 								// }
 
-								custom_float_layers = .();
+								List<CustomLayer> layers = {};
 								for (let& member in the_struct_handle.members) {
-									custom_float_layers.add({
+									layers.add({
 										.name = member.name,
 										.deleted_member = false,
 										.kind = match (member.t) {
@@ -565,18 +720,25 @@ struct CustomPureFnElement : ElementImpl {
 												.value = member.ptr,
 												.kl_value = .(),
 											},
+											CustomStructMemberTypeInt -> CustomLayerInt{
+												.value = member.ptr,
+												.kl_value = .(),
+											},
+											CustomStructMemberTypeVec2 -> CustomLayerVec2{
+												.value = member.ptr,
+												.kl_value = .(),
+											},
+											CustomStructMemberTypeColor -> CustomLayerColor{
+												.value = member.ptr,
+												.kl_value = .(),
+											},
 											CustomStructMemberTypeStr -> CustomLayerStr{
 												.value = member.ptr,
 											},
-											CustomStructMemberTypeList l -> match (^l.elem_t) {
-												else -> {
-													return 
-														CustomLayerList{
-															.layers = .(),
-															.list_ptr = l.list_ptr,
-															.type = *l.elem_t
-														};
-												}
+											CustomStructMemberTypeList l -> CustomLayerList{
+												.layers = .(),
+												.list_ptr = l.list_ptr,
+												.type = *l.elem_t
 											},
 											else -> {
 												// println(t"{member.t is CustomStructMemberTypeFloat=}");
@@ -607,6 +769,15 @@ struct CustomPureFnElement : ElementImpl {
 										}
 									});
 								}
+								custom_layer_list = {
+									.name = "Custom Properties",
+									.kind = CustomLayerList{ // TODO: should be CustomLayerStruct
+										:layers,
+										.list_ptr = NULL,
+										.type = CustomStructMemberTypeFloat{},
+										.immutable = true,
+									}
+								};
 								custom_args_handle = the_struct_handle;
 							},
 							char^ err -> {
@@ -644,12 +815,20 @@ struct CustomPureFnElement : ElementImpl {
 
 	static Self^ Make(char^ fn_name) -> Box<Self>.Make({
 		:fn_name,
-		.custom_float_layers = .(),
+		.custom_layer_list = {
+			.name = "Custom Properties",
+			.kind = CustomLayerList{ // TODO: should be CustomLayerStruct
+				.layers = {},
+				.list_ptr = NULL,
+				.type = CustomStructMemberTypeFloat{},
+				.immutable = true,
+			}
+		},
 		.custom_args_handle = none
 	});
 
-	List<CustomLayer>^ CustomLayers() {
-		return ^custom_float_layers;
+	CustomLayer^ CustomLayersList() {
+		return ^custom_layer_list;
 	}
 }
 
@@ -694,6 +873,8 @@ struct Element {
 	char^ err_msg;
 	
 	Data^ data;
+
+	List<CustomLayer>^ CustomLayersListInternalPtr() -> content_impl#CustomLayersList() == NULL ? NULL | ^((content_impl#CustomLayersList())#kind as CustomLayerList).layers;
 
 	void Serialize(Path p, bool is_load) {
 		yaml_serializer serialize = make_yaml_serializer(p, is_load);
@@ -862,10 +1043,8 @@ struct Element {
 
 		// TODO: color
 
-		if (content_impl#CustomLayers() != NULL) {
-			for (let& layer in *content_impl#CustomLayers()) {
-				layer.UpdateState(lt);
-			}
+		if (content_impl#CustomLayersList() != NULL) {
+			content_impl#CustomLayersList()#UpdateState(lt);
 		}
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
@@ -892,8 +1071,9 @@ struct Element {
         let frame_time = start_time;
 
 		// Custom float data
-		if (content_impl#CustomLayers() != NULL && ListContainsString(data.headers, "Value")) {
-			for (let& layer in *content_impl#CustomLayers()) {
+		List<CustomLayer>^ custom_layers_list_ptr = CustomLayersListInternalPtr();
+		if (custom_layers_list_ptr != NULL && ListContainsString(data.headers, "Value")) {
+			for (let& layer in *custom_layers_list_ptr) {
 				if (layer.kind is CustomLayerList) {
 					let& layer_list = layer.kind as CustomLayerList;
 					StrMap<int> layer_map = .();

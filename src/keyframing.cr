@@ -70,6 +70,44 @@ struct Keyframe<T> {
 	float time;
 	KeyframeInterpolationMode in_interpolation_mode;
 	KeyframeInterpolationMode out_interpolation_mode;
+
+	KeyframeAssets& assets() -> match (in_interpolation_mode) {
+		.Linear -> match (out_interpolation_mode) {
+			.Linear -> KeyframeAssets.ll,
+			.Ease -> KeyframeAssets.ls,
+			else -> KeyframeAssets.ll
+		},
+		.Ease -> match (out_interpolation_mode) {
+			.Linear -> KeyframeAssets.sl,
+			.Ease -> KeyframeAssets.ss,
+			else -> KeyframeAssets.ll
+		},
+		else -> KeyframeAssets.ll
+	};
+}
+
+struct KeyframeAssets {
+	Texture outline;
+	Texture front;
+	Texture highlight;
+
+	construct(char^ path_til_index_and_png) -> {
+		.outline = rl.LoadTexture(t"{path_til_index_and_png}{1}.png"),
+		.front = rl.LoadTexture(t"{path_til_index_and_png}{2}.png"),
+		.highlight = rl.LoadTexture(t"{path_til_index_and_png}{0}.png"),
+	};
+
+	static KeyframeAssets ll; // linear-linear
+	static KeyframeAssets ss; // sine-sine
+	static KeyframeAssets sl; // sine-linear
+	static KeyframeAssets ls; // linear-sine
+
+	static void LoadAssets() {
+		ll = .("assets/keyframes/ll");
+		ss = .("assets/keyframes/ss");
+		sl = .("assets/keyframes/sl");
+		ls = .("assets/keyframes/ls");
+	}
 }
 
 struct KeyframeLayer<T> {
@@ -161,32 +199,61 @@ struct KeyframeLayer<T> {
 	void UI(Rectangle rect, float max_elem_time, float curr_local_time) {
 		let dimens = rect.dimen();
 
-		#clay({
+		#clay({ // TODO: good lsp-support/checking in templates!
 			.layout = {
 				.sizing = Clay_Sizing.Grow()
 			},
 		}) {
 			for (int i = 0; i != keyframes.size; i++;) {
-				let keyframe = keyframes.get(i);
+				let& keyframe = keyframes.get(i);
 				float t = keyframe.time / max_elem_time;
 
 				Vec2 offset = v2(dimens.x * t, 0);
 
+				let& assets = keyframe.assets();
+				let sizing = Clay_Sizing(rem(1), rem(1));
+				bool keyframe_hovered = false;
 				#clay({
 					.layout = {
-						.sizing = {
-							.width = CLAY_SIZING_FIXED(5),
-							.height = CLAY_SIZING_GROW(),
-						}
+						:sizing
 					},
 					.floating = {
 						.attachTo = CLAY_ATTACH_TO_PARENT,
 						:offset,
+						.attachPoints = {
+							.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+							.parent = CLAY_ATTACH_POINT_LEFT_CENTER,
+						},
 					},
-					.backgroundColor = Colors.Red
+					.backgroundColor = Colors.Black,
+					.image = Clay_ImageElementConfig(assets.outline)
+					// TODO: NOTE: in template .() does not work correctly
 				}) {
-					// TODO: text (number)
-					// d.TextTemp(t"{i}");
+					keyframe_hovered = Clay.Hovered();
+					
+					#clay({
+						.layout = { .sizing = Clay_Sizing(0, 0) },
+					}) {
+						#clay({
+							.layout = { :sizing },
+							.backgroundColor = Colors.Gray,
+							.image = Clay_ImageElementConfig(assets.front)
+						}) {}
+					}
+
+					bool highlight = keyframe_hovered; // TODO: selection highlighting (diff colour, etc)
+					if (highlight) {
+						#clay({
+							.layout = { :sizing },
+							.floating = {
+								.attachTo = CLAY_ATTACH_TO_PARENT,
+								.offset = {},
+								.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH
+							},
+							.image = Clay_ImageElementConfig(assets.highlight),
+							.backgroundColor = theme.keyframe_hover_highlight,
+						}) {}
+					}
 				}
 			}
 		}

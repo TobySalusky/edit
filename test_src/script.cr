@@ -55,10 +55,18 @@ struct PointSwarmArgs {
 struct StringWheelArgs {
 	List<char^> strs = .(); // list of string
 
-	char^ what = "nope";
+	char^ what = f"nope"; // NOTE: string constants dangerous over re-compile!
 
 	float font_size = 32;
 	float rot = 30;
+
+	Color c = Colors.Orange;
+	int i = 7;
+
+	List<int> ints = .();
+	List<Vec2> Vec2s = .();
+	List<float> floats = .();
+	List<Color> colors = .();
 }
 
 @fx_fn

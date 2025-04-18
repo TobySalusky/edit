@@ -15,7 +15,7 @@ struct yaml_value {
 	}
 
 	void fpretty_print_internal(FILE^ f, char^ name, int tab) {
-		char^ tabs = s("  ").repeat(tab);
+		char^ tabs = string("  ").repeat(tab);
 
 		if (literal_value == NULL) {
 			if (name == NULL) {
@@ -34,7 +34,7 @@ struct yaml_value {
 	}
 
 	void pretty_print_internal(char^ name, int tab) {
-		char^ tabs = s("  ").repeat(tab);
+		char^ tabs = string("  ").repeat(tab);
 
 		if (literal_value == NULL) {
 			if (name == NULL) {
@@ -303,7 +303,7 @@ struct yaml_parser {
 
 	// returns -> next index
 	int parse_into(yaml_object^ add_to, Strings content_lines, int start_i, int obj_tab) {
-		string start_line = s(content_lines.at(start_i)).trim();
+		string start_line = string(content_lines.at(start_i)).trim();
 		int i = start_i + 1;
 
 		bool is_list_entry = start_line.starts_with("-");

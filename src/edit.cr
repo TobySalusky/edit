@@ -476,6 +476,23 @@ void ElementTimelineUI() {
 			}
 		}
 
+		if (timeline.is_dragging_elem_any()) {
+			if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
+				cursor_type = CursorType.ResizeHoriz;
+			} else {
+				cursor_type = CursorType.SlideLeftRight;
+			}
+		} else if (hovering) {
+			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+				cursor_type = CursorType.ResizeHoriz;
+			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+				cursor_type = CursorType.ResizeHoriz;
+			} else {
+				cursor_type = CursorType.SlideLeftRight;
+			}
+		}
+
+
 		if (hovering && mouse.LeftClickPressed()) {
 			selected_elem_i = i;
 
@@ -584,7 +601,6 @@ void KeyframeTimelineUI() {
 	// KeyframeLayerUI_Float(selected_elem.kl_opacity, tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
 
 	// .UI(max_elem_time, curr_lt, layer.name, i);
-
 	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
 		keyframe_timeline_dragging = true;
 	}
@@ -1081,13 +1097,8 @@ void SidePanelContents() {
 
 	selected_elem.default_layers.UI({ :max_elem_time, :curr_local_time });
 
-	if (selected_elem.content_impl#CustomLayers() != NULL) {
-		// println(t"ui for {selected_elem.content_impl#CustomLayers()#size}");
-		for (let& layer in *selected_elem.content_impl#CustomLayers()) {
-			// println(t"ui for {layer.name}");
-			// layer.kl_value.UI(tl + v2(0, i * kl_height), kl_dimens, max_elem_time, curr_lt, layer.name); i++;
-			layer.UI({ :max_elem_time, :curr_local_time });
-		}
+	if (selected_elem.content_impl#CustomLayersList() != NULL) {
+		selected_elem.content_impl#CustomLayersList()#UI({ :max_elem_time, :curr_local_time });
 	}
 }
 
@@ -1125,7 +1136,7 @@ void LayoutUI() {
     #clay({
 		.id = CLAY_ID("main"),
 		.layout = {
-			.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(window_height - element_timeline_ui_height) },
+			.sizing = .(window_width, window_height - element_timeline_ui_height),
 			// .padding = { .left = left_panel_width as int }
 		}, 
 		.backgroundColor = Colors.Transparent,
@@ -1152,6 +1163,13 @@ void LayoutUI() {
 
 			#clay({
 				.id = CLAY_ID("video"),
+				.floating = {
+					.attachTo = CLAY_ATTACH_TO_PARENT,
+					.attachPoints = {
+						.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+						.parent = CLAY_ATTACH_POINT_CENTER_CENTER,
+					}
+				},
 				.layout = {
 					.sizing = .(fitted.width, fitted.height),
 				}, 
@@ -1212,6 +1230,7 @@ int main(int argc, char^^ argv) {
 	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
 	CursorType.LoadAssets();
+	KeyframeAssets.LoadAssets();
 
 	// Audio init and close
 	c:InitAudioDevice();

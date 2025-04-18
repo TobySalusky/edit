@@ -52,6 +52,8 @@ struct IndexRangeIter {
 
 // string ------------------
 struct string {
+	construct(char^ str) -> { :str };
+
 	static bool is_whitespace_char(char c) -> c == '\t' || c == '\n' || c == ' ';
 	static bool is_whitespace_str(char^ str) {
 		for (int i = 0; i != strlen(str); i++;) {
@@ -60,6 +62,8 @@ struct string {
 		return true;
 	}
 
+	void delete() -> free(str);
+
 	char^ str;
 
 	int len() -> strlen(str);
@@ -67,7 +71,7 @@ struct string {
 	char^ into() -> str;
 
 	bool operator:==(string other) -> str_eq(str, other.str);
-	string operator:+(string other) -> s(str_concat(str, other.str));
+	string operator:+(string other) -> string(str_concat(str, other.str));
 
 	// TODO: address what this points to once we have non-this methods! (need specifier for global namespace? ::split type beats?)
 	Strings split(char^ on) -> ::split(str, on);
@@ -75,7 +79,7 @@ struct string {
 
 	bool contains(char^ contained) -> str_contains(str, contained);
 
-	string trim() -> s(::trim(this)); // TODO: need global namespace-ing
+	string trim() -> string(::trim(this)); // TODO: need global namespace-ing
 
 	bool starts_with(char^ starts_with_str) -> str_starts_with(this, starts_with_str);
 	bool ends_with(char^ ends_with_str) -> str_ends_with(this, ends_with_str);
@@ -91,6 +95,24 @@ struct string {
 		return index;
 	}
 
+	int last_index_of(char^ searched_str) {
+		int length = len();
+		int search_length = strlen(searched_str);
+
+		for (int i = length - search_length; i >= 0; i--;) {
+			bool is_match = true;
+			for (int j = 0; search_length > j; j++;) {
+				if (searched_str[j] != str[i + j]) {
+					is_match = false;
+					break;
+				}
+			}
+			if (is_match) { return i; }
+		}
+
+		return -1;
+	}
+
 	string substr(int start_i, int length) {
 		if (start_i + length > this.len()) {
 			panic(t"string substr i+length={start_i}+{length}={start_i + length} exceeds length={this.len()}");
@@ -101,7 +123,7 @@ struct string {
 		}
 		substr_str[length] = '\0';
 
-		return s(substr_str);
+		return string(substr_str);
 	}
 
 	string substr_til(int exclusive_i) -> this.substr(0, exclusive_i);
@@ -119,7 +141,7 @@ struct string {
 		}
 
 		out[(s_len * n)] = '\0';
-		return s(out);
+		return string(out);
 	}
 
 	// char parse_char() -> c:atoi(str);
@@ -130,7 +152,6 @@ struct string {
 	float parse_float() -> c:atof(str);
 	double parse_double() -> c:atof(str);
 }
-string s(char^ str) -> { :str };
 
 @extern int strlen(char^ str);
 @extern int strcmp(char^ str1, char^ str2);
@@ -783,10 +804,11 @@ choice Result<TRes, TErr> {
 struct std {
 	static float max(float a, float b) -> c:fmax(a, b);
 	static float min(float a, float b) -> c:fmin(a, b);
-	static float clamp(float value, float min, float max) -> c:fmin(c:fmax(value, min), max);
-
 	static int maxi(int a, int b) -> a > b ? a | b;
-	static int mini(int a, int b) -> a > b ? b | a;
+	static int mini(int a, int b) -> a < b ? a | b;
+
+	static float clamp(float value, float min, float max) -> c:fmin(c:fmax(value, min), max);
+	static int clampi(int value, int min, int max) -> mini(maxi(value, min), max);
 
 	// static bool cstrs_have_overlap(char^ a, char^ b) { // TODO: 
 	// 	if (a == b) {

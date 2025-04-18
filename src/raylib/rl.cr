@@ -725,10 +725,10 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 };
 
 @extern struct Color {
-	int r; // should be unsigned char
-	int g;
-	int b;
-	int a;
+	uchar r; // should be unsigned char
+	uchar g;
+	uchar b;
+	uchar a;
 
 	bool VisualEquals(Color other) {
 		if (a == 0 && other.a == 0) { return true; }

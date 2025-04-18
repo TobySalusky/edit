@@ -259,13 +259,17 @@ char^ TextBox(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_S
 		.id = clay_id,
 		.layout = {
 			:sizing,
+			.childAlignment = {
+				.y = CLAY_ALIGN_Y_CENTER
+			},
 		},
 		.backgroundColor = theme.button,
-		.border = .(1, input.is_active() ? theme.active | Colors.Transparent)
+		.border = .(1, input.is_active() ? theme.active | Colors.Transparent),
 	}) {
 		if (input.is_active()) {
 			res = input.DoActiveEffects();
 		}
+		#clay({ .layout = { .sizing = .(4, 0) }}) {} // horiz-padding
 
 		char^ display_text = input.is_active() ? input.buffer | init_text;
 		clay_text(display_text, {
@@ -306,6 +310,12 @@ struct SlidingFloatTextBoxConfig {
 	uint font_size = rem(1);
 }
 
+struct SlidingIntTextBoxConfig {
+	int min = c:INT_MIN;
+	int max = c:INT_MAX;
+	uint font_size = rem(1);
+}
+
 struct GlobalSlidingFloatTextBoxState {
 	static float^ fp_active;
 	static float drag_x_start;
@@ -313,6 +323,69 @@ struct GlobalSlidingFloatTextBoxState {
 
 	// static int DECIMAL_PLACES = 1; - currently 1, hardcoded!
 	static float SLIDE_MULT = 1;
+}
+
+struct GlobalSlidingIntegralTextBoxState {
+	static void^ ip_active;
+	static float drag_x_start;
+	static int drag_value_start;
+
+	// static int DECIMAL_PLACES = 1; - currently 1, hardcoded!
+	static float SLIDE_MULT = 1;
+}
+
+Opt<int> SlidingIntTextBox(Clay_ElementId id, int^ ip, SlidingIntTextBoxConfig config = {}) -> SlidingIntegralTextBox(id, *ip, ip, config);
+
+Opt<uchar> SlidingUCharTextBox(Clay_ElementId id, uchar^ up, SlidingIntTextBoxConfig config = {}) ->
+	match(SlidingIntegralTextBox(id, *up, up, config)) {
+		int n -> n as uchar,
+		None -> none
+	};
+
+
+Opt<int> SlidingIntegralTextBox(Clay_ElementId id, int ival, void^ ptr, SlidingIntTextBoxConfig config = {}) {
+	if (ptr == NULL) {
+		println("WARNING[SlidingIntegralTextBox]: ptr == NULL");
+		return none;
+	}
+
+	Color bg = Colors.Transparent;
+
+	bool hovered = Clay.PointerOver(id);
+
+	if (hovered) {
+		bg = theme.panel_border;
+		cursor_type = .SlideLeftRight;
+	}
+
+	#clay({
+		:id,
+		.backgroundColor = bg,
+		.cornerRadius = .(4)
+	}) {
+		clay_text(talloc_sprintf("%d", ival), { // NOTE: 1 decimal place!
+			.fontSize = config.font_size,
+			.textColor = Colors.Blue,
+		});
+	}
+
+	// NOTE: (:danger): assumes never hovered on multiple of these!!!
+
+	if (mouse.LeftClickReleased()) {
+		GlobalSlidingIntegralTextBoxState.ip_active = NULL;
+	}
+	
+	if (hovered && mouse.LeftClickPressed()) {
+		GlobalSlidingIntegralTextBoxState.ip_active = ptr;
+		GlobalSlidingIntegralTextBoxState.drag_x_start = mouse.GetPos().x;
+		GlobalSlidingIntegralTextBoxState.drag_value_start = ival;
+	}
+
+	if (ptr == GlobalSlidingIntegralTextBoxState.ip_active) {
+		float x_diff = mouse.GetPos().x - GlobalSlidingIntegralTextBoxState.drag_x_start;
+		return std.clampi((GlobalSlidingIntegralTextBoxState.drag_value_start as float + x_diff * GlobalSlidingIntegralTextBoxState.SLIDE_MULT) as int, config.min, config.max);
+	}
+	return none;
 }
 
 Opt<float> SlidingFloatTextBox(Clay_ElementId id, float^ f, SlidingFloatTextBoxConfig config = {}) {
@@ -355,7 +428,7 @@ Opt<float> SlidingFloatTextBox(Clay_ElementId id, float^ f, SlidingFloatTextBoxC
 
 	if (f == GlobalSlidingFloatTextBoxState.fp_active) {
 		float x_diff = mouse.GetPos().x - GlobalSlidingFloatTextBoxState.drag_x_start;
-		return GlobalSlidingFloatTextBoxState.drag_value_start + x_diff * GlobalSlidingFloatTextBoxState.SLIDE_MULT;
+		return std.clamp(GlobalSlidingFloatTextBoxState.drag_value_start + x_diff * GlobalSlidingFloatTextBoxState.SLIDE_MULT, config.min, config.max);
 	}
 	return none;
 }

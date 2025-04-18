@@ -30,7 +30,7 @@ PluginCodegen fx_fn_codegen(PluginCodegenArgs args) {
 
 	char^ custom_arg_t_name = "NULL";
 	if (fn.args.size >= 2) {
-		let em = s(fn.args.get(1).type_str);
+		let em = string(fn.args.get(1).type_str);
 		if (em.ends_with("&")) {
 			let type_without_ref = em.substr_til(em.len() - 1).str; // TODO: mem-leak!
 			custom_arg_t_name = t"\"{type_without_ref}\"";
@@ -62,9 +62,42 @@ PluginInfo fx_args_info() -> {
 	.params = List<PluginSyntaxRequestedArg>()
 };
 
+Opt<char^> simple_typestr_to_custom_t(char^ type_str) {
+	if (str_eq(type_str, "float")) {
+		return "CustomStructMemberTypeFloat";
+	} else if (str_eq(type_str, "double")) {
+		return "CustomStructMemberTypeDouble";
+	} else if (str_eq(type_str, "bool")) {
+		return "CustomStructMemberTypeBool";
+	} else if (str_eq(type_str, "uchar")) {
+		return "CustomStructMemberTypeUChar";
+	} else if (str_eq(type_str, "char")) {
+		return "CustomStructMemberTypeChar";
+	} else if (str_eq(type_str, "ushort")) {
+		return "CustomStructMemberTypeUShort";
+	} else if (str_eq(type_str, "short")) {
+		return "CustomStructMemberTypeShort";
+	} else if (str_eq(type_str, "uint")) {
+		return "CustomStructMemberTypeUInt";
+	} else if (str_eq(type_str, "int")) {
+		return "CustomStructMemberTypeInt";
+	} else if (str_eq(type_str, "ulong")) {
+		return "CustomStructMemberTypeULong";
+	} else if (str_eq(type_str, "long")) {
+		return "CustomStructMemberTypeLong";
+	} else if (str_eq(type_str, "Vec2")) {
+		return "CustomStructMemberTypeVec2";
+	} else if (str_eq(type_str, "Color")) {
+		return "CustomStructMemberTypeColor";
+	} else if (str_eq(type_str, "char^")) {
+		return "CustomStructMemberTypeStr";
+	}
+	return none;
+}
+
 PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 	PluginCodegen err = {
-		.code = f"int err = \"@fx_args - error\";", 
+		.code = f"int err = ERR_REASON;", 
 		.location = PluginCodegenLocationAfter{}
 	};
 	PluginSyntaxStatementStructure structure = (args.syntax_node as PluginSyntaxStatement else { return err;}) as PluginSyntaxStatementStructure else { return err; };
@@ -76,43 +109,34 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 		if (decl.type_str == NULL) { return { .code = f"cooked;", .location = PluginCodegenLocationAfter{} }; }
 
 		// NOTE: List<...> not explicitly initialized, since 0 (from calloc) == .()
-		if (str_eq(decl.type_str, "float")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeFloat{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "double")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeDouble{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "bool")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeBool{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "uchar")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUChar{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "char")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeChar{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "ushort")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUShort{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "short")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeShort{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "uint")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeUInt{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "int")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeInt{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "ulong")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeULong{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "long")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeLong{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "Vec2")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeVec2{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "Color")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeColor{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "char^")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeStr{'{'}{'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "List<float>")) {
-			// TODO: carefull of list memory leak!!!
-			
-			// char^ v_name = t"v_{ii}";
-			// TODO: mem-leak due to Box<..>
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeFloat{'{'}{'}'}), .list_ptr = ^(ptr#{decl.name}) {'}'} {'}'});";
-		} else if (str_eq(decl.type_str, "List<char^>")) {
-			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make(CustomStructMemberTypeStr{'{'}{'}'}), .list_ptr = ^(ptr#{decl.name}) {'}'} {'}'});";
+		let simple_t = simple_typestr_to_custom_t(decl.type_str);
+		let type_str = string(decl.type_str);
+		if (simple_t is Some) {
+			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = {simple_t as Some}{'{'}{'}'} {'}'});";
+		} else if (type_str.starts_with("List<")) {
+			int open_caret = type_str.index_of("<");
+			int close_caret = type_str.last_index_of(">");
+			if (open_caret == -1 || close_caret == -1) {
+				// NOTE: shouldn't happen
+				err.code = f"int err = ERR_REASON_IOOB;"; 
+				return err;
+			}
+			string list_elem_type_str = type_str.substr(open_caret + 1, close_caret - open_caret - 1);
+			defer list_elem_type_str.delete();
+
+			let simple_elem_t = simple_typestr_to_custom_t(list_elem_type_str);
+			if (simple_elem_t is Some) {
+				// TODO: carefull of list memory leak!!!
+				
+				// char^ v_name = t"v_{ii}";
+				// TODO: mem-leak due to Box<..>
+				member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = CustomStructMemberTypeList{'{'} .elem_t = Box<CustomStructMemberType>.Make({simple_elem_t as Some}{'{'}{'}'}), .list_ptr = ^(ptr#{decl.name}) {'}'} {'}'});";
+			} else {
+				err.code = f"int err = ERR_REASON_NON_SIMPLE_{list_elem_type_str.str};"; 
+				return err;
+			}
 		} else {
+			err.code = f"int err = ERR_REASON_UNKNOWN_T;"; 
 			return err;
 		}
 	}
