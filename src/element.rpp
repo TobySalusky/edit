@@ -171,6 +171,11 @@ struct VideoElement : ElementImpl {
 
 struct FaceElement : ElementImpl {
 	List<Face> face_data = .();
+	//char^ open_path = OpenImageFileDialog("Select open mouth image");
+	//char^ close_path = OpenImageFileDialog("Select close mouth image");
+	//char^ sound_path = OpenImageFileDialog("Select sound file");
+
+
 	Texture open = LoadTextureFromFile("popcat_open.jpg");
 	Texture close = LoadTextureFromFile("popcat_close.jpg");
 

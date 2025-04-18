@@ -175,6 +175,24 @@ char^ OpenDataFileDialog(char^ title) {
 	return (filePath != NULL) ? filePath | "";
 }
 
+char^ OpenSoundFileDialog(char^ title) {
+	char^^ filters = malloc(sizeof<char^> * 3);
+	filters[0] = "*.mp3";
+	defer free(filters);
+
+	c:c:`char const* const* c_filters = (char const* const*) filters;`;
+
+	char^ filePath = c:tinyfd_openFileDialog(
+		title,
+		"",
+		1,
+		c:c_filters,
+		"data files",
+		0
+	);
+	return (filePath != NULL) ? filePath | "";
+}
+
 struct CommandLineArgs {
 	char^ open_project;
 	char^ save_to_project;

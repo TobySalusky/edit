@@ -7,6 +7,9 @@ struct Face {
 	int w;
 	int h;
 	int m;
+	int roll;
+	int pitch;
+	int yaw;
 }
 
 List<Face> cv_pipe() {
@@ -58,11 +61,23 @@ List<Face> cv_pipe() {
 		struct json_object_element_s* m_element = h_element->next;
 		struct json_number_s* m_number = json_value_as_number(m_element->value);
 		int m = atoi(m_number->number);
+
+		struct json_object_element_s* roll_element = m_element->next;
+		struct json_number_s* roll_number = json_value_as_number(roll_element->value);
+		int roll = atoi(roll_number->number);
+
+		struct json_object_element_s* pitch_element = roll_element->next;
+		struct json_number_s* pitch_number = json_value_as_number(pitch_element->value);
+		int pitch = atoi(pitch_number->number);
 		
+		struct json_object_element_s* yaw_element = pitch_element->next;
+		struct json_number_s* yaw_number = json_value_as_number(yaw_element->value);
+		int yaw = atoi(yaw_number->number);
+
         printf("Received: %s\n", line);
         printf("x: %d y: %d w: %d h: %d m: %d\n", x, w, y, h, m);
 
-		Face f = {x, y, w, h, m};
+		Face f = {x, y, w, h, m, roll, pitch, yaw};
 		`;
 		face_data.add(c:f);
 		c:c:`

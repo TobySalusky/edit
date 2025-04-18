@@ -1,120 +1,133 @@
 import cv2
 import sys
 import json
-import time
-import os
-import csv
 
-import dlib
 import numpy as np
+import mediapipe as mp
 
 
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1)
 
-face_classifier = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
-
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-
-face_pos_list = [["x", "y", "w", "h"]]
+# 3D model points (in arbitrary units)
+model_points = np.array([
+    (0.0, 0.0, 0.0),         # Nose tip
+    (0.0, -330.0, -65.0),    # Chin
+    (-225.0, 170.0, -135.0), # Left eye left corner
+    (225.0, 170.0, -135.0),  # Right eye right corner
+    (-150.0, -150.0, -125.0),# Left mouth corner
+    (150.0, -150.0, -125.0)  # Right mouth corner
+])
 
 cap = cv2.VideoCapture("open_mouth.mp4")
-threshold = 0.45
 
-def get_mouth_aspect_ratio(landmarks):
-    # Define mouth landmark points
-    mouth_points = np.array([
-        (landmarks.part(48).x, landmarks.part(48).y),  # Left corner
-        (landmarks.part(50).x, landmarks.part(50).y),
-        (landmarks.part(52).x, landmarks.part(52).y),
-        (landmarks.part(54).x, landmarks.part(54).y),  # Right corner
-        (landmarks.part(56).x, landmarks.part(56).y),
-        (landmarks.part(58).x, landmarks.part(58).y),
-        (landmarks.part(60).x, landmarks.part(60).y),  # Inner left
-        (landmarks.part(62).x, landmarks.part(62).y),
-        (landmarks.part(64).x, landmarks.part(64).y),  # Inner right
-        (landmarks.part(66).x, landmarks.part(66).y)
-    ], dtype=np.float32)
-
-    # Compute distances
-    vertical_1 = np.linalg.norm(mouth_points[1] - mouth_points[7])
-    vertical_2 = np.linalg.norm(mouth_points[2] - mouth_points[6])
-    horizontal = np.linalg.norm(mouth_points[0] - mouth_points[3])
-
-    # Compute MAR
-    MAR = (vertical_1 + vertical_2) / (2.0 * horizontal)
-    return MAR
+# Camera internals
+frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+size = (frame_width, frame_height)
+focal_length = size[1]
+center = (size[1] / 2, size[0] / 2)
+camera_matrix = np.array([
+    [focal_length, 0, center[0]],
+    [0, focal_length, center[1]],
+    [0, 0, 1]
+], dtype="double")
+dist_coeffs = np.zeros((4, 1))  # Assuming no lens distortion
 
 
-def detect_bounding_box(vid):
-    gray_image = cv2.cvtColor(vid, cv2.COLOR_BGR2GRAY)
-    other_face = detector(gray_image)
 
-    if other_face:
-        landmarks = predictor(gray_image, other_face[0])
-        MAR = get_mouth_aspect_ratio(landmarks)
 
-        mouth_open = int(bool(MAR > threshold))
-    else:
-        MAR = 0
-        mouth_open = False
-        mouth_open = 0
-
-    faces = face_classifier.detectMultiScale(gray_image, 1.1, 5, minSize=(40, 40))
-    # print(faces)
-    if MAR > threshold:
-            
-            text = "Mouth Open"
-            color = (0, 0, 255)  # Red
-    else:
-        text = "Mouth Closed"
-        color = (0, 255, 0)  # Green
-
-    # Draw text
-    if other_face:
-        cv2.putText(vid, text, (other_face[0].left(), other_face[0].top()-10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-
-    if len(faces) > 0:
-        max_face = max(faces, key=lambda face: face[2]* face[3])
-        max_face = max_face.tolist()
-    else:
-        max_face = (0, 0, 0, 0)
-    for (x, y, w, h) in faces:
-
-        cv2.rectangle(vid, (x, y), (x + w, y + h), (0, 255, 0), 4)
-    x, y, w, h = max_face
-    cv2.rectangle(vid, (x, y), (x + w, y + h), (0, 255, 0), 4)
-    # face_pos_list.append()
-    return {"x": x,
-            "y": y,
-            "w": w,
-            "h": h,
-            "m": mouth_open}
-
-def write_csv(data):
-    with open("face.csv", 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerows(data)
 
 def main():
     while cap.isOpened():
-        result, video_frame = cap.read()  # read frames from the video
+        result, frame = cap.read()  # read frames from the video
         if result is False:
             break  # terminate the loop if the frame is not read successfully
 
-        faces = detect_bounding_box(
-            video_frame
-        )  # apply the function we created to the video frame
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = face_mesh.process(rgb_frame)
 
-        # cv2.imshow(
-        #     "My Face Detection Project", video_frame
-        # )  # display the processed frame in a window named "My Face Detection Project"
+        if results.multi_face_landmarks:
+            landmarks = results.multi_face_landmarks[0].landmark
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-        
+            # Get the 2D image points for the 6 model points
+            image_points = np.array([
+                (landmarks[1].x * size[0], landmarks[1].y * size[1]),   # Nose tip
+                (landmarks[152].x * size[0], landmarks[152].y * size[1]), # Chin
+                (landmarks[263].x * size[0], landmarks[263].y * size[1]), # Left eye left corner
+                (landmarks[33].x * size[0], landmarks[33].y * size[1]),   # Right eye right corner
+                (landmarks[287].x * size[0], landmarks[287].y * size[1]), # Left mouth corner
+                (landmarks[57].x * size[0], landmarks[57].y * size[1])    # Right mouth corner
+            ], dtype="double")
+
+            # Solve PnP
+            success, rotation_vector, translation_vector = cv2.solvePnP(
+                model_points, image_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+
+            # Convert rotation vector to rotation matrix
+            rotation_mat, _ = cv2.Rodrigues(rotation_vector)
+            angles, _, _, _, _, _ = cv2.RQDecomp3x3(rotation_mat)
+
+            pitch, yaw, roll = angles
+
+            cv2.putText(frame, f"Pitch: {pitch:.2f}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+            cv2.putText(frame, f"Yaw: {yaw:.2f}", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+            cv2.putText(frame, f"Roll: {roll:.2f}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+
+
+            # face box
+            x_coords = [lm.x * size[0] for lm in landmarks]
+            y_coords = [lm.y * size[1] for lm in landmarks]
+
+            # Compute bounding box
+            x_min, x_max = int(min(x_coords)), int(max(x_coords))
+            y_min, y_max = int(min(y_coords)), int(max(y_coords))
+
+            box_width = x_max - x_min
+            box_height = y_max - y_min
+
+            # Draw rectangle
+            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+
+            # Draw face position + size
+            cv2.putText(frame, f"X: {x_min}, Y: {y_min}", (x_min, y_min-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1)
+            cv2.putText(frame, f"W: {box_width}, H: {box_height}", (x_min, y_min-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1)
+
+
+            # mouth 
+                    # Get upper and lower lip positions
+            top_lip = landmarks[13]
+            bottom_lip = landmarks[14]
+
+            top = np.array([top_lip.x * size[0], top_lip.y * size[1]])
+            bottom = np.array([bottom_lip.x * size[0], bottom_lip.y * size[1]])
+
+            # Compute Euclidean distance
+            mouth_open_dist = np.linalg.norm(top - bottom)
+
+            # Threshold (adjust this value depending on your camera resolution and test results)
+            threshold = 15  
+
+            if mouth_open_dist > threshold:
+                cv2.putText(frame, "Mouth: OPEN", (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            else:
+                cv2.putText(frame, "Mouth: CLOSED", (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+
+            faces = {"x": x_min,
+                     "y": y_min,
+                     "w": box_width,
+                     "h": box_height,
+                     "mouth": int(bool(mouth_open_dist > threshold)),
+                     "roll": int(roll),
+                     "pitch": int(pitch),
+                     "yaw": int(yaw)}
+
+
+            cv2.imshow("Face Rotation", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+            
         yield faces
 
 
