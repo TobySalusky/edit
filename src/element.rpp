@@ -179,11 +179,21 @@ struct FaceElement : ElementImpl {
 	Texture open = LoadTextureFromFile("popcat_open.jpg");
 	Texture close = LoadTextureFromFile("popcat_close.jpg");
 
+
+
 	c:Sound pop = c:LoadSound("assets/pop.mp3");
 	bool popping = true;
 
 	void Draw(Element^ e, float current_time) {
 		Face f = face_data.get(((current_time - e#start_time) * 30) as int % face_data.size);
+		Rectangle openSourceRec = { 0, 0, open.width, -open.height};
+		Rectangle closeSourceRec = { 0, 0, close.width, -close.height};
+		c:c:`
+		Rectangle sourceRec = { 0, 0, (float)f.w, (float)f.h };
+        Rectangle destRec = { f.x, f.y, f.w, f.h };
+        Vector2 origin = { f.w/2.0f, f.h/2.0f };
+		`;
+
 		if (popping == false && f.m == 1) {
 			popping = true;
 			c:PlaySound(pop);
@@ -192,10 +202,12 @@ struct FaceElement : ElementImpl {
 			popping = false;
 		}
 		if (f.m == 1) {
-			d.TextureAtSize(open, f.x, f.y, f.w, f.h);
+			c:DrawTexturePro(open, openSourceRec, c:destRec, c:origin, f.roll, c:WHITE);
+			// d.TextureAtSize(open, f.x, f.y, f.w, f.h);
 		}
 		else {
-			d.TextureAtSize(close, f.x, f.y, f.w, f.h);
+			c:DrawTexturePro(close, closeSourceRec, c:destRec, c:origin, f.roll, c:WHITE);
+			// d.TextureAtSize(close, f.x, f.y, f.w, f.h);
 		}
 	}
 
