@@ -6,6 +6,8 @@ import hotkey;
 
 import clay_lib;
 
+import global_settings;
+
 bool debugEnabled = false;
 bool reinitializeClay = false;
 
@@ -76,6 +78,11 @@ struct EditClayApp {
 	static void MainLoop(c:EditClayAppMainLoopUpdateFn update_fn, c:EditClayAppMainLoopUpdateFn render_after_fn) {
 		// Main game loop
 		rl.SetTargetFPS(60);
+		bool raylib_close_on_esc = GlobalSettings.get_bool("raylib_close_on_esc", false); // loaded from GlobalSettings
+		if (!raylib_close_on_esc) {
+			rl.SetExitKey(c:KEY_NULL);
+		}
+
 		while (!rl.WindowShouldClose())    // Detect window close button or ESC key
 		{
 			if (reinitializeClay) {
