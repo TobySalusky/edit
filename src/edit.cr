@@ -127,6 +127,11 @@ struct RepeatingTimer {
 
 RepeatingTimer check_code_timer = .(0.25);
 
+char^ LoadingDotDotDotStr() {
+	float ps = rl.GetTime() - (rl.GetTime() as int);
+	return t"loading.{(ps > 0.33) ? "." | ""}{(ps > 0.66) ? "." | ""}";
+}
+
 char^ OpenImageFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
 	filters[0] = "*.png";
@@ -460,7 +465,12 @@ void ElementTimelineUI() {
 		d.RectR(r, color_set.border);
 		d.RectR(r.Inset(1), color_set.bg);
 
-		d.Text(elem.name, x as int + 6, y as int + 6, 12, color_set.text);
+		char^ name_addendum = "";
+		if (elem.content_impl#Kind() == KIND_VIDEO) {
+			VideoElement^ vid = (c:elem#content_impl.ptr);
+			if (vid#loading) { name_addendum = t" ({LoadingDotDotDotStr()})"; }
+		}
+		d.Text(t"{elem.name}{name_addendum}", x as int + 6, y as int + 6, 12, color_set.text);
 		d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
 
 		bool hovering = mouse.GetPos().Between(r.tl(), r.br());
@@ -790,6 +800,66 @@ void UpdateWindowSize(int width, int height) {
 
 PanelExpander left_panel_expander = { ^left_panel_width, "left_panel_width", .min = 100 };
 
+char^ ImportMovieModal_errmsg = NULL;
+void ImportMovieModalJustOpened() {
+	ImportMovieModal_set_errmsg(NULL);
+
+	GetTextInput(UiElementID.ID("ImportMovieModal-file-input")).Activate();
+}
+void ImportMovieModal_set_errmsg(char^ malloced_err_msg) {
+	if (ImportMovieModal_errmsg != NULL) { free(ImportMovieModal_errmsg); }
+	ImportMovieModal_errmsg = malloced_err_msg;
+}
+void ImportMovieModal() {
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Video File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("ImportMovieModal-file-input"), .("ImportMovieModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (ImportMovieModal_errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(ImportMovieModal_errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		if (io.file_exists(textbox#buffer)) {
+			char^ video_path = strdup(textbox#buffer);
+			char^ video_name = strdup(rl.GetFileNameWithoutExt(video_path)); // strdup-ed b/c GetFileNameWithoutExt returns static string
+			VideoElement^ ve = VideoElement.Make(video_path);
+			AddNewElementAt(Element(ve, video_name, current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			SelectNewestElement();
+			CloseModal();
+		} else {
+			ImportMovieModal_set_errmsg(f"File does not exist!");
+		}
+	}
+}
+
 bool first_frame = true;
 void GameTick() {
 	cursor_type = .Default;
@@ -923,17 +993,8 @@ void GameTick() {
 		}
 
 		if (HotKeys.ImportMovie.IsPressed()) {
-			c:c:`
-			char video_path[256];
-			printf("\nInput file path, include extension: \n>");
-			scanf("%s", video_path);
-			`;
-			// ImportVideo(c:video_path);
-			// println(t"Successfully imported video containing {imported_textures.size} frames!");
-			char^ video_name = c:GetFileNameWithoutExt(c:video_path);
-			VideoElement^ ve = VideoElement.Make(c:video_path);
-			AddNewElementAt(Element(ve, strdup(video_name), current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
-			SelectNewestElement();
+			ImportMovieModalJustOpened();
+			OpenModalFn(ImportMovieModal);
 		}
 	}
 
@@ -1178,6 +1239,8 @@ void LayoutUI() {
 				canvas_rect = Clay.GetElementData(CLAY_ID("video")).boundingBox;
 			}
 		}
+
+		DisplayModals();
 	}
 }
 

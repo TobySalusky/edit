@@ -71,6 +71,8 @@ struct Theme {
 	// Color elem_ui_yellow;
 
 	Color keyframe_hover_highlight;
+	Color modal_bg_darken;
+	Color errmsg;
 }
 
 Theme MakeDarkTheme() -> {
@@ -107,7 +109,9 @@ Theme MakeDarkTheme() -> {
 		.text = hex("#20252b"),
 	},
 	.timeline_layer_info_gray = hex("AAAAAA"),
-	.keyframe_hover_highlight = hex("0000FF33")
+	.keyframe_hover_highlight = hex("0000FF99"),
+	.modal_bg_darken = hex("00000033"),
+	.errmsg = hex("FF4444"),
 };
 
 Theme theme = MakeDarkTheme();

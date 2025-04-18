@@ -173,13 +173,13 @@ struct VideoElement : ElementImpl {
 	CustomLayer^ CustomLayersList() -> NULL;
 
 	static Self^ Make(char^ video_path) {
-		float dec_fr = 0;
+		float dec_fr = 0; // TODO: get real dec_fr in blocking manner!!! (because we want video to take up correct space and not flicker to a new size!)
 		List<Texture> frames = .();
 		char^ vfp = strdup(video_path);
 		return Box<Self>.Make({ 
 			.video_file_path = vfp,
-			.frames = frames,
-			.dec_fr = dec_fr
+			:frames,
+			:dec_fr
 		});
 	}
 }

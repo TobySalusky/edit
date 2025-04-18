@@ -897,13 +897,20 @@ struct Keys {
 	int NUM_0; int NUM_1; int NUM_2; int NUM_3; int NUM_4; int NUM_5; int NUM_6; int NUM_7; int NUM_8; int NUM_9;
 	int UP; int DOWN; int LEFT; int RIGHT;
 	int SPACE;
+	int TAB;
+	int ENTER;
+	int ESCAPE;
 	int BACKSPACE;
+	// TODO: other special keys - see: https://github.com/raysan5/raylib/blob/master/src/raylib.h
 }
 Keys make_keys() -> {
 	.A = c:KEY_A, .B = c:KEY_B, .C = c:KEY_C, .D = c:KEY_D, .E = c:KEY_E, .F = c:KEY_F, .G = c:KEY_G, .H = c:KEY_H, .I = c:KEY_I, .J = c:KEY_J, .K = c:KEY_K, .L = c:KEY_L, .M = c:KEY_M, .N = c:KEY_N, .O = c:KEY_O, .P = c:KEY_P, .Q = c:KEY_Q, .R = c:KEY_R, .S = c:KEY_S, .T = c:KEY_T, .U = c:KEY_U, .V = c:KEY_V, .W = c:KEY_W, .X = c:KEY_X, .Y = c:KEY_Y, .Z = c:KEY_Z,
 	.NUM_0 = c:KEY_ZERO, .NUM_1 = c:KEY_ONE, .NUM_2 = c:KEY_TWO, .NUM_3 = c:KEY_THREE, .NUM_4 = c:KEY_FOUR, .NUM_5 = c:KEY_FIVE, .NUM_6 = c:KEY_SIX, .NUM_7 = c:KEY_SEVEN, .NUM_8 = c:KEY_EIGHT, .NUM_9 = c:KEY_NINE,
 	.UP = c:KEY_UP, .DOWN = c:KEY_DOWN, .LEFT = c:KEY_LEFT, .RIGHT = c:KEY_RIGHT,
 	.SPACE = c:KEY_SPACE,
+	.TAB = c:KEY_TAB,
+	.ENTER = c:KEY_ENTER,
+	.ESCAPE = c:KEY_ESCAPE,
 	.BACKSPACE = c:KEY_BACKSPACE,
 };
 

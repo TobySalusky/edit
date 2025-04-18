@@ -99,6 +99,17 @@ struct List<T> {
 
 	bool is_empty() -> size == 0;
 
+	T& front() {
+		return this.get(0);
+	}
+
+	T pop_front() {
+		T res = this.get(0);
+		remove_at(0);
+
+		return res;
+	}
+
 	T& back() {
 		return this.get(size - 1);
 	}

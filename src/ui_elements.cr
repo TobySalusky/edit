@@ -235,6 +235,16 @@ struct TextInputState {
 }
 
 // TODO: styling/colour options
+
+// NOTE: always returns ptr to buffer
+TextInputState& TextBoxMaintained(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_Sizing sizing, int font_size) {
+	TextInputState& input = GetTextInput(ui_id);
+	
+	TextBox(ui_id, clay_id, init_text, sizing, font_size);
+	return input;
+}
+
+// NOTE: null returns when not changed
 char^ TextBox(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_Sizing sizing, int font_size) {
 	TextInputState& input = GetTextInput(ui_id);
 	char^ res = NULL;
@@ -495,3 +505,80 @@ struct PanelExpander {
 	}
 }
 
+c:`typedef void(*void_fn_ptr_t)(void);`;
+struct ModalState {
+	// void^ user_data = NULL;
+	c:void_fn_ptr_t fn_ptr;
+	c:void_fn_ptr_t on_close_fn_ptr;
+}
+List<ModalState> _open_modal_states_add_next_frame;
+List<ModalState> open_modal_states;
+
+void ModalUI(using ModalState& state) {
+	// modal-bg-darkener
+	#clay({
+		.backgroundColor = theme.modal_bg_darken,
+		// .id = .(t"{^state}"),
+		.layout = {
+			.sizing = .(rl.GetScreenWidth(), rl.GetScreenHeight()), // NOTE: TODO: real
+			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER, }
+		},
+		.floating = {
+			.attachTo = CLAY_ATTACH_TO_ROOT,
+			.zIndex = 100, // TODO: standardize
+			.attachPoints = {
+				.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+				.parent = CLAY_ATTACH_POINT_CENTER_CENTER,
+			}
+		},
+	}) {
+		// modal
+		#clay({
+			.backgroundColor = theme.panel,
+			.border = .(1, theme.panel_border),
+			.layout = { .sizing = { CLAY_SIZING_PERCENT(0.5), CLAY_SIZING_PERCENT(0.5) } }
+		}) {
+			// padding
+			#clay({
+				.layout = {
+					.sizing = Clay_Sizing.Grow(),
+					.padding = .(rem(2)),
+					.layoutDirection = CLAY_TOP_TO_BOTTOM,
+				},
+			}) {
+				fn_ptr();
+			}
+
+		}
+	}
+
+	if (key.IsPressed(KEY.ESCAPE)) {
+		CloseModal();
+		// TODO: think abt stacked modals (this broken omg)
+	}
+}
+void OpenModal(ModalState state) {
+	_open_modal_states_add_next_frame.add(state);
+}
+void OpenModalFn(c:void_fn_ptr_t fn_ptr, c:void_fn_ptr_t on_close_fn_ptr = NULL) {
+	OpenModal({ :fn_ptr, :on_close_fn_ptr  });
+}
+void CloseModal() { // closes top (current-most) modal!
+	if (!open_modal_states.is_empty()) {
+		println("[WARNING]: CloseModal called while open_modal_states was empty");
+		let popped = open_modal_states.pop_back(); // NOTE: copy
+		if (popped.on_close_fn_ptr != NULL) {
+			popped.on_close_fn_ptr();
+		}
+	}
+}
+void DisplayModals() {
+	for (let& modal_state in open_modal_states) {
+		ModalUI(modal_state);
+	}
+
+	// add next frame so that inputs on the current frame won't be processed by auto-activated textboxes! (since this is common for modals)
+	while (!_open_modal_states_add_next_frame.is_empty()) {
+		open_modal_states.add(_open_modal_states_add_next_frame.pop_front());
+	}
+}
