@@ -19,8 +19,11 @@ int KIND_FX_FN = 3;
 int KIND_VIDEO = 4;
 int KIND_FACE = 5;
 interface ElementImpl {
-
 	void Draw(Element^ e, float current_time);
+
+	void UpdateState(float lt);
+
+	void UI(CustomLayerUIParams& params);
 
 	char^ ImplTypeStr();
 
@@ -28,7 +31,6 @@ interface ElementImpl {
 
 	int Kind();
 	void _FillYaml(yaml_object& yo);
-	void _FillFromYaml(yaml_object& yo);
 }
 
 ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
@@ -44,35 +46,41 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 			it = ImageElement.Make(yo.get_str("file_path"));
 		},
 		KIND_FX_FN -> {
-			it = CustomPureFnElement.Make(yo.get_str("fn_name"));
+			let em = CustomPureFnElement.Make(yo.get_str("fn_name"));
+			let custom_layer_list_s = yaml_serializer.Obj(yo.get_obj("custom_layer_list"), true);
+			em#custom_layer_list = CustomLayer.Deserialize(custom_layer_list_s);
+			// TODO: need to actually transfer over old when re-loading fn-ptr!
+
+			it = em;
 		},
 		KIND_VIDEO -> {
-			it = VideoElement.Make(yo.get_str("video_file_path"));
+			it = VideoElement.Make(yo.get_str("video_file_path"), yo.get_float("dec_fr"));
 		},
 		else -> {
+			println(t"[WARNING]: ElementImplFromYaml unknown case {kind}");
 			it = RectElement.Make();
 		}
 	}
-	// it#_FillFromYaml(yo);
 
 	return it;
 }
 
 yaml_object ElementImplToYaml(ElementImpl^ impl) {
-	let yo = make_yaml_object();
+	yaml_object yo = {};
 	yo.put_int("kind", impl#Kind());
 	impl#_FillYaml(yo);
 	return yo;
 }
 
 struct RectElement : ElementImpl {
+	void UI(CustomLayerUIParams& params) {}
+	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#color);
 	}
 
 	int Kind() -> KIND_RECT;
 	void _FillYaml(yaml_object& yo) { }
-	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "rect";
 	CustomLayer^ CustomLayersList() -> NULL;
@@ -81,13 +89,14 @@ struct RectElement : ElementImpl {
 }
 
 struct CircleElement : ElementImpl {
+	void UI(CustomLayerUIParams& params) {}
+	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
 	}
 
 	int Kind() -> KIND_CIRCLE;
 	void _FillYaml(yaml_object& yo) { }
-	void _FillFromYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "circle";
 	CustomLayer^ CustomLayersList() -> NULL;
@@ -118,6 +127,8 @@ struct ImageCache {
 struct ImageElement : ElementImpl {
 	char^ file_path;
 	
+	void UI(CustomLayerUIParams& params) {}
+	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
 	}
@@ -125,9 +136,6 @@ struct ImageElement : ElementImpl {
 	int Kind() -> KIND_IMAGE;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("file_path", file_path);
-	}
-	void _FillFromYaml(yaml_object& yo) {
-		file_path = yo.get_str("file_path");
 	}
 
 	char^ ImplTypeStr() -> "img";
@@ -138,8 +146,9 @@ struct ImageElement : ElementImpl {
 
 struct VideoElement : ElementImpl {
 	char^ video_file_path;
-	List<Texture> frames; // set once loaded
+
 	float dec_fr; // frame rate of video from decoding; set once loaded
+	List<Texture> frames = {}; // set once loaded
 	float speed = 1;
 	float start_offset = 0; // offset from start of video in seconds
 	bool loaded = false;
@@ -154,6 +163,8 @@ struct VideoElement : ElementImpl {
 		return -1;
 	}
 
+	void UI(CustomLayerUIParams& params) {}
+	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		if (loaded) {
 			int frame_idx = ((current_time - (e#start_time - start_offset)) * (dec_fr * speed)) as int % frames.size; 
@@ -164,21 +175,18 @@ struct VideoElement : ElementImpl {
 	int Kind() -> KIND_VIDEO;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("video_file_path", video_file_path);
-	}
-	void _FillFromYaml(yaml_object& yo) {
-		video_file_path = yo.get_str("video_file_path");
+		yo.put_float("dec_fr", dec_fr);
 	}
 
 	char^ ImplTypeStr() -> "video";
 	CustomLayer^ CustomLayersList() -> NULL;
 
-	static Self^ Make(char^ video_path) {
-		float dec_fr = 0; // TODO: get real dec_fr in blocking manner!!! (because we want video to take up correct space and not flicker to a new size!)
-		List<Texture> frames = .();
+	static Self^ Make(char^ video_path, float dec_fr = 0) {
+		// NOTE: default dec_fr=0 is invalid, overwritten when loaded...
+		// TODO: ensure that you get real dec_fr in blocking manner!!! (because we want video to take up correct space and not flicker to a new size!)
 		char^ vfp = strdup(video_path);
 		return Box<Self>.Make({ 
 			.video_file_path = vfp,
-			:frames,
 			:dec_fr
 		});
 	}
@@ -216,6 +224,7 @@ struct CustomLayerVec2 {
 
 struct CustomLayerStr {
 	char^^ value;
+	KeyframeLayer<char^> kl_value;
 }
 
 struct CustomLayerList {
@@ -374,6 +383,7 @@ struct CustomLayerList {
 			.deleted_member = false,
 			.kind = CustomLayerStr{
 				.value = NULL, // NOTE: set below
+				.kl_value = .(),
 			}
 		});
 
@@ -397,6 +407,140 @@ choice CustomLayerKind {
 	CustomLayerStr,
 	CustomLayerList,
 	;
+
+	void StealData(Self& stealee) {
+		assert(this == stealee, "stealee is bad, nope");
+		
+		switch (this) {
+			CustomLayerBool it -> {
+				it.kl_value = stealee as CustomLayerBool.kl_value;
+			},
+			CustomLayerFloat it -> {
+				it.kl_value = stealee as CustomLayerFloat.kl_value;
+			},
+			CustomLayerInt it -> {
+				it.kl_value = stealee as CustomLayerInt.kl_value;
+			},
+			CustomLayerVec2 it -> {
+				it.kl_value = stealee as CustomLayerVec2.kl_value;
+			},
+			CustomLayerColor it -> {
+				it.kl_value = stealee as CustomLayerColor.kl_value;
+			},
+			CustomLayerStr it -> {
+				it.kl_value = stealee as CustomLayerStr.kl_value;
+			},
+			CustomLayerList it -> {
+				// TODO: wee sus on this one, just check ok? :7))))))333
+				it.layers = stealee as CustomLayerList.layers;
+			},
+		}
+	}
+
+	bool operator:==(Self& other) { // not full equality, just type really, maybe this should be a function but i like how this looks more... so sue me, ok?!!
+		return match (this) {
+			CustomLayerBool -> other is CustomLayerBool,
+			CustomLayerFloat -> other is CustomLayerFloat,
+			CustomLayerInt -> other is CustomLayerInt,
+			CustomLayerVec2 -> other is CustomLayerVec2,
+			CustomLayerColor -> other is CustomLayerColor,
+			CustomLayerStr -> other is CustomLayerStr,
+			CustomLayerList it -> other is CustomLayerList && it.type == (other as CustomLayerList).type,
+		};
+	}
+
+	static Self Deserialize(yaml_serializer& s) {
+		assert(s.is_load, "s.is_load please");
+		string which = string(s.obj.get_str("which"));
+		defer which.delete();
+
+		void^ value = NULL; // NOTE: real value ptrs need to be linked post-load!
+
+		let kl_value_s = s.into_obj("kl_value");
+
+		if (which == .("bool")) {
+			return CustomLayerBool{
+				:value,
+				.kl_value = KeyframeLayer<bool>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("float")) {
+			KeyframeLayer<float> kl_value = {};
+			return CustomLayerFloat{
+				:value,
+				.kl_value = KeyframeLayer<float>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("int")) {
+			return CustomLayerInt{
+				:value,
+				.kl_value = KeyframeLayer<int>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("Vec2")) {
+			return CustomLayerVec2{
+				:value,
+				.kl_value = KeyframeLayer<Vec2>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("Color")) {
+			return CustomLayerColor{
+				:value,
+				.kl_value = KeyframeLayer<Color>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("str")) {
+			return CustomLayerStr{
+				:value,
+				.kl_value = KeyframeLayer<char^>.Deserialize(kl_value_s)
+			};
+		} else if (which == .("list")) {
+			let type_s = s.into_obj("type");
+			let layers_s = s.into_obj("layers");
+			return CustomLayerList{
+				.type = CustomStructMemberType.Deserialize(type_s),
+				.layers = ListSerializer<CustomLayer>.Deserialize(layers_s),
+				.list_ptr = NULL,
+				.immutable = s.obj.get_bool("immutable"),
+			};
+		}
+
+		panic("Deserialize - unreachable!");
+		CustomLayerBool _;
+		return _;
+	}
+
+	void SerializeStore(yaml_serializer& s) {
+		assert(!s.is_load, "!s.is_load please");
+		switch (this) {
+			CustomLayerBool it -> {
+				s.obj.put_literal("which", "bool");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerFloat it -> {
+				s.obj.put_literal("which", "float");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerInt it -> {
+				s.obj.put_literal("which", "int");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerVec2 it -> {
+				s.obj.put_literal("which", "Vec2");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerColor it -> {
+				s.obj.put_literal("which", "Color");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerStr it -> {
+				s.obj.put_literal("which", "str");
+				s.obj.put_obj("kl_value", it.kl_value.Serialize());
+			},
+			CustomLayerList it -> {
+				s.obj.put_literal("which", "list");
+				let type_s = s.into_obj("type");
+				it.type.SerializeStore(type_s);
+				s.obj.put_obj("layers", ListSerializer<CustomLayer>.Serialize(it.layers));
+				s.obj.put_bool("immutable", it.immutable);
+			},
+		}
+	}
 }
 
 struct CustomLayerUIParams {
@@ -408,32 +552,56 @@ struct CustomLayerUIParams {
 float custom_layer_timeline_width = GlobalSettings.get_float("custom_layer_timeline_width", 100);
 
 PanelExpander custom_layer_timeline_expander = { ^custom_layer_timeline_width, "custom_layer_timeline_width", .min = 100, .reverse = true };
+
 struct CustomLayer {
 	char^ name;
 	CustomLayerKind kind;
 	// TODO: bool keyed = false; ?
 
+	// non-serialized
 	bool deleted_member = false; // true when this used to be a named member, but has since been removed/renamed
+
+	static Self Deserialize(yaml_serializer& s) {
+		let kind_s = s.into_obj("kind");
+		return {
+			.name = s.obj.get_str("name"),
+			.kind = CustomLayerKind.Deserialize(kind_s),
+		};
+	}
+
+	yaml_object Serialize() {
+		yaml_object obj = {};
+		obj.put_literal("name", name);
+		let kind_s = yaml_serializer.Obj(obj.put_empty("kind"), false);
+		kind.SerializeStore(kind_s);
+		return obj;
+	}
 
 	void UpdateState(float lt) {
 		switch (kind) {
 			CustomLayerBool it -> {
+				if (it.value == NULL) { break; }
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerFloat it -> {
+				if (it.value == NULL) { break; }
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerInt it -> {
+				if (it.value == NULL) { break; }
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerVec2 it -> {
+				if (it.value == NULL) { break; }
 				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerColor it -> {
+				if (it.value == NULL) { break; }
 				it.kl_value.Set(it.value, lt);
 			},
-			CustomLayerStr -> {
-				// do nothing :) (till we add keyframing for string lists)
+			CustomLayerStr it -> {
+				if (it.value == NULL) { break; }
+				it.kl_value.Set(it.value, lt);
 			},
 			CustomLayerList it -> {
 				for (let& layer in it.layers) {
@@ -443,7 +611,7 @@ struct CustomLayer {
 		}
 	}
 
-	void UI(using CustomLayerUIParams params) {
+	void UI(using CustomLayerUIParams& params) {
 		#clay({
 			.layout = {
 				// TODO: ?
@@ -640,8 +808,8 @@ struct CustomLayer {
 						char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
 
 						if (change_text != NULL) {
-							*it.value = change_text;
-							// NOTE: be careful! this points straight to textbox's buffer
+							it.kl_value.InsertValue(curr_local_time, strdup(change_text)); // NOTE: keyframes MUST delete str as it is owned!!!
+							it.kl_value.Set(it.value, curr_local_time);
 						}
 					},
 					CustomLayerList it -> { // it is NOT ref!!??
@@ -686,7 +854,7 @@ struct CustomLayer {
 						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
 					},
 					CustomLayerStr it -> {
-						// NOTE: nothing rn
+						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
 					},
 					CustomLayerList it -> {
 						// ... list itself has no timeline
@@ -715,9 +883,18 @@ struct CustomPureFnElement : ElementImpl {
 	int Kind() -> KIND_FX_FN;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("fn_name", fn_name);
+		yo.put_obj("custom_layer_list", custom_layer_list.Serialize());
 	}
-	void _FillFromYaml(yaml_object& yo) {
-		fn_name = yo.get_str("fn_name");
+
+	void UI(CustomLayerUIParams& params) {
+		if (custom_args_handle is Some) {
+			custom_layer_list.UI(params);
+		}
+	}
+	void UpdateState(float lt) {
+		if (custom_args_handle is Some) {
+			custom_layer_list.UpdateState(lt);
+		}
 	}
 
 	void Draw(Element^ e, float current_time) {
@@ -782,6 +959,7 @@ struct CustomPureFnElement : ElementImpl {
 											},
 											CustomStructMemberTypeStr -> CustomLayerStr{
 												.value = member.ptr,
+												.kl_value = .(),
 											},
 											CustomStructMemberTypeList l -> CustomLayerList{
 												.layers = .(),
@@ -817,6 +995,33 @@ struct CustomPureFnElement : ElementImpl {
 										}
 									});
 								}
+
+								// data transfer -------------------
+								@partial switch (custom_layer_list.kind) {
+									CustomLayerList it -> {
+										for (let& old_layer in it.layers) {
+											bool found = false;
+											for (let& new_layer in layers) {
+												if (str_eq(old_layer.name, new_layer.name)) {
+													found = true;
+													// TODO:(rae-crust) new_layer..StealData(old_layer);
+													new_layer.kind.StealData(old_layer.kind);
+													break;
+												}
+											}
+											
+											if (!found) {
+												layers.add(old_layer with { deleted_member = true });
+											}
+										}
+									},
+									else -> {
+										println("[WARNING]: custom_layer_list must be CustomLayerList!");
+									}
+								}
+								// -------------------------------
+
+								// TODO: move over old layers/keyframe layers!
 								custom_layer_list = {
 									.name = "Custom Properties",
 									.kind = CustomLayerList{ // TODO: should be CustomLayerStruct
@@ -826,6 +1031,7 @@ struct CustomPureFnElement : ElementImpl {
 										.immutable = true,
 									}
 								};
+								println("[TODO]: transfer old custom layer values!");
 								custom_args_handle = the_struct_handle;
 							},
 							char^ err -> {
@@ -875,9 +1081,8 @@ struct CustomPureFnElement : ElementImpl {
 		.custom_args_handle = none
 	});
 
-	CustomLayer^ CustomLayersList() {
-		return ^custom_layer_list;
-	}
+	CustomLayer^ CustomLayersList() -> ^custom_layer_list;
+
 }
 
 // layer metadata
@@ -887,6 +1092,7 @@ struct Layer {
 }
 
 struct Element {
+	// TODO: load up from project-save
 	static int num_elements_created = 0; // TODO: make per-project!
 	static char^ NextElementName() -> f"Elem {Self.num_elements_created++}";
 
@@ -902,11 +1108,11 @@ struct Element {
 	// layer
 	int layer;
 	
-	// transform-related/common args
-	Vec2 pos;
-
 	CustomLayer default_layers; // CustomLayerList
 	bool ready = false; // NOTE: never use an Element (specifically their layers) when not ready
+
+	// transform-related/common args
+	Vec2 pos;
 
 	Vec2 scale;
 	bool uniform_scale; // TODO:
@@ -917,27 +1123,37 @@ struct Element {
 
 	Color color;
 
-	bool visible;
-	char^ err_msg;
+	bool visible; // currently unused in program overall...
+
+	char^ err_msg; // not-serialized
 	
 	Data^ data;
 
 	List<CustomLayer>^ CustomLayersListInternalPtr() -> content_impl#CustomLayersList() == NULL ? NULL | ^((content_impl#CustomLayersList())#kind as CustomLayerList).layers;
 
 	void Serialize(Path p, bool is_load) {
-		yaml_serializer serialize = make_yaml_serializer(p, is_load);
+		yaml_serializer s = yaml_serializer.IO(p, is_load);
+		defer s.finish();
 
-		serialize.str_default(name, "name", "UNTITLED");
-		serialize.float_default(start_time, "start_time", 0);
-		serialize.float_default(duration, "end_time", 0);
-		serialize.int_default(layer, "layer", 0);
-		serialize.float_default(pos.x, "pos.x", 0);
-		serialize.float_default(pos.y, "pos.y", 0);
-		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - uniform_scale
-		serialize.float_default(scale.x, "scale.x", 100);
-		serialize.float_default(scale.y, "scale.y", 100);
-		serialize.float_default(rotation, "rotation", 0);
-		serialize.float_default(opacity, "opacity", 0);
+		s.str_default(name, "name", "UNTITLED");
+		s.float_default(start_time, "start_time", 0);
+		s.float_default(duration, "end_time", 0);
+		s.int_default(layer, "layer", 0);
+
+		if (is_load) {
+			let default_layers_s = s.into_obj("default_layers");
+			default_layers = CustomLayer.Deserialize(default_layers_s);
+		} else {
+			s.obj.put_obj("default_layers", default_layers.Serialize());
+		}
+
+		// serialize.float_default(pos.x, "pos.x", 0);
+		// serialize.float_default(pos.y, "pos.y", 0);
+		// // serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - uniform_scale
+		// serialize.float_default(scale.x, "scale.x", 100);
+		// serialize.float_default(scale.y, "scale.y", 100);
+		// serialize.float_default(rotation, "rotation", 0);
+		// serialize.float_default(opacity, "opacity", 0);
 
 		//	 TODO: important!!! toby!! not working on windows!!
 		// serialize.uchar_default(color.r, "color.r", 0);
@@ -954,15 +1170,13 @@ struct Element {
 
 		// impl
 		if (is_load) {
-			content_impl = ElementImplFromYaml(serialize.obj.get_int("kind"), serialize.obj.get_obj("impl"));
+			content_impl = ElementImplFromYaml(s.obj.get_int("kind"), s.obj.get_obj("impl"));
 		} else {
-			serialize.obj.put_int("kind", content_impl#Kind());
-			serialize.obj.put_object("impl", ElementImplToYaml(content_impl));
+			s.obj.put_int("kind", content_impl#Kind());
+			s.obj.put_object("impl", ElementImplToYaml(content_impl));
 		}
 
 		// keyframe layers!!!
-
-		serialize.finish();
 	}
 
 	CustomLayerFloat& _GetFloatLayer(int i) {
@@ -1088,16 +1302,18 @@ struct Element {
 		// d.RectRot(pos, scale, rotation, color);
 	}
 
+	void UI(CustomLayerUIParams& params) {
+		default_layers.UI(params);
+		content_impl#UI(params);
+	}
+
 	void UpdateState(float t) {
 		float lt = t - start_time;
 		default_layers.UpdateState(lt);
 		// scale.y = scale.x; // uniform scale
 
 		// TODO: color
-
-		if (content_impl#CustomLayersList() != NULL) {
-			content_impl#CustomLayersList()#UpdateState(lt);
-		}
+		content_impl#UpdateState(lt);
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
 		// pos = v2(300, 200) * v2(t, t);

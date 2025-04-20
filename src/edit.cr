@@ -222,22 +222,23 @@ struct ProjectSave {
 			// TODO: free RectElement!
 			AddNewElementAt(Element(RectElement.Make(), "basic_element_for_overwrite", 0, 1, -1, v2(0, 0), v2(200, 150)));
 			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", true);
+			elements.get(i).LinkDefaultLayers();
 		}
 	}
 
   static void Create(Path project_dir_path, char^ name) {
 		io.mkdir(project_dir_path);
 
-		yaml_object manifest = make_yaml_object();
+		yaml_object manifest = {};
 		manifest.put_literal("project_name", name);
 		manifest.put_literal("edit_version", "0.0.1");
 		manifest.put_int("num_elements", elements.size);
 
 		manifest.serialize_to(project_dir_path/"manifest.yaml");
 
-		yaml_object layers_obj = make_yaml_object(); // TODO: free
+		yaml_object layers_obj = {}; // TODO: free
 		for (let& layer in layers) {
-			let layer_obj = make_yaml_object();
+			yaml_object layer_obj = {};
 			layer_obj.put_bool("visible", layer.visible);
 			layers_obj.push_object(layer_obj);
 		}
@@ -1253,11 +1254,8 @@ void SidePanelContents() {
 
 	float curr_local_time = current_time - selected_elem.start_time;
 
-	selected_elem.default_layers.UI({ :max_elem_time, :curr_local_time });
-
-	if (selected_elem.content_impl#CustomLayersList() != NULL) {
-		selected_elem.content_impl#CustomLayersList()#UI({ :max_elem_time, :curr_local_time });
-	}
+	CustomLayerUIParams params = { :max_elem_time, :curr_local_time };
+	selected_elem.UI(params);
 }
 
 void SidePanel() {

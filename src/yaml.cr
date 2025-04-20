@@ -1,7 +1,9 @@
 import std;
 import map;
+import rl;
 
 struct yaml_value {
+	// TODO: union/choice
 	char^ literal_value; // null if yaml_object
 	yaml_object^ obj_value; // null if literal_value
 
@@ -55,12 +57,16 @@ struct yaml_value {
 
 struct yaml_object {
 	// ----------- // TODO: make it so that generic fields don't need to be above method defs using them...
-	StrMap<yaml_value> dict;
-	List<yaml_value> list;
+	StrMap<yaml_value> dict = {};
+	List<yaml_value> list = {};
 	// -----------
 
+	construct() -> {};
+
 	void delete() {
+		for (yaml_value& val in list) { val.delete(); }
 		list.delete();
+		for (int i in 0..dict.size) { dict.values[i].delete(); } // must delete values of dict
 		dict.delete();
 	}
 
@@ -97,10 +103,27 @@ struct yaml_object {
 		return this.fpretty_print_internal(f, 0);
 	}
 
+	bool has_obj(char^ name) {
+		return dict.has(name) && dict.get(name).obj_value != NULL;
+	}
+
+	void _err_not_literal_name(char^ name) {
+		panic(t"yaml_object.{name} is a yaml_object, not literal value"); 	
+	}
+	void _err_not_literal_i(int i) {
+		panic(t"yaml_object[{i}] is a yaml_object, not literal value"); 	
+	}
+	void _err_not_object_name(char^ name) {
+		panic(t"yaml_object.{name} is a literal, not a yaml_object"); 	
+	}
+	void _err_not_object_i(int i) {
+		panic(t"yaml_object[{i}] is a literal, not a yaml_object"); 	
+	}
+
 	yaml_object& get_obj(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value& v = dict.get(name);
-		if (v.obj_value == NULL) { panic(t"yaml_object.{name} is a literal value, not an object"); }
+		if (v.obj_value == NULL) { _err_not_object_name(name); }
 
 		return *v.obj_value;
 	}
@@ -108,7 +131,7 @@ struct yaml_object {
 	yaml_object& at_obj(int i) {
 		if (i >= list.size) { panic(t"no index '{i=}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value& v = list.get(i);
-		if (v.obj_value == NULL) { panic(t"yaml_object[{i}] is a literal value, not an object"); }
+		if (v.obj_value == NULL) { _err_not_object_i(i); }
 
 		return *v.obj_value;
 	}
@@ -116,7 +139,7 @@ struct yaml_object {
 	int get_int(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return c:atoi(v.literal_value);
 	}
@@ -127,7 +150,7 @@ struct yaml_object {
 			return default_value;
 		} // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return c:atoi(v.literal_value);
 	}
@@ -137,7 +160,7 @@ struct yaml_object {
 			return default_value;
 		} // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return c:atoi(v.literal_value) as uchar;
 	}
@@ -145,7 +168,7 @@ struct yaml_object {
 	float get_float(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return c:atof(v.literal_value);
 	}
@@ -156,7 +179,7 @@ struct yaml_object {
 			return default_value;
 		} // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return c:atof(v.literal_value);
 	}
@@ -164,55 +187,98 @@ struct yaml_object {
 	bool get_bool(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
 		return str_eq(v.literal_value, "true");
 	}
 
+	bool get_bool_default(char^ name, bool default_value) {
+		if (!dict.has(name)) { return default_value; } // TODO: handle path (eg: a.b.c)
+		yaml_value v = dict.get(name);
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
+
+		return str_eq(v.literal_value, "true");
+	}
+
+	// NOTE: gauranteed malloc
 	char^ get_str(char^ name) {
 		if (!dict.has(name)) { panic(t"no key '{name}' in yaml_object"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
-		return v.literal_value;
+		return strdup(v.literal_value);
 	}
 
 	// still errors in case of unexpected type...
+	// NOTE: gauranteed malloc
 	char^ get_str_default(char^ name, char^ default_value) {
 		if (!dict.has(name)) {
-			return default_value;
+			return strdup(default_value);
 		} // TODO: handle path (eg: a.b.c)
 		yaml_value v = dict.get(name);
-		if (v.literal_value == NULL) { panic(t"yaml_object.{name} is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_name(name); }
 
-		return v.literal_value;
+		return strdup(v.literal_value);
 	}
 
 	bool at_bool(int i) {
 		if (i >= list.size) { panic(t"index i={i} OOB for yaml_object of {list.size} list entries"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = list.get(i);
-		if (v.literal_value == NULL) { panic(t"yaml_object[{i}] is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
 
 		return str_eq(v.literal_value, "true");
+	}
+
+	float at_float(int i) {
+		if (i >= list.size) { panic(t"index i={i} OOB for yaml_object of {list.size} list entries"); } // TODO: handle path (eg: a.b.c)
+		yaml_value v = list.get(i);
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
+
+		return c:atof(v.literal_value);
+	}
+
+	float at_float_default(int i, float default_value) {
+		if (i >= list.size) { return default_value; } // TODO: handle path (eg: a.b.c)
+		yaml_value v = list.get(i);
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
+
+		return c:atof(v.literal_value);
+	}
+
+	uchar at_uchar(int i) {
+		if (i >= list.size) { panic(t"index i={i} OOB for yaml_object of {list.size} list entries"); } // TODO: handle path (eg: a.b.c)
+		yaml_value v = list.get(i);
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
+
+		return c:atoi(v.literal_value) as uchar;
+	}
+
+	uchar at_uchar_default(int i, uchar default_value) {
+		if (i >= list.size) { return default_value; } // TODO: handle path (eg: a.b.c)
+		yaml_value v = list.get(i);
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
+
+		return c:atoi(v.literal_value) as uchar;
 	}
 
 	char^ at_str(int i) {
 		if (i >= list.size) { panic(t"index i={i} OOB for yaml_object of {list.size} list entries"); } // TODO: handle path (eg: a.b.c)
 		yaml_value v = list.get(i);
-		if (v.literal_value == NULL) { panic(t"yaml_object[{i}] is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
 
-		return v.literal_value;
+		return strdup(v.literal_value);
 	}
 
 	// still errors in case of unexpected type...
+	// NOTE: gauranteed malloc
 	char^ at_str_default(int i, char^ default_value) {
 		if (i >= list.size) {
-			return default_value;
+			return strdup(default_value);
 		} // TODO: handle path (eg: a.b.c)
 		yaml_value v = list.get(i);
-		if (v.literal_value == NULL) { panic(t"yaml_object[{i}] is a yaml_object, not literal value"); }
+		if (v.literal_value == NULL) { _err_not_literal_i(i); }
 
-		return v.literal_value;
+		return strdup(v.literal_value);
 	}
 
 	yaml_value object_to_value(yaml_object object) {
@@ -233,7 +299,12 @@ struct yaml_object {
 	}
 
 	// mallocs object
+	void put_obj(char^ name, yaml_object value) -> dict.put(name, this.object_to_value(value)); // TODO: remove old (memory-leak)
 	void put_object(char^ name, yaml_object value) -> dict.put(name, this.object_to_value(value)); // TODO: remove old (memory-leak)
+	yaml_object& put_empty(char^ name) {
+		put_object(name, .());
+		return get_obj(name);
+	}
 
 	void put_literal(char^ name, char^ value) -> dict.put(name, this.literal_to_value(value));
 	void put_float(char^ name, float value) {
@@ -252,30 +323,35 @@ struct yaml_object {
 		dict.put(name, this.literal_to_value(str));
 	}
 
+	void push_obj(yaml_object value) -> list.add(this.object_to_value(value));
 	void push_object(yaml_object value) -> list.add(this.object_to_value(value));
+	yaml_object& push_empty() {
+		push_object(.());
+		return at_obj(list.size - 1);
+	}
 
 	void push_literal(char^ value) -> list.add(this.literal_to_value(value));
-	void push_int(char^ name, int value) {
+	void push_int(int value) {
 		char^ str = f"{value}";
 		defer free(str);
 		push_literal(str);
 	}
-	void push_float(char^ name, float value) {
+	void push_uchar(uchar value) {
+		char^ str = f"{value as int}";
+		defer free(str);
+		push_literal(str);
+	}
+	void push_float(float value) {
 		char^ str = f"{value}";
 		defer free(str);
 		push_literal(str);
 	}
-	void push_bool(char^ name, bool value) {
+	void push_bool(bool value) {
 		char^ str = f"{value}";
 		defer free(str);
 		push_literal(str);
 	}
 }
-
-yaml_object make_yaml_object() -> {
-	.dict = .(),
-	.list = .()
-};
 
 // expects 2-spacing, no real tabs!
 struct yaml_parser {
@@ -328,7 +404,7 @@ struct yaml_parser {
 			}
 		}
 
-		yaml_object entry_obj = make_yaml_object();
+		yaml_object entry_obj = .();
 
 		while (i < content_lines.n) {
 			char^ line = content_lines.at(i);
@@ -356,7 +432,7 @@ struct yaml_parser {
 		Strings content_lines = lines.non_whitespace_only();
 		defer content_lines.delete();
 
-		yaml_object obj = make_yaml_object();
+		yaml_object obj = .();
 
 		int i = 0;
 		while (i < content_lines.n) {
@@ -373,60 +449,171 @@ struct yaml_parser {
 }
 
 // bi-directional (loads on load, stores on store)
+// * TODO: bi-directional w/ yaml_object (no io)
 struct yaml_serializer {
-	bool is_load; // else, is store
 	Path p;
-	yaml_object obj;
+	yaml_object& obj;
+	bool is_load; // else, is store
 
-	void str_default(char^& ptr, char^ name, char^ default_val) {
+	// if false: just for bi-directional storage w/ yaml_object
+	// if true: for syncing straight from/to disk
+	bool path_io;
+
+	static yaml_serializer IO(Path p, bool is_load) -> {
+		:p,
+		.obj = *Box<yaml_object>.Make(is_load
+				? yaml_parser{}.parse_file(p)
+				| .()),
+		:is_load,
+		.path_io = true,
+	};
+
+	// NOTE: obj must exist (be held) externally
+	// TODO: careful with realloc's from list holding it... (maybe ok b/c yaml_value indirection!)
+	static yaml_serializer Obj(yaml_object& obj, bool is_load) -> {
+		.p = Path(""),
+		:obj,
+		:is_load,
+		.path_io = false,
+	};
+
+	yaml_serializer into_obj(char^ name) {
 		if (is_load) {
-			ptr = obj.get_str_default(name, default_val);
+			if (obj.has_obj(name)) {
+				return Self.Obj(obj.get_obj(name), is_load);
+			}
+			return Self.Obj(obj.put_empty(name), is_load);
 		} else {
-			obj.put_literal(name, ptr);
+			return Self.Obj(obj.put_empty(name), is_load);
 		}
 	}
 
-	void int_default(int& ptr, char^ name, int default_val) {
+	yaml_serializer into_obj_at(int i) {
+		if (is_load) {
+			if (obj.list.size > i) {
+				return Self.Obj(obj.at_obj(i), is_load);
+			}
+			return Self.Obj(obj.push_empty(), is_load);
+		} else {
+			return Self.Obj(obj.push_empty(), is_load);
+		}
+	}
+
+	// gauranteed malloc on-get
+	char^ str_default(char^& ptr, char^ name, char^ default_val) {
+		if (is_load) {
+			ptr = obj.get_str_default(name, default_val); // malloced
+		} else {
+			obj.put_literal(name, ptr);
+		}
+		return ptr;
+	}
+
+	bool bool_default(bool& ptr, char^ name, bool default_val) {
+		if (is_load) {
+			ptr = obj.get_bool_default(name, default_val);
+		} else {
+			obj.put_literal(name, t"{ptr}");
+		}
+		return ptr;
+	}
+
+	int int_default(int& ptr, char^ name, int default_val) {
 		if (is_load) {
 			ptr = obj.get_int_default(name, default_val);
 		} else {
 			obj.put_literal(name, t"{ptr}");
 		}
+		return ptr;
 	}
 
-	void uchar_default(uchar& ptr, char^ name, uchar default_val) {
+	Vec2 Vec2_default(Vec2& ptr, char^ name, Vec2 default_val) {
+		if (is_load) {
+			if (obj.has_obj(name)) {
+				let& vec_obj = obj.get_obj(name);
+				// NOTE: sus when partial... let's just hope that never happens!
+				ptr = { vec_obj.at_float_default(0, 0), vec_obj.at_float_default(1, 0) };
+			} else {
+				ptr = default_val;
+			}
+		} else {
+			let& vec_obj = obj.put_empty(name);
+			vec_obj.push_float(ptr.x);
+			vec_obj.push_float(ptr.y);
+		}
+		return ptr;
+	}
+
+	Color Color_default(Color& ptr, char^ name, Color default_val) {
+		if (is_load) {
+			if (obj.has_obj(name)) {
+				let& color_obj = obj.get_obj(name);
+				// NOTE: sus when partial... let's just hope that never happens!
+				ptr = { color_obj.at_uchar_default(0, 0), color_obj.at_uchar_default(1, 0), color_obj.at_uchar_default(2, 0), color_obj.at_uchar_default(3, 255) };
+			} else {
+				ptr = default_val;
+			}
+		} else {
+			let& color_obj = obj.put_empty(name);
+			color_obj.push_uchar(ptr.r);
+			color_obj.push_uchar(ptr.g);
+			color_obj.push_uchar(ptr.b);
+			color_obj.push_uchar(ptr.a);
+		}
+		return ptr;
+	}
+
+	uchar uchar_default(uchar& ptr, char^ name, uchar default_val) {
 		if (is_load) {
 			ptr = obj.get_uchar_default(name, default_val);
 		} else {
 			obj.put_literal(name, t"{ptr as int}");
 		}
+		return ptr;
 	}
 
-	void float_default(float& ptr, char^ name, float default_val) {
+	float float_default(float& ptr, char^ name, float default_val) {
 		if (is_load) {
 			ptr = obj.get_float_default(name, default_val);
 		} else {
 			obj.put_literal(name, t"{ptr}");
 		}
+		return ptr;
 	}
 
 	// commits store
 	void finish() {
+		if (!path_io) {
+			println("[WARNING]: non-path_io yaml_serializer should not call finish()!");
+			return;
+		}
+
 		if (!is_load) { // store
 			obj.serialize_to(p);
 		}
 
 		obj.delete();
+		free(^obj);
 	}
 }
 
-yaml_serializer make_yaml_serializer(Path p, bool is_load) {
-	return {
-		:p,
-		:is_load,
-		.obj =
-			is_load
-				? yaml_parser{}.parse_file(p)
-				| make_yaml_object()
-	};
+struct ListSerializer<T> {
+	static List<T> Deserialize(yaml_serializer& s) {
+		assert(s.is_load, "ListSerializer::Deserialize - s.is_load");
+		List<T> res = {};
+
+		for (int i in 0..s.obj.list.size) {
+			let elem_s = s.into_obj_at(i);
+			res.add(T.Deserialize(elem_s));
+		}
+		return res;
+	}
+
+	static yaml_object Serialize(List<T>& list) {
+		yaml_object obj = {};
+		for (let& elem in list) {
+			obj.push_obj(elem.Serialize());
+		}
+		return obj;
+	}
 }
