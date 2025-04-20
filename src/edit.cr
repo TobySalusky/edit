@@ -759,8 +759,7 @@ void CullEmptyLayers() {
 
 Vec2 GetMousePosWorldSpace() {
 	// TODO: fix this???
-	let canvas_rect = canvas_rect;
-	return (mouse.GetPos() - canvas_rect.tl()) / (canvas_rect.dimen() / window_dimens);
+	return (mouse.GetPos() - canvas_rect.tl()) / canvas_rect.dimen() * v2(canvas_width, canvas_height);
 }
 
 void UpdateWindowSize(int width, int height) {
