@@ -15,12 +15,13 @@ struct Face {
 	int frame_rate;
 }
 
-List<Face> cv_pipe() {
+List<Face> cv_pipe(char^ videoFP) {
 	
 	List<Face> face_data = .();
 
+	char^ file_path = f"python piping.py {videoFP}";
 	c:c:`
-    FILE *pipe = popen("python piping.py white_lotus_short.mp4", "r");
+    FILE *pipe = popen(file_path, "r");
     if (!pipe) {
         fprintf(stderr, "Failed to launch Python script: %s\n", strerror(errno));
     }

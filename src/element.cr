@@ -58,7 +58,7 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 			it = VideoElement.Make(yo.get_str("video_file_path"), yo.get_float("dec_fr"));
 		},
 		KIND_FACE -> {
-			it = FaceElement.Make();
+			// it = FaceElement.Make();
 		},
 		else -> {
 			println(t"[WARNING]: ElementImplFromYaml unknown case {kind}");
@@ -203,8 +203,8 @@ struct FaceElement : ElementImpl {
 	//char^ sound_path = OpenImageFileDialog("Select sound file");
 
 
-	Texture open = rl.LoadTexture("popcat_open_trans.png");
-	Texture close = rl.LoadTexture("popcat_close_trans.png");
+	Texture open;
+	Texture close;
 
 	// hard coded 
 	Color alpha = c:WHITE;
@@ -281,9 +281,13 @@ struct FaceElement : ElementImpl {
 	char^ ImplTypeStr() -> "face";
 	List<CustomLayer>^ CustomLayers() -> NULL;
 
-	static Self^ Make() {
-		List<Face> face_data = cv_pipe();
-		return Box<Self>.Make({ .face_data = face_data });
+	static Self^ Make(char^ video_path, char^ open_path, char^ close_path) {
+		Texture mouth_close = rl.LoadTexture(close_path);
+		Texture mouth_open = rl.LoadTexture(open_path);
+		List<Face> face_data = cv_pipe(video_path);
+		return Box<Self>.Make({ .face_data = face_data,
+								.open = mouth_open,
+								.close = mouth_close });
 	}
 }
 
