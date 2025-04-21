@@ -1,6 +1,7 @@
 import std;
 import list;
 import rl;
+import yaml; // TODO: remove reliance on yaml from this file so script won't need it!
 
 /// -----------------------------------------
 // base args for @fx_fn's
@@ -33,7 +34,10 @@ struct CustomStructMemberTypeVec2 {}
 struct CustomStructMemberTypeColor {}
 
 struct CustomStructMemberTypeList {
+	// TODO: delete() !!!!!! (NOTE: MEMORY LEAK)
 	CustomStructMemberType^ elem_t; // malloced!!
+
+	// not-serialized
 	void^ list_ptr; // type-erased List<...>^
 
 	// TODO: delete()
@@ -71,8 +75,89 @@ choice CustomStructMemberType {
 	CustomStructMemberTypeVec2,
 	CustomStructMemberTypeColor,
 
-	CustomStructMemberTypeList,
+	CustomStructMemberTypeList, // has members!
 	// CustomStructMemberTypeCustomStruct,
+	;
+
+	bool operator:==(Self& other) {
+		return match (this) {
+			CustomStructMemberTypeFloat -> other is CustomStructMemberTypeFloat,
+			CustomStructMemberTypeDouble -> other is CustomStructMemberTypeDouble,
+			CustomStructMemberTypeBool -> other is CustomStructMemberTypeBool,
+			CustomStructMemberTypeUChar -> other is CustomStructMemberTypeUChar,
+			CustomStructMemberTypeChar -> other is CustomStructMemberTypeChar,
+			CustomStructMemberTypeUShort -> other is CustomStructMemberTypeUShort,
+			CustomStructMemberTypeShort -> other is CustomStructMemberTypeShort,
+			CustomStructMemberTypeUInt -> other is CustomStructMemberTypeUInt,
+			CustomStructMemberTypeInt -> other is CustomStructMemberTypeInt,
+			CustomStructMemberTypeULong -> other is CustomStructMemberTypeULong,
+			CustomStructMemberTypeLong -> other is CustomStructMemberTypeLong,
+			CustomStructMemberTypeStr -> other is CustomStructMemberTypeStr,
+			CustomStructMemberTypeVec2 -> other is CustomStructMemberTypeVec2,
+			CustomStructMemberTypeColor -> other is CustomStructMemberTypeColor,
+			CustomStructMemberTypeList it -> other is CustomStructMemberTypeList && *(it.elem_t) == *(other as CustomStructMemberTypeList.elem_t),
+		};
+	}
+
+	static Self Deserialize(yaml_serializer& s) {
+		assert(s.is_load, "s.is_load please");
+
+		string which = string(s.obj.get_str("which"));
+
+		if (which == .("float")) { return CustomStructMemberTypeFloat{}; }
+		if (which == .("double")) { return CustomStructMemberTypeDouble{}; }
+		if (which == .("bool")) { return CustomStructMemberTypeBool{}; }
+		if (which == .("uChar")) { return CustomStructMemberTypeUChar{}; }
+		if (which == .("char")) { return CustomStructMemberTypeChar{}; }
+		if (which == .("uShort")) { return CustomStructMemberTypeUShort{}; }
+		if (which == .("short")) { return CustomStructMemberTypeShort{}; }
+		if (which == .("uInt")) { return CustomStructMemberTypeUInt{}; }
+		if (which == .("int")) { return CustomStructMemberTypeInt{}; }
+		if (which == .("uLong")) { return CustomStructMemberTypeULong{}; }
+		if (which == .("long")) { return CustomStructMemberTypeLong{}; }
+		if (which == .("str")) { return CustomStructMemberTypeStr{}; }
+		if (which == .("vec2")) { return CustomStructMemberTypeVec2{}; }
+		if (which == .("color")) { return CustomStructMemberTypeColor{}; }
+		if (which == .("list")) {
+			let elem_t_s = s.into_obj("elem_t");
+			return CustomStructMemberTypeList{
+				.elem_t = Box<Self>.Make(Deserialize(elem_t_s)),
+				.list_ptr = NULL,
+			}; 
+		}
+
+		panic("unreachable - CustomStructMemberType::Deserialize");
+		CustomStructMemberTypeFloat _;
+		return _;
+	}
+
+	void SerializeStore(yaml_serializer& s) {
+		assert(!s.is_load, "!s.is_load please");
+		
+		switch (this) {
+			CustomStructMemberTypeFloat -> { s.obj.put_literal("which", "float"); },
+			CustomStructMemberTypeDouble -> { s.obj.put_literal("which", "double"); },
+			CustomStructMemberTypeBool -> { s.obj.put_literal("which", "bool"); },
+			CustomStructMemberTypeUChar -> { s.obj.put_literal("which", "uchar"); },
+			CustomStructMemberTypeChar -> { s.obj.put_literal("which", "char"); },
+			CustomStructMemberTypeUShort -> { s.obj.put_literal("which", "ushort"); },
+			CustomStructMemberTypeShort -> { s.obj.put_literal("which", "short"); },
+			CustomStructMemberTypeUInt -> { s.obj.put_literal("which", "uint"); },
+			CustomStructMemberTypeInt -> { s.obj.put_literal("which", "int"); },
+			CustomStructMemberTypeULong -> { s.obj.put_literal("which", "ulong"); },
+			CustomStructMemberTypeLong -> { s.obj.put_literal("which", "long"); },
+			CustomStructMemberTypeStr -> { s.obj.put_literal("which", "str"); },
+			CustomStructMemberTypeVec2 -> { s.obj.put_literal("which", "Vec2"); },
+			CustomStructMemberTypeColor -> { s.obj.put_literal("which", "Color"); },
+			CustomStructMemberTypeList it -> {
+				s.obj.put_literal("which", "list"); 
+				
+				let elem_t_s = s.into_obj("elem_t");
+				it.elem_t#SerializeStore(elem_t_s);
+				// list_ptr not-serialized
+			},
+		}
+	}
 }
 
 struct CustomStructMemberHandle {

@@ -33,6 +33,22 @@ int CANVAS_HEIGHT = 900;
 // 	}
 // }
 
+@fx_args
+struct RobotArmArgs {
+	Vec2 start = {};
+	Vec2 end = {100, 0};
+	float width = 5;
+	float percent_closed = 0; // 0-100
+}
+
+@fx_fn
+void RobotArm(FxArgs& args, using RobotArmArgs& margs) {
+	// TODO: https://www.alanzucconi.com/2018/05/02/ik-2d-2/
+	Vec2 mid_joint = (start + end).scale(0.5) + v2(0, 50);
+	d.Line(start, mid_joint, width, args.color);
+	d.Line(mid_joint, end, width, args.color);
+}
+
 
 
 Texture pixel = rl.LoadTextureFromImageDestructively(rl.GenImageColor(1, 1, Colors.White));

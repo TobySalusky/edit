@@ -2,11 +2,11 @@ import pair;
 
 // NOTE: StrMap operations are currently O(n), it just provides the API of a dictionary/hashmap, but with a simple flat list-of-pairs implementation
 struct StrMap<T> {
-	int capacity;
-	int size;
+	int capacity = 0;
+	int size = 0;
 
-	char^^ keys;
-	T^ values;
+	char^^ keys = NULL;
+	T^ values = NULL;
 
 	construct() -> { .size = 0, .capacity = 0, .keys = NULL, .values = NULL };
 

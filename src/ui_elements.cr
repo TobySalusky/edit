@@ -4,6 +4,7 @@ import std;
 import clay_lib;
 import global_settings;
 import cursor;
+import hotkey;
 
 uint root_font_size = GlobalSettings.get_int("root_font_size", 24);
 
@@ -188,6 +189,10 @@ bool ButtonForceHover(Vec2 tl, Vec2 dimens, char^ text, bool force_hover, Color 
 // 	}
 // }
 
+void UnFocusUIElements() {
+	focused_ui_elem_id = UiElementID.ID(NULL);
+}
+
 struct TextInputState {
 	// NOTE: includes null-term
 	static int mem_size = 256; // TODO: per-input size?
@@ -245,7 +250,7 @@ struct TextInputState {
 TextInputState& TextBoxMaintained(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_Sizing sizing, int font_size) {
 	TextInputState& input = GetTextInput(ui_id);
 	
-	TextBox(ui_id, clay_id, init_text, sizing, font_size);
+	TextBox(ui_id, clay_id, input.buffer, sizing, font_size);
 	return input;
 }
 
@@ -573,7 +578,7 @@ void ModalUI(using ModalState& state) {
 		}
 	}
 
-	if (key.IsPressed(KEY.ESCAPE)) {
+	if (HotKeys.ESCAPE.IsPressed()) {
 		CloseModal();
 		// TODO: think abt stacked modals (this broken omg)
 	}
@@ -590,6 +595,7 @@ void CloseModal() { // closes top (current-most) modal!
 		open_modal_states.back().close();
 		open_modal_states.pop_back();
 	}
+	UnFocusUIElements(); // TODO: do better?
 }
 
 bool IsModalOpen(c:void_takes_ModalState_ref_fn_ptr_t fn_ptr) {

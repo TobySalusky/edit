@@ -27,6 +27,24 @@ struct KeyframeInterpolator=<bool> {
 	static bool Interpolate(Keyframe<bool>& from, Keyframe<bool>& to, float t) {
 		return from.value;
 	}
+	static bool DefaultValue() -> false;
+	static void SerializeValue(Keyframe<bool>& keyframe, yaml_serializer& s) {
+		s.bool_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<bool>& keyframe) {}
+}
+
+struct KeyframeInterpolator=<char^> {
+	static char^ Interpolate(Keyframe<char^>& from, Keyframe<char^>& to, float t) {
+		return from.value;
+	}
+	static char^ DefaultValue() -> "";
+	static void SerializeValue(Keyframe<char^>& keyframe, yaml_serializer& s) {
+		s.str_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<char^>& keyframe) {
+		free(keyframe.value);
+	}
 }
 
 struct KeyframeInterpolator=<float> {
@@ -34,6 +52,11 @@ struct KeyframeInterpolator=<float> {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
 		return from.value * (1.0 - pt) + to.value * pt;
 	}
+	static float DefaultValue() -> 0;
+	static void SerializeValue(Keyframe<float>& keyframe, yaml_serializer& s) {
+		s.float_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<float>& keyframe) {}
 }
 
 struct KeyframeInterpolator=<Vec2> {
@@ -41,6 +64,11 @@ struct KeyframeInterpolator=<Vec2> {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
 		return from.value.scale(1.0 - pt) + to.value.scale(pt);
 	}
+	static Vec2 DefaultValue() -> {};
+	static void SerializeValue(Keyframe<Vec2>& keyframe, yaml_serializer& s) {
+		s.Vec2_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<Vec2>& keyframe) {}
 }
 
 struct KeyframeInterpolator=<int> {
@@ -48,6 +76,11 @@ struct KeyframeInterpolator=<int> {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
 		return from.value + (((to.value - from.value) as float) * pt) as int;
 	}
+	static int DefaultValue() -> 0;
+	static void SerializeValue(Keyframe<int>& keyframe, yaml_serializer& s) {
+		s.int_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<int>& keyframe) {}
 }
 
 struct KeyframeInterpolator=<Color> {
@@ -60,6 +93,11 @@ struct KeyframeInterpolator=<Color> {
 			.a = from.value.a + (((to.value.a - from.value.a) as float) * pt) as int,
 		};
 	}
+	static Color DefaultValue() -> { .r = 0, .g = 0, .b = 0, .a = 255 };
+	static void SerializeValue(Keyframe<Color>& keyframe, yaml_serializer& s) {
+		s.Color_default(keyframe.value, "value", DefaultValue());
+	}
+	static void delete(Keyframe<Color>& keyframe) {}
 }
 
 enum KeyframeInterpolationMode {
@@ -76,6 +114,36 @@ struct Keyframe<T> {
 	float time;
 	KeyframeInterpolationMode in_interpolation_mode;
 	KeyframeInterpolationMode out_interpolation_mode;
+
+	void BiSerialize(yaml_serializer& s) {
+		s.float_default(time, "time", 0);
+		KeyframeInterpolator<T>.SerializeValue(this, s);
+
+		if (s.is_load) {
+			in_interpolation_mode = s.obj.get_int("in_interpolation_mode") as KeyframeInterpolationMode;
+			out_interpolation_mode = s.obj.get_int("out_interpolation_mode") as KeyframeInterpolationMode;
+		} else {
+			s.obj.put_int("in_interpolation_mode", in_interpolation_mode as int);
+			s.obj.put_int("out_interpolation_mode", out_interpolation_mode as int);
+		}
+	}
+
+	yaml_object Serialize() {
+		yaml_object obj = {};
+		let s = yaml_serializer.Obj(obj, false);
+		BiSerialize(s);
+		return obj;
+	}
+
+	static Self Deserialize(yaml_serializer& s) {
+		Self keyframe;
+		keyframe.BiSerialize(s);
+		return keyframe;
+	}
+
+	void delete() {
+		KeyframeInterpolator<T>.delete(this);
+	}
 
 	KeyframeAssets& assets() -> match (in_interpolation_mode) {
 		.Linear -> match (out_interpolation_mode) {
@@ -117,10 +185,23 @@ struct KeyframeAssets {
 }
 
 struct KeyframeLayer<T> {
-	List<Keyframe<T>> keyframes;
+	List<Keyframe<T>> keyframes = {};
 	// bool activated;
 
 	construct() -> { .keyframes = List<Keyframe<T>>() };
+
+	yaml_object Serialize() {
+		yaml_object obj = {};
+		obj.put_obj("keyframes", ListSerializer<Keyframe<T>>.Serialize(keyframes));
+		return obj;
+	}
+
+	static Self Deserialize(yaml_serializer& s) {
+		let keyframes_s = s.into_obj("keyframes");
+		return {
+			.keyframes = ListSerializer<Keyframe<T>>.Deserialize(keyframes_s)
+		};
+	}
 
 	bool HasValue() {
 		return 
@@ -173,6 +254,7 @@ struct KeyframeLayer<T> {
 	void Insert(Keyframe<T> frame) {
 		for (int i = 0; i != keyframes.size; i++;) {
 			if (frame.time == keyframes.get(i).time) {
+				keyframes.get(i).delete();
 				keyframes.get(i) = frame;
 				return;
 			}
@@ -198,6 +280,7 @@ struct KeyframeLayer<T> {
 	}
 
 	void Clear() {
+		for (let& keyframe in keyframes) { keyframe.delete(); }
 		keyframes.delete();
 		keyframes = List<Keyframe<T>>();
 	}

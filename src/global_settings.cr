@@ -11,7 +11,7 @@ struct GlobalSettings {
 			return yaml_parser{}.parse_file(settings_path);
 		}
 		println(f"failed to load existing GlobalSettings from {settings_path.str}, does this exist?");
-		return make_yaml_object();
+		return {};
 	}
 
 	static bool get_bool(char^ name, bool default_value) {

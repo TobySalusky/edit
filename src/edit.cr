@@ -74,6 +74,7 @@ int frame_rate = 60;
 
 int current_frame = 0;
 float current_time = 0;
+
 float max_time = 60;
 int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
@@ -249,22 +250,23 @@ struct ProjectSave {
 			// TODO: free RectElement!
 			AddNewElementAt(Element(RectElement.Make(), "basic_element_for_overwrite", 0, 1, -1, v2(0, 0), v2(200, 150)));
 			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", true);
+			elements.get(i).LinkDefaultLayers();
 		}
 	}
 
   static void Create(Path project_dir_path, char^ name) {
 		io.mkdir(project_dir_path);
 
-		yaml_object manifest = make_yaml_object();
+		yaml_object manifest = {};
 		manifest.put_literal("project_name", name);
 		manifest.put_literal("edit_version", "0.0.1");
 		manifest.put_int("num_elements", elements.size);
 
 		manifest.serialize_to(project_dir_path/"manifest.yaml");
 
-		yaml_object layers_obj = make_yaml_object(); // TODO: free
+		yaml_object layers_obj = {}; // TODO: free
 		for (let& layer in layers) {
-			let layer_obj = make_yaml_object();
+			yaml_object layer_obj = {};
 			layer_obj.put_bool("visible", layer.visible);
 			layers_obj.push_object(layer_obj);
 		}
@@ -785,8 +787,7 @@ void CullEmptyLayers() {
 
 Vec2 GetMousePosWorldSpace() {
 	// TODO: fix this???
-	let canvas_rect = canvas_rect;
-	return (mouse.GetPos() - canvas_rect.tl()) / (canvas_rect.dimen() / window_dimens);
+	return (mouse.GetPos() - canvas_rect.tl()) / canvas_rect.dimen() * v2(canvas_width, canvas_height);
 }
 
 void UpdateWindowSize(int width, int height) {
@@ -817,6 +818,219 @@ void ExportingModal(using ModalState& state) {
 	LoadingProgressBar(t"Encoding [{export_state.frames_written}/{export_state.total_frames} frames]", (export_state.frames_written) as float / export_state.total_frames);
 	// TODO: is_ffmpegging
 }
+
+void SaveProjectModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("SaveProjectModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Project Name: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("SaveProjectModal-file-input"), .("SaveProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		string buf = string(textbox#buffer);
+		string project_name = buf.trim();
+		defer project_name.delete();
+
+		Path p = Path("saves")/project_name;
+		defer free(p.str);
+
+		if (io.dir_exists(p)) {
+			Path new_p = Path("saves")/t"{project_name.str}_old_{rl.GetRandomValue(0, 1000)}";
+			defer free(new_p.str);
+
+			if (!io.mv(p, new_p)) {
+				state.set_errmsg(f"moving old save from '{p.str}' to '{new_p.str}' failed, write to a different name pls :)");
+			} else {
+				ProjectSave.Create(p, project_name);
+				CloseModal();
+			}
+		} else {
+			ProjectSave.Create(p, project_name);
+			CloseModal();
+		}
+	}
+}
+
+void OpenProjectModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("OpenProjectModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Project Name: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("OpenProjectModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		string buf = string(textbox#buffer);
+		string project_name = buf.trim();
+		defer project_name.delete();
+
+		Path p = Path("saves")/project_name;
+		defer free(p.str);
+		if (!io.dir_exists(p)) {
+			state.set_errmsg(f"Project Save directory '{p.str}' does not exist");
+		} else {
+			ProjectSave.Load(Path("saves")/project_name);
+			CloseModal();
+		}
+	}
+}
+
+void AddFaceElemModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("AddFaceElemModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox1;
+	TextInputState^ textbox2;
+	TextInputState^ textbox3;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(2.5)),
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER },
+			.padding = { .bottom = rem(1) }
+		}
+	}) {
+		clay_text("Video File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox1 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(2.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER },
+			.padding = { .bottom = rem(1) }
+		}
+	}) {
+		clay_text("Closed Mouth Image File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox2 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-2"), .("OpenProjectModal-file-input-2"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Open Mouth Image File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox3 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-3"), .("OpenProjectModal-file-input-3"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER)) {
+		if (!io.file_exists(textbox1#buffer)) {
+			state.set_errmsg(f"Video file '{textbox1#buffer}' does not exist!");
+		} else if (!io.file_exists(textbox2#buffer)) {
+			state.set_errmsg(f"Closed-mouth Image file '{textbox2#buffer}' does not exist!");
+		} else if (!io.file_exists(textbox3#buffer)) {
+			state.set_errmsg(f"Open-mouth Image file '{textbox3#buffer}' does not exist!");
+		} else {
+
+			// TODO: add face elem using paths!
+			CloseModal();
+		}
+	}
+}
+
 
 // TODO: future e.g: MyCustomElem + ChromaKey(GREEN) + BlahCustomEffect
 // TODO: future e.g: my_imgs/*.png, vid.mp4, extra_audio.ogg
@@ -1112,14 +1326,17 @@ void GameTick() {
 		if (HotKeys.QuickAdd.IsPressed()) { // NOTE: A (quick-add)
 			OpenModalFn(QuickAddModal);
 		}
-	}
 
-	if (HotKeys.Temp_LeftSidebar_Less.IsPressed()) {
-		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width - 50);
-	}
+		if (HotKeys.SaveProject.IsPressed()) {
+			OpenModalFn(SaveProjectModal);
+		}
+		if (HotKeys.OpenProject.IsPressed()) {
+			OpenModalFn(OpenProjectModal);
+		}
 
-	if (HotKeys.Temp_LeftSidebar_More.IsPressed()) {
-		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width + 50);
+		if (HotKeys.Temp_AddFaceElem.IsPressed()) {
+			OpenModalFn(AddFaceElemModal);
+		}
 	}
 
 	if (!ui_hidden) {
@@ -1280,11 +1497,8 @@ void SidePanelContents() {
 
 	float curr_local_time = current_time - selected_elem.start_time;
 
-	selected_elem.default_layers.UI({ :max_elem_time, :curr_local_time });
-
-	if (selected_elem.content_impl#CustomLayersList() != NULL) {
-		selected_elem.content_impl#CustomLayersList()#UI({ :max_elem_time, :curr_local_time });
-	}
+	CustomLayerUIParams params = { :max_elem_time, :curr_local_time };
+	selected_elem.UI(params);
 }
 
 void SidePanel() {
@@ -1445,13 +1659,13 @@ int main(int argc, char^^ argv) {
 
 	images.reserve(max_frames);
 
-	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 5, 5, -1, v2(150, 150), v2(500, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("scatterplot"), "scatterplot", 10, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("line_graph"), "line_graph", 15, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("bubblechart"), "bubblechart", 20, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 25, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Red });
-	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 5, 5, -1, v2(150, 150), v2(500, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("scatterplot"), "scatterplot", 10, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("line_graph"), "line_graph", 15, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bubblechart"), "bubblechart", 20, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 25, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Red });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
