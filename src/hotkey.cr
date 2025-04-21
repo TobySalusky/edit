@@ -47,7 +47,11 @@ struct HotKeys {
 	static HotKey OpenProject = HotKey.DvoKey(KEY.O, KEY.S);
 	static HotKey SaveProject = HotKey.DvoKey(KEY.S, KEY.SEMICOLON);
 
+
+
 	// :hotkey:temp
+	static HotKey Temp_AddFaceElem = HotKey.DvoKey(KEY.F, KEY.Y);
+
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
 	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.X, KEY.B);
 	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
@@ -57,6 +61,4 @@ struct HotKeys {
 
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
 
-	static HotKey Temp_LeftSidebar_Less = HotKey.DvoKey(KEY.Y, KEY.T);
-	static HotKey Temp_LeftSidebar_More = HotKey.DvoKey(KEY.F, KEY.Y);
 }

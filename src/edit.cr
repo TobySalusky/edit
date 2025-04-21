@@ -912,6 +912,98 @@ void OpenProjectModal(using ModalState& state) {
 	}
 }
 
+void AddFaceElemModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("AddFaceElemModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox1;
+	TextInputState^ textbox2;
+	TextInputState^ textbox3;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(2.5)),
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER },
+			.padding = { .bottom = rem(1) }
+		}
+	}) {
+		clay_text("Video File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox1 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(2.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER },
+			.padding = { .bottom = rem(1) }
+		}
+	}) {
+		clay_text("Closed Mouth Image File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox2 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-2"), .("OpenProjectModal-file-input-2"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Open Mouth Image File Path: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox3 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-3"), .("OpenProjectModal-file-input-3"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER)) {
+		if (!io.file_exists(textbox1#buffer)) {
+			state.set_errmsg(f"Video file '{textbox1#buffer}' does not exist!");
+		} else if (!io.file_exists(textbox2#buffer)) {
+			state.set_errmsg(f"Closed-mouth Image file '{textbox2#buffer}' does not exist!");
+		} else if (!io.file_exists(textbox3#buffer)) {
+			state.set_errmsg(f"Open-mouth Image file '{textbox3#buffer}' does not exist!");
+		} else {
+
+			// TODO: add face elem using paths!
+			CloseModal();
+		}
+	}
+}
+
+
 // TODO: future e.g: MyCustomElem + ChromaKey(GREEN) + BlahCustomEffect
 // TODO: future e.g: my_imgs/*.png, vid.mp4, extra_audio.ogg
 void QuickAddModal(using ModalState& state) {
@@ -1213,14 +1305,10 @@ void GameTick() {
 		if (HotKeys.OpenProject.IsPressed()) {
 			OpenModalFn(OpenProjectModal);
 		}
-	}
 
-	if (HotKeys.Temp_LeftSidebar_Less.IsPressed()) {
-		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width - 50);
-	}
-
-	if (HotKeys.Temp_LeftSidebar_More.IsPressed()) {
-		left_panel_width = GlobalSettings.set_float("left_panel_width", left_panel_width + 50);
+		if (HotKeys.Temp_AddFaceElem.IsPressed()) {
+			OpenModalFn(AddFaceElemModal);
+		}
 	}
 
 	if (!ui_hidden) {
