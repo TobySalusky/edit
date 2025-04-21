@@ -51,13 +51,14 @@ struct HotKeys {
 	static HotKey SaveProject = HotKey.DvoKey(KEY.S, KEY.SEMICOLON);
 
 	static HotKey DeleteSelection = HotKey.Key(KEY.BACKSPACE);
+	static HotKey AlternativeDeleteSelection = HotKey.DvoKey(KEY.X, KEY.B);
+
 	static HotKey ESCAPE = HotKey.Key(KEY.ESCAPE); // just to be able to re-bind escape as a user, basically
 
 	// :hotkey:temp
 	static HotKey Temp_AddFaceElem = HotKey.DvoKey(KEY.F, KEY.Y);
 
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
-	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.X, KEY.B);
 	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
 
 	// static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);

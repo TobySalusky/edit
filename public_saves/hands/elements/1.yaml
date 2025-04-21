@@ -1,0 +1,99 @@
+name: WaveImg
+start_time: 0.000000
+end_time: 4.650000
+layer: 1
+default_layers:
+  name: Standard Properties
+  kind:
+    which: list
+    type:
+      which: float
+    layers:
+      -
+        name: pos
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: scale
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: rotation
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: opacity
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: color
+        kind:
+          which: Color
+          kl_value:
+            keyframes:
+    immutable: true
+kind: 3
+impl:
+  kind: 3
+  fn_name: WaveImg
+  custom_layer_list:
+    name: Custom Properties
+    kind:
+      which: list
+      type:
+        which: float
+      layers:
+        -
+          name: stretch
+          kind:
+            which: Vec2
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value:
+                    - 0.000000
+                    - -169.769531
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 1.983333
+                  value:
+                    - 0.000000
+                    - 63.175781
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 3.250000
+                  value:
+                    - 611.207031
+                    - 17.445309
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 4.633334
+                  value:
+                    - 1.121094
+                    - -0.230473
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: image
+          kind:
+            which: str
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: script_assets/hands.png
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+      immutable: true

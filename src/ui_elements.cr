@@ -284,10 +284,14 @@ char^ TextBox(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_S
 			},
 		},
 		.backgroundColor = theme.button,
-		.border = .(1, input.is_active() ? theme.active | Colors.Transparent),
+		.border = .(1, input.is_active() ? theme.active | theme.panel_border),
 	}) {
 		if (input.is_active()) {
 			res = input.DoActiveEffects();
+
+			if (key.IsPressed(KEY.ESCAPE)) { // TODO: use hotkeys, but w/o non-input req!
+				UnFocusUIElements();
+			}
 		}
 		#clay({ .layout = { .sizing = .(4, 0) }}) {} // horiz-padding
 
@@ -325,7 +329,7 @@ TextInputState& GetTextInputNamed(char^ unique_name) -> GetTextInput(UiElementID
 // }
 
 struct SlidingFloatTextBoxConfig {
-	float min = c:FLT_MIN;
+	float min = -c:FLT_MAX;
 	float max = c:FLT_MAX;
 	uint font_size = rem(1);
 }

@@ -330,6 +330,23 @@ c:c:`
 		:color,
 		.width = .(all_sides)
 	};
+
+	static Self Vert(ushort vert_width, Color color) -> {
+		:color,
+		.width = {
+			.top = vert_width,
+			.bottom = vert_width,
+		}
+	};
+
+	static Self VertBetween(ushort vert_width, Color color) -> {
+		:color,
+		.width = {
+			.top = vert_width,
+			.bottom = vert_width,
+			.betweenChildren = vert_width,
+		}
+	};
 }
 
 @extern
@@ -417,6 +434,16 @@ struct Clay_ElementDeclaration {
 // Clay_XXX functions ----------------------
 // -----------------------------------------
 struct Clay {
+	static Clay_FloatingElementConfig FloatingPassthru(Vec2 offset) -> {
+		.attachTo = CLAY_ATTACH_TO_PARENT,
+		:offset,
+		// .attachPoints = {
+		// 	.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+		// 	.parent = CLAY_ATTACH_POINT_LEFT_CENTER,
+		// },
+		.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+	};
+
 	// Returns the size, in bytes, of the minimum amount of memory Clay requires to operate at its current settings.
 	static ulong MinMemorySize() -> c:Clay_MinMemorySize();
 
@@ -596,3 +623,29 @@ struct Clay {
 void clay_text(char^ str_that_must_exist_til_next_frame, Clay_TextElementConfig config) {
 	CLAY_TEXT(.(str_that_must_exist_til_next_frame), c:Clay__StoreTextElementConfig(config));
 }
+
+
+// -----------------------------------------------------------------
+void clay_x_grow_spacer() {
+	#clay({
+		.layout = {
+			.sizing = {
+				.width = CLAY_SIZING_GROW(),
+				.height = CLAY_SIZING_FIXED(0),
+			} 
+		}
+	}) {}
+}
+
+
+void clay_y_grow_spacer() {
+	#clay({
+		.layout = {
+			.sizing = {
+				.width = CLAY_SIZING_FIXED(0),
+				.height = CLAY_SIZING_GROW(),
+			} 
+		}
+	}) {}
+}
+

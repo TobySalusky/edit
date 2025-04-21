@@ -24,6 +24,7 @@ interface ElementImpl {
 	void UpdateState(float lt);
 
 	void UI(CustomLayerUIParams& params);
+	void TimelineUI(CustomLayerUIParams& params);
 
 	char^ ImplTypeStr();
 
@@ -74,6 +75,7 @@ yaml_object ElementImplToYaml(ElementImpl^ impl) {
 
 struct RectElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
+	void TimelineUI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#TintColor());
@@ -90,6 +92,7 @@ struct RectElement : ElementImpl {
 
 struct CircleElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
+	void TimelineUI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#TintColor()); // TODO: allow ellipse
@@ -128,6 +131,7 @@ struct ImageElement : ElementImpl {
 	char^ file_path;
 	
 	void UI(CustomLayerUIParams& params) {}
+	void TimelineUI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.TextureRotCenter(ImageCache.Get(file_path), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
@@ -164,6 +168,7 @@ struct VideoElement : ElementImpl {
 	}
 
 	void UI(CustomLayerUIParams& params) {}
+	void TimelineUI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		if (loaded) {
@@ -257,6 +262,8 @@ struct CustomLayerList {
 	List<CustomLayer> layers;
 	void^ list_ptr;
 	bool immutable = false; // constant # of elements!
+
+	bool open = true; // non-serialized
 
 	void AddLayer() {
 		switch (type) {
@@ -442,6 +449,8 @@ choice CustomLayerKind {
 struct CustomLayerUIParams {
 	float max_elem_time;
 	float curr_local_time;
+
+	float& global_time;
 }
 
 
@@ -507,266 +516,298 @@ struct CustomLayer {
 		}
 	}
 
+	static float row_height = rem(1.5);
+	static Clay_Sizing row_sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_FIXED(row_height) };
+	static Clay_ChildAlignment align_y_center = { .y = CLAY_ALIGN_Y_CENTER };
 	void UI(using CustomLayerUIParams& params) {
+		Color bg = kind is CustomLayerList ? (kind as CustomLayerList.immutable ? theme.button | Colors.Transparent) | Colors.Transparent;
 		#clay({
 			.layout = {
-				// TODO: ?
-				.sizing = {
-					.width = CLAY_SIZING_GROW(),
-					.height = CLAY_SIZING_FIXED(rem(1.5))
-				},
-				.childAlignment = {
-					.y = CLAY_ALIGN_Y_CENTER
-				}
-			}
+				.sizing = row_sizing,
+				.childAlignment = align_y_center,
+			},
+			.backgroundColor = bg,
 		}) {
-			#clay({
-				.layout = {
-					.sizing = {
-						.width = CLAY_SIZING_FIXED(100),
-						.height = CLAY_SIZING_GROW(),
-					},
-					.childAlignment = {
-						.y = CLAY_ALIGN_Y_CENTER
-					}
-				},
-				.scroll = { .horizontal = true }
-			}) {
+			if (kind is CustomLayerList) {
+				let& list = kind as CustomLayerList;
+				#clay({ .layout = { .sizing = .(4, 0) }}) {}
 				clay_text(name, {
 					.fontSize = rem(1),
 					.textColor = Colors.White,
 				});
-			}
+				clay_x_grow_spacer();
 
-			Clay_ElementId content_id = .(t"{^this}-content");
-			#clay({
-				.id = content_id,
-				.layout = {
-					.sizing = Clay_Sizing.Grow(),
-					.childAlignment = {
-						.y = CLAY_ALIGN_Y_CENTER
-					}
-				},
-				.scroll = { .horizontal = true },
-			}) {
-				// CONTENT PART
-				switch (kind) {
-					CustomLayerBool it -> {
-						// TODO: check-box UI
-						if (ClayButton(*it.value ? "x" | " ", .(t"{it.value}"), .(rem(1), rem(1)))) {
-							it.kl_value.InsertValue(curr_local_time, !(*it.value));
-							it.kl_value.Set(it.value, curr_local_time);
-						}
-					},
-					CustomLayerFloat it -> {
-						let changed = SlidingFloatTextBox(.(t"{it.value}"), it.value);
-						if (changed is Some) {
-							it.kl_value.InsertValue(curr_local_time, changed as Some);
-							it.kl_value.Set(it.value, curr_local_time);
-						}
-					},
-					CustomLayerInt it -> {
-						// TODO: int-sliding-textbox
-						let changed = SlidingIntTextBox(.(t"{it.value}"), it.value);
-						if (changed is Some) {
-							it.kl_value.InsertValue(curr_local_time, changed as Some);
-							it.kl_value.Set(it.value, curr_local_time);
-						}
-					},
-					CustomLayerVec2 it -> {
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingFloatTextBox(.(t"{it.value}-x"), ^it.value#x);
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, v2(changed as Some, it.value#y));
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingFloatTextBox(.(t"{it.value}-y"), ^it.value#y);
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, v2(it.value#x, changed as Some));
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-					},
-					CustomLayerColor it -> {
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingUCharTextBox(.(t"{it.value}-r"), ^it.value#r, { .min = 0, .max = 255 });
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-									r = changed as Some
-								});
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingUCharTextBox(.(t"{it.value}-g"), ^it.value#g, { .min = 0, .max = 255 });
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-									g = changed as Some
-								});
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingUCharTextBox(.(t"{it.value}-b"), ^it.value#b, { .min = 0, .max = 255 });
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-									b = changed as Some
-								});
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-
-						#clay({
-							.layout = {
-								.sizing = {
-									.width = CLAY_SIZING_FIXED(60),
-									.height = CLAY_SIZING_GROW(),
-								},
-								.childAlignment = {
-									.y = CLAY_ALIGN_Y_CENTER
-								}
-							}
-						}) {
-							let changed = SlidingUCharTextBox(.(t"{it.value}-a"), ^it.value#a, { .min = 0, .max = 255 });
-							if (changed is Some) {
-								it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-									a = changed as Some
-								});
-								it.kl_value.Set(it.value, curr_local_time);
-							}
-						}
-
-						#clay({
-							.layout = {
-								.sizing = .(rem(1), rem(1)),
-							},
-							.backgroundColor = *it.value,
-							.border = .(1, theme.panel_border), // TODO: better color
-						}) {}
-					},
-					CustomLayerStr it -> {
-						Rectangle rect = Clay.GetBoundingBox(content_id);
-						char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
-
-						if (change_text != NULL) {
-							it.kl_value.InsertValue(curr_local_time, strdup(change_text)); // NOTE: keyframes MUST delete str as it is owned!!!
-							it.kl_value.Set(it.value, curr_local_time);
-						}
-					},
-					CustomLayerList it -> { // it is NOT ref!!??
-						if (!it.immutable) {
-							if (ClayButton("+", .(t"{^this}-add"), Clay_Sizing.Grow(), rem(1))) {
-								it.AddLayer();
-							}
-						}
+				if (!list.immutable) {
+					if (ClayButton("+", .(t"{^list}-add"), .(rem(1), rem(1)))) {
+						list.AddLayer();
 					}
 				}
-			}
 
-			custom_layer_timeline_expander.Update();
+				if (ClayButton(list.open ? "^" | "v", .(t"{^list.open}"), .(rem(1), rem(1)))) {
+					list.open = !list.open;
+				}
+			} else {
+				#clay({
+					.layout = {
+						.sizing = {
+							.width = CLAY_SIZING_FIXED(100),
+							.height = CLAY_SIZING_GROW(),
+						},
+						.childAlignment = align_y_center,
+					},
+					.scroll = { .horizontal = true }
+				}) {
+					clay_text(name, {
+						.fontSize = rem(1),
+						.textColor = Colors.White,
+					});
+				}
 
-			// TIMELINE PART
-			Clay_ElementId timeline_id = .(t"{^this}-timeline");
-			#clay({
-				.id = timeline_id,
-				.layout = {
-					.sizing = {
-						.width = CLAY_SIZING_FIXED(custom_layer_timeline_width),
-						.height = CLAY_SIZING_GROW()
+				Clay_ElementId content_id = .(t"{^this}-content");
+				#clay({
+					.id = content_id,
+					.layout = {
+						.sizing = Clay_Sizing.Grow(),
+						.childAlignment = align_y_center,
+					},
+					.scroll = { .horizontal = true },
+				}) {
+					// CONTENT PART
+					switch (kind) {
+						CustomLayerBool it -> {
+							// TODO: check-box UI
+							if (ClayButton(*it.value ? "x" | " ", .(t"{it.value}"), .(rem(1), rem(1)))) {
+								it.kl_value.InsertValue(curr_local_time, !(*it.value));
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						},
+						CustomLayerFloat it -> {
+							let changed = SlidingFloatTextBox(.(t"{it.value}"), it.value);
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, changed as Some);
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						},
+						CustomLayerInt it -> {
+							// TODO: int-sliding-textbox
+							let changed = SlidingIntTextBox(.(t"{it.value}"), it.value);
+							if (changed is Some) {
+								it.kl_value.InsertValue(curr_local_time, changed as Some);
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						},
+						CustomLayerVec2 it -> {
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingFloatTextBox(.(t"{it.value}-x"), ^it.value#x);
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, v2(changed as Some, it.value#y));
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingFloatTextBox(.(t"{it.value}-y"), ^it.value#y);
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, v2(it.value#x, changed as Some));
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+						},
+						CustomLayerColor it -> {
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingUCharTextBox(.(t"{it.value}-r"), ^it.value#r, { .min = 0, .max = 255 });
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+										r = changed as Some
+									});
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingUCharTextBox(.(t"{it.value}-g"), ^it.value#g, { .min = 0, .max = 255 });
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+										g = changed as Some
+									});
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingUCharTextBox(.(t"{it.value}-b"), ^it.value#b, { .min = 0, .max = 255 });
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+										b = changed as Some
+									});
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+
+							#clay({
+								.layout = {
+									.sizing = {
+										.width = CLAY_SIZING_FIXED(60),
+										.height = CLAY_SIZING_GROW(),
+									},
+									.childAlignment = {
+										.y = CLAY_ALIGN_Y_CENTER
+									}
+								}
+							}) {
+								let changed = SlidingUCharTextBox(.(t"{it.value}-a"), ^it.value#a, { .min = 0, .max = 255 });
+								if (changed is Some) {
+									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
+										a = changed as Some
+									});
+									it.kl_value.Set(it.value, curr_local_time);
+								}
+							}
+
+							#clay({
+								.layout = {
+									.sizing = .(rem(1), rem(1)),
+								},
+								.backgroundColor = *it.value,
+								.border = .(1, theme.panel_border), // TODO: better color
+							}) {}
+						},
+						CustomLayerStr it -> {
+							Rectangle rect = Clay.GetBoundingBox(content_id);
+							char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
+
+							if (change_text != NULL) {
+								it.kl_value.InsertValue(curr_local_time, strdup(change_text)); // NOTE: keyframes MUST delete str as it is owned!!!
+								it.kl_value.Set(it.value, curr_local_time);
+							}
+						},
+						CustomLayerList it -> { // it is NOT ref!!??
+						// NOTE: never called
+						}
 					}
-				},
-			}) {
-				Rectangle rect = Clay.GetElementData(timeline_id).boundingBox;
-
-				switch (kind) {
-					CustomLayerBool it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerFloat it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerInt it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerVec2 it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerColor it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerStr it -> {
-						it.kl_value.UI(rect, params.max_elem_time, params.curr_local_time);
-					},
-					CustomLayerList it -> {
-						// ... list itself has no timeline
-					},
 				}
 			}
 		}
 
+		// lists (children) ----------
 		if (kind is CustomLayerList) {
 			let& list = kind as CustomLayerList;
 
-			for (let& child in list.layers) {
-				child.UI(params);
+			if (list.open) {
+
+				#clay({
+					.layout = {
+						.layoutDirection = CLAY_TOP_TO_BOTTOM,
+						.padding = { 12, 0, 0, 0},
+						.sizing = {
+							.width = CLAY_SIZING_GROW()
+						}
+					}
+				}) {
+					for (let& child in list.layers) {
+						child.UI(params);
+					}
+				}
+			}
+		}
+	}
+
+	void TimelineUI(using CustomLayerUIParams& params) {
+		// TIMELINE PART
+		Clay_ElementId timeline_id = .(t"{^this}-timeline");
+		#clay({
+			.id = timeline_id,
+			.layout = {
+				.sizing = row_sizing,
+			},
+		}) {
+			Rectangle rect = Clay.GetElementData(timeline_id).boundingBox;
+
+			switch (kind) {
+				CustomLayerBool it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerFloat it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerInt it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerVec2 it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerColor it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerStr it -> {
+					it.kl_value.UI(rect, params);
+				},
+				CustomLayerList it -> {
+					// ... list itself has no timeline
+				},
 			}
 		}
 
+		// lists (children) ----------
+		if (kind is CustomLayerList) {
+			let& list = kind as CustomLayerList;
+
+			if (list.open) {
+				for (let& child in list.layers) {
+					child.TimelineUI(params);
+				}
+			}
+		}
 	}
 }
 
@@ -785,6 +826,11 @@ struct CustomPureFnElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {
 		if (custom_args_handle is Some) {
 			custom_layer_list.UI(params);
+		}
+	}
+	void TimelineUI(CustomLayerUIParams& params) {
+		if (custom_args_handle is Some) {
+			custom_layer_list.TimelineUI(params);
 		}
 	}
 	void UpdateState(float lt) {
@@ -807,7 +853,9 @@ struct CustomPureFnElement : ElementImpl {
 					.scale = e#scale,
 					.rotation = e#rotation,
 					.color = e#color,
-					// .lt = cur
+					.local_time = current_time - e#start_time,
+					.composition_time = current_time,
+					._element = e,
 					// .text = ""
 				};
 
@@ -1034,6 +1082,14 @@ struct Element {
 	Data^ data;
 
 
+	// Opt<float> _LastKeyframeTime(char^ key_name, float current_local_time, CustomLayerList& list) {
+	// 	for (let& layer in list.layers) {
+	// 		if (str_eq(key_name, layer.name)) {
+	// 		}
+	// 	}
+	// 	return none;
+	// }
+
 	Color TintColor() {
 		Color tint = color;
 		tint.a = (tint.a as float * (opacity / 100.0)) as..;
@@ -1041,6 +1097,9 @@ struct Element {
 	}
 
 	List<CustomLayer>^ CustomLayersListInternalPtr() -> content_impl#CustomLayersList() == NULL ? NULL | ^((content_impl#CustomLayersList())#kind as CustomLayerList).layers;
+
+	CustomLayerList^ DefaultLayersListAsList() -> ^(default_layers.kind as CustomLayerList);
+	CustomLayerList^ CustomLayersListAsList() -> content_impl#CustomLayersList() == NULL ? NULL | ^(content_impl#CustomLayersList()#kind as CustomLayerList);
 
 	void Serialize(Path p, bool is_load) {
 		yaml_serializer s = yaml_serializer.IO(p, is_load);
@@ -1213,9 +1272,99 @@ struct Element {
 		// d.RectRot(pos, scale, rotation, color);
 	}
 
+	static float row_height = rem(1.5);
+	static Clay_Sizing row_sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_FIXED(row_height) };
+	void TimelineLines(CustomLayerUIParams& params) {
+		for (float second = 0.1; second < params.max_elem_time; second += 0.1;) {
+			float line_x = custom_layer_timeline_width * (second / params.max_elem_time);
+			#clay({
+				.layout = {
+					.sizing = {
+						.width = CLAY_SIZING_FIXED(1),
+						.height = CLAY_SIZING_GROW(),
+					}
+				},
+				.floating = Clay.FloatingPassthru({ line_x, 0 }),
+				.backgroundColor = theme.timeline_tenth_second_line,
+			}) {}
+		}
+
+		for (float second = 1; second < params.max_elem_time; second++;) {
+			float line_x = custom_layer_timeline_width * (second / params.max_elem_time);
+			#clay({
+				.layout = {
+					.sizing = {
+						.width = CLAY_SIZING_FIXED(1),
+						.height = CLAY_SIZING_GROW(),
+					}
+				},
+				.floating = Clay.FloatingPassthru({ line_x, 0 }),
+				.backgroundColor = theme.timeline_second_line,
+			}) {}
+		}
+
+		float line_x = custom_layer_timeline_width * (params.curr_local_time / params.max_elem_time);
+		#clay({
+			.layout = {
+				.sizing = {
+					.width = CLAY_SIZING_FIXED(1),
+					.height = CLAY_SIZING_GROW(),
+				}
+			},
+			.floating = Clay.FloatingPassthru({ line_x, 0 }),
+			.backgroundColor = Colors.Orange,
+		}) {}
+	}
+
+	static bool timeline_dragging = false;
 	void UI(CustomLayerUIParams& params) {
-		default_layers.UI(params);
-		content_impl#UI(params);
+		#clay({
+			.layout = {
+				.sizing = Clay_Sizing.Grow(),
+			},
+			// .scroll = { // TODO: only scroll when too many layers!!
+			// 	.vertical = true,
+			// }
+		}) {
+			#clay({
+				.layout = {
+					.sizing = Clay_Sizing.Grow(),
+					.layoutDirection = CLAY_TOP_TO_BOTTOM,
+				},
+				.border = Clay_BorderElementConfig.Vert(1, theme.panel_border)
+			}) {
+				default_layers.UI(params);
+				content_impl#UI(params);
+			}
+
+			custom_layer_timeline_expander.Update();
+
+			#clay({
+				.layout = {
+					.sizing = {
+						.width = CLAY_SIZING_FIXED(custom_layer_timeline_width),
+						.height = CLAY_SIZING_GROW()
+					},
+					.layoutDirection = CLAY_TOP_TO_BOTTOM,
+				},
+				.id = CLAY_ID("keyframe-timeline")
+			}) {
+				Rectangle rect = Clay.GetElementData(CLAY_ID("keyframe-timeline")).boundingBox;
+
+				if (mouse.LeftClickReleased()) {
+					timeline_dragging = false;
+				}
+				if (Clay.Hovered() && mouse.LeftClickPressed()) {
+					timeline_dragging = true;
+				}
+				if (timeline_dragging) {
+					params.global_time = start_time + rect.Amount01(mouse.GetPos()).x * params.max_elem_time;
+				}
+				TimelineLines(params);
+				default_layers.TimelineUI(params);
+				content_impl#TimelineUI(params);
+			}
+		}
 	}
 
 	void UpdateState(float t) {
@@ -1354,6 +1503,28 @@ struct Element {
         }
     }
 }
+
+
+// NOTE: FxArgs-facing API
+// float LastKeyframeTime(Element& elem, char^ key_name, float current_local_time) {
+// 	// // TODO: improve API
+// 	// @partial switch (elem._LastKeyframeTime(key_name, current_local_time, *elem.DefaultLayersListAsList())) {
+// 	// 	float it -> {
+// 	// 		return it;
+// 	// 	}
+// 	// }
+// 	//
+// 	// if (elem.CustomLayersListAsList() != NULL) {
+// 	// 	@partial switch (elem._LastKeyframeTime(key_name, current_local_time, *elem.CustomLayersListAsList())) {
+// 	// 		float it -> {
+// 	// 			return it;
+// 	// 		}
+// 	// 	}
+// 	// }
+//
+// 	return 0;
+// }
+
 
 // KeyframeLayer make_interesting_layer_x() {
 // 	KeyframeLayer layer = .();

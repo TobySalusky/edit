@@ -1,0 +1,110 @@
+name: SineHands
+start_time: 4.650000
+end_time: 5.383333
+layer: 2
+default_layers:
+  name: Standard Properties
+  kind:
+    which: list
+    type:
+      which: float
+    layers:
+      -
+        name: pos
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: scale
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: rotation
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: opacity
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: color
+        kind:
+          which: Color
+          kl_value:
+            keyframes:
+    immutable: true
+kind: 3
+impl:
+  kind: 3
+  fn_name: SineHands
+  custom_layer_list:
+    name: Custom Properties
+    kind:
+      which: list
+      type:
+        which: float
+      layers:
+        -
+          name: min_stretch_x
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+        -
+          name: max_stretch_x
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+        -
+          name: speed_x
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: 9.023438
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: min_stretch_y
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: -45.390625
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: max_stretch_y
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: 46.289062
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: speed_y
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: 2.914062
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+      immutable: true

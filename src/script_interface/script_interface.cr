@@ -3,6 +3,11 @@ import list;
 import rl;
 import yaml; // TODO: remove reliance on yaml from this file so script won't need it!
 
+c:`
+typedef struct Element Element;
+// extern float LastKeyframeTime(Element*, char*, float);
+`;
+
 /// -----------------------------------------
 // base args for @fx_fn's
 struct FxArgs {
@@ -10,8 +15,13 @@ struct FxArgs {
 	Vec2 scale;
 	float rotation;
 	Color color;
-	// float lt;
+	float local_time; // alias lt?
+	float composition_time; // alias ct?
 	// TODO: local-time, global-time, proportion_done, inverse_proportion_done
+
+	c:Element^ _element; // NOTE: dangerous - only use if you know what you're doing, otherwise stick to the non-underscored APIs!!
+
+	// float LastKeyframeTime(char^ key_name) -> c:LastKeyframeTime(_element, key_name, local_time);
 }
 
 // struct CustomStructMemberTypeInt {}

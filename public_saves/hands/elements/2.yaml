@@ -1,0 +1,157 @@
+name: RainbowVignette
+start_time: 0.000000
+end_time: 9.983334
+layer: 0
+default_layers:
+  name: Standard Properties
+  kind:
+    which: list
+    type:
+      which: float
+    layers:
+      -
+        name: pos
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: scale
+        kind:
+          which: Vec2
+          kl_value:
+            keyframes:
+      -
+        name: rotation
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: opacity
+        kind:
+          which: float
+          kl_value:
+            keyframes:
+      -
+        name: color
+        kind:
+          which: Color
+          kl_value:
+            keyframes:
+    immutable: true
+kind: 3
+impl:
+  kind: 3
+  fn_name: RainbowVignette
+  custom_layer_list:
+    name: Custom Properties
+    kind:
+      which: list
+      type:
+        which: float
+      layers:
+        -
+          name: zoom
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: 2221.851562
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 0.650000
+                  value: 416.136719
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 0.650000
+                  value: 2057.843750
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 2.916667
+                  value: 2731.105469
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 4.633334
+                  value: 2057.843750
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 9.950001
+                  value: 3822.269531
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: offset
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.650000
+                  value: 23.878906
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 2.916667
+                  value: 305.933594
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 4.633334
+                  value: 23.878910
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 7.083333
+                  value: -592.100952
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 9.950001
+                  value: 1851.925781
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+        -
+          name: intensity
+          kind:
+            which: float
+            kl_value:
+              keyframes:
+                -
+                  time: 0.000000
+                  value: -44.449219
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 0.366667
+                  value: 464.785156
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 0.650000
+                  value: 73.371094
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 2.916667
+                  value: 500.500000
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 4.633334
+                  value: 73.371086
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+                -
+                  time: 9.950001
+                  value: 636.375000
+                  in_interpolation_mode: 0
+                  out_interpolation_mode: 0
+      immutable: true

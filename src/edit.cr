@@ -1,3 +1,12 @@
+c:c:`
+#pragma GCC diagnostic push
+#ifdef _WIN32
+	// #pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
+#else
+	#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#endif
+`;
+
 import rl;
 import theming;
 import timer;
@@ -65,8 +74,14 @@ int frame_rate = 60;
 
 int current_frame = 0;
 float current_time = 0;
-float max_time = 5;
+
+float max_time = GlobalSettings.get_float("default_max_time", 5); // 5 second default, can be changed in saves/globalsettings.yaml
 int max_frames = (max_time * frame_rate) as int;
+void set_max_time(float new_max_time) {
+	max_time = GlobalSettings.set_float("max_time", new_max_time);
+	max_frames = (max_time * frame_rate) as int;
+}
+
 float time_per_frame = 1.0 / frame_rate;
 
 float STREAM_DURATION = time_per_frame * max_frames;
@@ -205,6 +220,7 @@ struct ProjectSave {
 		char^ project_name = obj.get_str("project_name");
 		char^ edit_version = obj.get_str("edit_version");
 		int num_elements = obj.get_int("num_elements");
+		set_max_time(obj.get_float_default("max_time", 30));
 
 		// obj.delete();
 
@@ -233,6 +249,7 @@ struct ProjectSave {
 		manifest.put_literal("project_name", name);
 		manifest.put_literal("edit_version", "0.0.1");
 		manifest.put_int("num_elements", elements.size);
+		manifest.put_float("max_time", max_time);
 
 		manifest.serialize_to(project_dir_path/"manifest.yaml");
 
@@ -1202,7 +1219,7 @@ void GameTick() {
 		ui_hidden = !ui_hidden;
 	}
 
-	if (elements.size > 1 && HotKeys.Temp_DeleteElement.IsPressed()) {
+	if (elements.size > 1 && (HotKeys.DeleteSelection.IsPressed() || HotKeys.AlternativeDeleteSelection.IsPressed())) {
 		elements.remove_at(selected_elem_i);
 		CullEmptyLayers();
 		if (selected_elem_i == elements.size) { selected_elem_i--; }
@@ -1457,19 +1474,30 @@ enum PanelDragDir {
 void SidePanelContents() {
 	Element& selected = elements.get(selected_elem_i);
 
-	CLAY_TEXT(.(t"Selected: {selected.name}"), CLAY_TEXT_CONFIG({
-		.fontSize = 32,
-		.textColor = Colors.White
-	}));
+	#clay({
+		.layout = {
+			.sizing = {
+				.width = CLAY_SIZING_GROW(),
+				.height = CLAY_SIZING_FIXED(rem(2)),
+			},
+			.padding = { 8, 8, 2, 2 }
+		},
+		.backgroundColor = theme.button,
+	}) {
+		CLAY_TEXT(.(t"Selected: {selected.name}"), CLAY_TEXT_CONFIG({
+			.fontSize = rem(1.5),
+			.textColor = Colors.White
+		}));
+	}
 	// // vert spacer ---
 	// #clay({ .layout = { .sizing = .(0, 16) } }) {}
 
 	let& selected_elem = elements.get(selected_elem_i);
 	float max_elem_time = selected_elem.duration;
 
-	float curr_local_time = current_time - selected_elem.start_time;
+	float curr_local_time = std.clamp(current_time - selected_elem.start_time, 0, selected_elem.duration);
 
-	CustomLayerUIParams params = { :max_elem_time, :curr_local_time };
+	CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = current_time };
 	selected_elem.UI(params);
 }
 
@@ -1656,7 +1684,18 @@ int main(int argc, char^^ argv) {
 
 	defer {
 		if (args.save_to_project != NULL) {
-			ProjectSave.Create(Path("saves")/args.save_to_project, args.save_to_project);
+			Path p = Path("saves")/args.save_to_project;
+			string project_name = .(args.save_to_project);
+
+			if (io.dir_exists(p)) {
+				Path new_p = Path("saves")/t"{project_name.str}_old_{rl.GetRandomValue(0, 1000)}";
+				defer free(new_p.str);
+
+				if (!io.mv(p, new_p)) {
+					println(t"moving old save from '{p.str}' to '{new_p.str}' failed... overwriting :(");
+				}
+			}
+			ProjectSave.Create(p, project_name);
 		}
 	}
 
@@ -1664,3 +1703,7 @@ int main(int argc, char^^ argv) {
 
     return 0;
 }
+
+c:c:`
+#pragma GCC diagnostic pop
+`;

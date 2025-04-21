@@ -1,6 +1,8 @@
 import std;
 import rl;
 
+Texture pixel = rl.LoadTextureFromImageDestructively(rl.GenImageColor(1, 1, Colors.White));
+
 struct ShaderHotReloadBundle {
 	Shader shader;
 	long last_stat_mtime;
@@ -62,5 +64,19 @@ struct TextureHotReload {
 		}
 
 		return bundles.get(path).texture;
+	}
+}
+
+
+struct TextureCache {
+	static StrMap<Texture> textures = .();
+	static Texture& Get(char^ path) {
+		if (!io.file_exists(path)) {
+			return pixel; // NOTE: FILE DNE (log?)
+		}
+		if (!textures.has(path)) {
+			textures.put(path, rl.LoadTexture(path));
+		}
+		return textures.get(path);
 	}
 }

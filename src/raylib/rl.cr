@@ -770,6 +770,8 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 
 	static Rectangle Centered(Vec2 center, Vec2 dims) -> FromV(center - dims.divide(2), dims);
 
+	Vec2 Amount01(Vec2 v) -> ((v - tl()) / dimen()).clamp({0, 0}, {1, 1});
+
 	Vec2 tl() -> { :x, :y };
 	Vec2 tr() -> { .x = x + width, :y };
 	Vec2 bl() -> { :x, .y = y + height };

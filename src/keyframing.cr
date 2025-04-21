@@ -285,7 +285,7 @@ struct KeyframeLayer<T> {
 		keyframes = List<Keyframe<T>>();
 	}
 
-	void UI(Rectangle rect, float max_elem_time, float curr_local_time) {
+	void UI(Rectangle rect, CustomLayerUIParams& params) {
 		let dimens = rect.dimen();
 
 		#clay({ // TODO: good lsp-support/checking in templates!
@@ -295,7 +295,7 @@ struct KeyframeLayer<T> {
 		}) {
 			for (int i = 0; i != keyframes.size; i++;) {
 				let& keyframe = keyframes.get(i);
-				float t = keyframe.time / max_elem_time;
+				float t = keyframe.time / params.max_elem_time;
 
 				Vec2 offset = v2(dimens.x * t, 0);
 

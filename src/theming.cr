@@ -76,6 +76,9 @@ struct Theme {
 
 	Color progress_bar_bg;
 	Color progress_bar_fg;
+
+	Color timeline_second_line;
+	Color timeline_tenth_second_line;
 }
 
 Theme MakeDarkTheme() -> {
@@ -118,6 +121,9 @@ Theme MakeDarkTheme() -> {
 
 	.progress_bar_bg = hex("262626"), // gray
 	.progress_bar_fg = hex("afc7af"), // green
+
+	.timeline_second_line = hex("6b6b6bDD"),
+	.timeline_tenth_second_line = hex("6b6b6b55"),
 };
 
 Theme theme = MakeDarkTheme();

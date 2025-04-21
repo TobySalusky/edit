@@ -1,3 +1,12 @@
+c:c:`
+#pragma GCC diagnostic push
+#ifdef _WIN32
+	// #pragma GCC diagnostic ignored ""
+#else
+	#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+`;
+
 c:import <"libavutil/avassert.h">;
 c:import <"libavutil/channel_layout.h">;
 c:import <"libavutil/opt.h">;
@@ -12,6 +21,8 @@ c:import <"libswresample/swresample.h">;
 
 import std;
 import rl;
+
+bool ffmpeg_debug = false; // turns on/off bunch of printf's for debugging ffmpeg stuff
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +120,9 @@ static int write_frame(AVFormatContext *fmt_ctx, AVCodecContext *c,
         pkt->stream_index = st->index;
 
         /* Write the compressed frame to the media file. */
-        log_packet(fmt_ctx, pkt);
+		if (ffmpeg_debug) {
+			log_packet(fmt_ctx, pkt);
+		}
         ret = av_interleaved_write_frame(fmt_ctx, pkt);
         /* pkt is now blank (av_interleaved_write_frame() takes ownership of
          * its contents and resets pkt), so that no unreferencing is necessary.
@@ -136,7 +149,9 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
     if ((*codec)->id == AV_CODEC_ID_MPEG4) {
         *codec = avcodec_find_encoder_by_name("libopenh264");
     }
-    printf("\n ==========  %s  ==========\n",(*codec)->name);
+	if (ffmpeg_debug) {
+		printf("\n ==========  %s  ==========\n",(*codec)->name);
+	}
     if (!(*codec)) {
         fprintf(stderr, "Could not find encoder for '%s'\n",
                 avcodec_get_name(codec_id));
@@ -633,7 +648,7 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Image> &imported
 			img.setXY(x, y, c:pixel);
 		}
 	}
-    c:ImageFlipVertical(^img);
+    // c:ImageFlipVertical(^img);
 	imported_images.add(img);
 	c:c:`
 	av_freep(&rgb_frame->data[0]);  // Free the data
@@ -659,8 +674,10 @@ int output_video_frame(c:AVFrame ^frame, List<Image>& imported_images)
         return -1;
     }
 
-    printf("video_frame n:%d\n",
-           video_frame_count++);
+	if (ffmpeg_debug) {
+		printf("video_frame n:%d\n",
+			   video_frame_count++);
+	}
 
     /* copy decoded frame to destination buffer:
      * this is required since rawvideo expects non aligned data */
@@ -680,9 +697,11 @@ c:c:`
 static int output_audio_frame(AVFrame *frame)
 {
     size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample(frame->format);
-    printf("audio_frame n:%d nb_samples:%d pts:%s\n",
-           audio_frame_count++, frame->nb_samples,
-           av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
+	if (ffmpeg_debug) {
+		printf("audio_frame n:%d nb_samples:%d pts:%s\n",
+			   audio_frame_count++, frame->nb_samples,
+			   av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
+	}
 
     /* Write the raw audio data samples of the first plane. This works
      * fine for packed formats (e.g. AV_SAMPLE_FMT_S16). However,
@@ -911,9 +930,9 @@ struct EncodingDecoding {
 			goto end;
 		}
 
-		if (video_stream)
+		if (video_stream && ffmpeg_debug)
 			printf("Demuxing video from file '%s' into '%s'\n", src_filename, video_dst_filename);
-		if (audio_stream)
+		if (audio_stream && ffmpeg_debug)
 			printf("Demuxing audio from file '%s' into '%s'\n", src_filename, audio_dst_filename);
 
 		/* read frames from the file */
@@ -937,9 +956,11 @@ struct EncodingDecoding {
 		if (audio_dec_ctx)
 			decode_packet(audio_dec_ctx, NULL, imported_images);
 
-		printf("Demuxing succeeded.\n");
+		if (ffmpeg_debug) {
+			printf("Demuxing succeeded.\n");
+		}
 
-		if (video_stream) {
+		if (video_stream && ffmpeg_debug) {
 			printf("Play the output video file with the command:\n"
 				   "ffplay -f rawvideo -pixel_format %s -video_size %dx%d %s\n",
 				   av_get_pix_fmt_name(pix_fmt), width, height,
@@ -953,9 +974,11 @@ struct EncodingDecoding {
 
 			if (av_sample_fmt_is_planar(sfmt)) {
 				const char *packed = av_get_sample_fmt_name(sfmt);
-				printf("Warning: the sample format the decoder produced is planar "
-					   "(%s). This example will output the first channel only.\n",
-					   packed ? packed : "?");
+				if (ffmpeg_debug) {
+					printf("Warning: the sample format the decoder produced is planar "
+						   "(%s). This example will output the first channel only.\n",
+						   packed ? packed : "?");
+				}
 				sfmt = av_get_packed_sample_fmt(sfmt);
 				n_channels = 1;
 			}
@@ -969,10 +992,12 @@ struct EncodingDecoding {
 			} else {
 				channel_type = "stereo";
 			}
-			printf("Play the output audio file with the command:\n"
-				   "ffplay -f %s -ch_layout %s -ar %d %s\n",
-				   fmt, channel_type, audio_dec_ctx->sample_rate,
-				   audio_dst_filename);
+			if (ffmpeg_debug) {
+				printf("Play the output audio file with the command:\n"
+					   "ffplay -f %s -ch_layout %s -ar %d %s\n",
+					   fmt, channel_type, audio_dec_ctx->sample_rate,
+					   audio_dst_filename);
+			}
 		}
 
 	end:
@@ -1013,7 +1038,9 @@ struct EncodingDecoding {
 		/* allocate the output media context */
 		avformat_alloc_output_context2(&oc, NULL, NULL, filename);
 		if (!oc) {
-			printf("Could not deduce output format from file extension: using MPEG.\n");
+			if (ffmpeg_debug) {
+				printf("Could not deduce output format from file extension: using MPEG.\n");
+			}
 			avformat_alloc_output_context2(&oc, NULL, "mpeg", filename);
 			return;
 		}
@@ -1089,3 +1116,7 @@ struct EncodingDecoding {
 		`;
 	}
 }
+
+c:c:`
+#pragma GCC diagnostic pop
+`;

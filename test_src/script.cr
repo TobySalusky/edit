@@ -12,26 +12,92 @@ import data;
 int CANVAS_WIDTH = 1200;
 int CANVAS_HEIGHT = 900;
 
-// @fx_args
-// struct PointSwarmArgs {
-// 	List<float> fs;
-// 	float dot_size;
-// }
+c:import <"math.h">;
+float Sin01(float angle) {
+	return (c:sin(angle) + 1) / 2;
+}
 
-// @fx_fn
-// void PointSwarm(FxArgs& args, using PointSwarmArgs& margs) {
-// 	for (int i in 0..(fs.size/2)) {
-// 		Vec2 p = v2(fs.get(i*2), fs.get(i*2 + 1));
-// 		d.Circle(p, dot_size, Colors.Red);
-//
-// 		for (int j in 0..(fs.size/2)) {
-// 			if (i != j) {
-// 				Vec2 other_p = v2(fs.get(j*2), fs.get(j*2 + 1));
-// 				d.Line(p, other_p, 3, Colors.Yellow);
-// 			}
-// 		}
-// 	}
-// }
+float SinBetween(float min, float max, float angle) {
+	return min + (max - min) * Sin01(angle);
+}
+
+@fx_args
+struct SineHandsArgs {
+	float min_stretch_x = -500;
+	float max_stretch_x = 500;
+
+	float speed_x = 10;
+
+	float min_stretch_y = -500;
+	float max_stretch_y = 500;
+
+	float speed_y = 10;
+}
+
+@fx_fn
+void SineHands(FxArgs& args, using SineHandsArgs& margs) {
+	float angle_x = args.local_time * speed_x;
+	float angle_y = args.local_time * speed_y;
+	WaveImgArgs wave_margs = {
+		.stretch = { SinBetween(min_stretch_x, max_stretch_x, angle_x), SinBetween(min_stretch_y, max_stretch_y, angle_y) },
+		.image = "script_assets/hands.png",
+	};
+
+	WaveImg(args, wave_margs);
+}
+
+@fx_args
+struct WaveImgArgs {
+	Vec2 stretch = {};
+	char^ image = "";
+}
+
+@fx_fn
+void WaveImg(FxArgs& args, using WaveImgArgs& margs) {
+	Shader& wave_shader = ShaderHotReload.Get("script_assets/hand_wave.frag");
+	Texture& hands_texture = TextureCache.Get(image);
+
+	if (!wave_shader.IsValid()) { return; }
+
+    c:SetTextureWrap(hands_texture, c:TEXTURE_WRAP_CLAMP);
+
+	wave_shader.Begin();
+		wave_shader.SetFloat("amount_x", stretch.x);
+		wave_shader.SetFloat("amount_y", stretch.y);
+		d.TextureAtSizeVColor(hands_texture, {0,0}, {1200, 900}, args.color);
+	wave_shader.End();
+}
+
+@fx_args
+struct RainbowVignetteArgs {
+	float zoom = 100;
+	float offset = 100;
+	float intensity = 100;
+}
+
+@fx_fn
+void RainbowVignette(FxArgs& args, using RainbowVignetteArgs& margs) {
+	Shader& shader = ShaderHotReload.Get("script_assets/rainbow_vignette.frag");
+
+	if (!shader.IsValid()) { return; }
+
+	shader.Begin();
+		shader.SetFloat("zoom", zoom / 100);
+		shader.SetFloat("offset", offset / 100);
+		shader.SetFloat("intensity", intensity / 100);
+		d.TextureAtSizeVColor(pixel, {0,0}, {1200, 900}, args.color);
+	shader.End();
+}
+
+@fx_args
+struct AppearingTextArgs {
+	char^ text = f"";
+	int chars_per_sec = 5;
+}
+
+@fx_fn
+void AppearingText(FxArgs& args, using AppearingTextArgs& margs) {
+}
 
 @fx_args
 struct RobotArmArgs {
@@ -48,10 +114,6 @@ void RobotArm(FxArgs& args, using RobotArmArgs& margs) {
 	d.Line(start, mid_joint, width, args.color);
 	d.Line(mid_joint, end, width, args.color);
 }
-
-
-
-Texture pixel = rl.LoadTextureFromImageDestructively(rl.GenImageColor(1, 1, Colors.White));
 
 @fx_args
 struct PathGradArgs {
