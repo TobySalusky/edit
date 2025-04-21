@@ -10,6 +10,9 @@ struct Face {
 	int roll;
 	int pitch;
 	int yaw;
+	int frame_width;
+	int frame_height;
+	int frame_rate;
 }
 
 List<Face> cv_pipe() {
@@ -17,7 +20,7 @@ List<Face> cv_pipe() {
 	List<Face> face_data = .();
 
 	c:c:`
-    FILE *pipe = popen("python piping.py", "r");
+    FILE *pipe = popen("python piping.py white_lotus_short.mp4", "r");
     if (!pipe) {
         fprintf(stderr, "Failed to launch Python script: %s\n", strerror(errno));
     }
@@ -74,10 +77,22 @@ List<Face> cv_pipe() {
 		struct json_number_s* yaw_number = json_value_as_number(yaw_element->value);
 		int yaw = atoi(yaw_number->number);
 
+		struct json_object_element_s* frame_width_element = yaw_element->next;
+		struct json_number_s* frame_width_number = json_value_as_number(frame_width_element->value);
+		int frame_width = atoi(frame_width_number->number);
+
+		struct json_object_element_s* frame_height_element = frame_width_element->next;
+		struct json_number_s* frame_height_number = json_value_as_number(frame_height_element->value);
+		int frame_height = atoi(frame_height_number->number);
+
+		struct json_object_element_s* frame_rate_element = frame_height_element->next;
+		struct json_number_s* frame_rate_number = json_value_as_number(frame_rate_element->value);
+		int frame_rate = atoi(frame_rate_number->number);
+
         printf("Received: %s\n", line);
         printf("x: %d y: %d w: %d h: %d m: %d\n", x, w, y, h, m);
 
-		Face f = {x, y, w, h, m, roll, pitch, yaw};
+		Face f = {x, y, w, h, m, roll, pitch, yaw, frame_width, frame_height, frame_rate};
 		`;
 		face_data.add(c:f);
 		c:c:`

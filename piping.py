@@ -20,7 +20,7 @@ model_points = np.array([
 ])
 
 
-file_path = "white_lotus_short.mp4"
+file_path = sys.argv[1]
 # file_path = "C:/Users\data\Downloads/riko.mp4"
 # file_path = "C:/Users\data\Downloads\gojo_toji.mp4"
 
@@ -29,6 +29,7 @@ cap = cv2.VideoCapture(file_path)
 # Camera internals
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+frame_rate = int(cap.get(cv2.CAP_PROP_FPS))
 size = (frame_width, frame_height)
 focal_length = size[1]
 center = (size[1] / 2, size[0] / 2)
@@ -126,7 +127,10 @@ def main():
                 "mouth": int(bool(mouth_open_dist > threshold)),
                 "roll": int(roll),
                 "pitch": int(pitch),
-                "yaw": int(yaw)}
+                "yaw": int(yaw),
+                "frame_width": frame_width,
+                "frame_height": frame_height,
+                "frame_rate": frame_rate}
 
 
         cv2.imshow("Face Rotation", frame)

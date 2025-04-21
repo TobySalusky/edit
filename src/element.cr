@@ -207,8 +207,6 @@ struct FaceElement : ElementImpl {
 	Texture close = rl.LoadTexture("popcat_close_trans.png");
 
 	// hard coded 
-	float height_weight = 900.0/720.0;
-	float width_weight = 1200.0/1280.0;
 	Color alpha = c:WHITE;
 	
 	float yaw_flip = 1;
@@ -228,8 +226,14 @@ struct FaceElement : ElementImpl {
 		alpha.a = 150;
 
 		// todo: unhard framerate
+		int frame_rate = face_data.get(0).frame_rate;
+		float frame_width = face_data.get(0).frame_width as float;
+		float frame_height = face_data.get(0).frame_height as float;
+
+		float height_weight = 900.0/ frame_height;
+		float width_weight = 1200.0/ frame_width;
 		
-		Face f = face_data.get(((current_time - e#start_time) * 24) as int % face_data.size);
+		Face f = face_data.get(((current_time - e#start_time) * frame_rate) as int % face_data.size);
 
 		yaw_flip = (f.yaw > yaw_thresh) ? -1.0 | 1.0;
 
