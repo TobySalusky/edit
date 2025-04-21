@@ -227,6 +227,30 @@ struct CustomLayerStr {
 	KeyframeLayer<char^> kl_value;
 }
 
+struct CustomLayerListAdder<T, CustomLayerT> {
+	static void AddLayer(using CustomLayerList& list) {
+		let fs = list_ptr as List<T>^;
+
+		fs#add(KeyframeInterpolator<T>.DefaultValue()); // TODO: check whether resized
+		layers.add({
+			.name = f"[{layers.size}]",
+			.deleted_member = false,
+			.kind = CustomLayerT{
+				.value = NULL, // NOTE: set below
+				.kl_value = .()
+			}
+		});
+
+		if (layers.size != fs#size) {
+			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
+		}
+
+		for (int i in 0..layers.size) {
+			(layers.get(i).kind as CustomLayerT).value = ^fs#get(i);
+		}
+	}
+}
+
 struct CustomLayerList {
 	CustomStructMemberType type;
 
@@ -237,163 +261,26 @@ struct CustomLayerList {
 	void AddLayer() {
 		switch (type) {
 			CustomStructMemberTypeBool -> {
-				AddBoolLayer();
+				CustomLayerListAdder<bool, CustomLayerBool>.AddLayer(this);
 			},
 			CustomStructMemberTypeFloat -> {
-				AddFloatLayer();
+				CustomLayerListAdder<float, CustomLayerFloat>.AddLayer(this);
 			},
 			CustomStructMemberTypeStr -> {
-				AddStrLayer();
+				CustomLayerListAdder<char^, CustomLayerStr>.AddLayer(this);
 			},
 			CustomStructMemberTypeInt -> {
-				AddIntLayer();
+				CustomLayerListAdder<int, CustomLayerInt>.AddLayer(this);
 			},
 			CustomStructMemberTypeColor -> {
-				AddColorLayer();
+				CustomLayerListAdder<Color, CustomLayerColor>.AddLayer(this);
 			},
 			CustomStructMemberTypeVec2 -> {
-				AddVec2Layer();
+				CustomLayerListAdder<Vec2, CustomLayerVec2>.AddLayer(this);
 			},
 			else -> {
 				println("[WARNING]: AddLayer {kind = ?} not impl!!");
 			}
-		}
-	}
-
-	void AddBoolLayer() {
-		let fs = list_ptr as List<bool>^;
-
-		fs#add(false); // TODO: check whether resized
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerBool{
-				.value = NULL, // NOTE: set below
-				.kl_value = .()
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerBool).value = ^fs#get(i);
-		}
-	}
-
-	void AddFloatLayer() {
-		let fs = list_ptr as List<float>^;
-
-		fs#add(0); // TODO: check whether resized
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerFloat{
-				.value = NULL, // NOTE: set below
-				.kl_value = .()
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		// set to float list internals!
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerFloat).value = ^fs#get(i);
-		}
-	}
-
-	void AddIntLayer() {
-		let fs = list_ptr as List<int>^;
-
-		fs#add(0); // TODO: check whether resized
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerInt{
-				.value = NULL, // NOTE: set below
-				.kl_value = .()
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		// set to float list internals!
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerInt).value = ^fs#get(i);
-		}
-	}
-
-	void AddVec2Layer() {
-		let fs = list_ptr as List<Vec2>^;
-
-		fs#add({});
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerVec2{
-				.value = NULL, // NOTE: set below
-				.kl_value = .()
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		// set to float list internals!
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerVec2).value = ^fs#get(i);
-		}
-	}
-
-	void AddColorLayer() {
-		let fs = list_ptr as List<Color>^;
-
-		fs#add({ .r = 0, .g = 0, .b = 0, .a = 255 }); // NOTE: pure-black default?
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerColor{
-				.value = NULL, // NOTE: set below
-				.kl_value = .()
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		// set to float list internals!
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerColor).value = ^fs#get(i);
-		}
-	}
-
-	void AddStrLayer() {
-		let fs = list_ptr as List<char^>^;
-
-		fs#add(""); // TODO: check whether resized
-		layers.add({
-			.name = f"[{layers.size}]",
-			.deleted_member = false,
-			.kind = CustomLayerStr{
-				.value = NULL, // NOTE: set below
-				.kl_value = .(),
-			}
-		});
-
-		if (layers.size != fs#size) {
-			assert(layers.size == fs#size, "layers.size != fs#size   !!!");
-		}
-
-		// set to float list internals!
-		for (int i in 0..layers.size) {
-			(layers.get(i).kind as CustomLayerStr).value = ^fs#get(i);
 		}
 	}
 }
@@ -431,8 +318,13 @@ choice CustomLayerKind {
 				it.kl_value = stealee as CustomLayerStr.kl_value;
 			},
 			CustomLayerList it -> {
+				let& stolen = stealee as CustomLayerList;
+				for (int i in 0..stolen.layers.size) {
+					it.AddLayer();
+					it.layers.get(i).kind.StealData(stolen.layers.get(i).kind);
+				}
 				// TODO: wee sus on this one, just check ok? :7))))))333
-				it.layers = stealee as CustomLayerList.layers;
+				// it.layers = ;
 			},
 		}
 	}
@@ -1360,9 +1252,9 @@ struct Element {
 						if (!layer_map.has(layer_name)) {
 							// Add a new layer if it doesn't exist
 							if (ListContainsString(data.headers, "Value")) {
-								layer_list.AddFloatLayer();
+								CustomLayerListAdder<float, CustomLayerFloat>.AddLayer(layer_list);
 							} else if (ListContainsString(data.headers, "Text")) {
-								layer_list.AddStrLayer();
+								CustomLayerListAdder<char^, CustomLayerStr>.AddLayer(layer_list);
 							}
 	
 							let new_layer = ^layer_list.layers.get(layer_list.layers.size - 1);
