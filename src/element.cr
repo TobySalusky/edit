@@ -216,6 +216,9 @@ struct FaceElement : ElementImpl {
 	bool popping = true;
 
 	CustomLayer^ CustomLayersList() -> NULL;
+	int frame_rate = 0;
+	float frame_width = 0;
+	float frame_height = 0;
 
 	void UI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
@@ -226,9 +229,11 @@ struct FaceElement : ElementImpl {
 		alpha.a = 150;
 
 		// todo: unhard framerate
-		int frame_rate = face_data.get(0).frame_rate;
-		float frame_width = face_data.get(0).frame_width as float;
-		float frame_height = face_data.get(0).frame_height as float;
+		if (frame_rate == 0) {
+			frame_rate = face_data.get(0).frame_rate;
+			frame_width = face_data.get(0).frame_width as float;
+			frame_height = face_data.get(0).frame_height as float;
+		}
 
 		float height_weight = 900.0/ frame_height;
 		float width_weight = 1200.0/ frame_width;
