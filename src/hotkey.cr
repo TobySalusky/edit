@@ -1,6 +1,5 @@
 import std;
 import rl;
-import ui_elements;
 
 struct Env {
 	static bool is_dvorak = c:getenv("SILLY_DVORAK_USER") != NULL;
@@ -10,12 +9,16 @@ struct Env {
 	}
 }
 
+c:`
+// avoid cyclic import w/ ui_elements.cr
+extern bool NoTextInputFocused(void);
+`;
 
 struct HotKey {
 	int key_code;
 	// TODO: modifiers
 
-	bool IsPressed() -> NoTextInputFocused() && key.IsPressed(key_code);
+	bool IsPressed() -> (c:NoTextInputFocused() as bool) && key.IsPressed(key_code);
 
 	static Self DvoKey(int keycode_qwerty, int keycode_dvorak) -> {
 		.key_code = Env.is_dvorak ? keycode_dvorak | keycode_qwerty 
@@ -47,7 +50,8 @@ struct HotKeys {
 	static HotKey OpenProject = HotKey.DvoKey(KEY.O, KEY.S);
 	static HotKey SaveProject = HotKey.DvoKey(KEY.S, KEY.SEMICOLON);
 
-
+	static HotKey DeleteSelection = HotKey.Key(KEY.BACKSPACE);
+	static HotKey ESCAPE = HotKey.Key(KEY.ESCAPE); // just to be able to re-bind escape as a user, basically
 
 	// :hotkey:temp
 	static HotKey Temp_AddFaceElem = HotKey.DvoKey(KEY.F, KEY.Y);
@@ -58,7 +62,5 @@ struct HotKeys {
 
 	// static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
 
-
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
-
 }

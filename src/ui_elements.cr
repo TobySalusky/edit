@@ -4,6 +4,7 @@ import std;
 import clay_lib;
 import global_settings;
 import cursor;
+import hotkey;
 
 uint root_font_size = GlobalSettings.get_int("root_font_size", 24);
 
@@ -577,7 +578,7 @@ void ModalUI(using ModalState& state) {
 		}
 	}
 
-	if (key.IsPressed(KEY.ESCAPE)) {
+	if (HotKeys.ESCAPE.IsPressed()) {
 		CloseModal();
 		// TODO: think abt stacked modals (this broken omg)
 	}
