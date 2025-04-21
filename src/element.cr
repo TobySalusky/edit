@@ -195,10 +195,16 @@ struct FaceElement : ElementImpl {
 	//char^ sound_path = OpenImageFileDialog("Select sound file");
 
 
-	Texture open = rl.LoadTexture("popcat_open.jpg");
-	Texture close = rl.LoadTexture("popcat_close.jpg");
+	Texture open = rl.LoadTexture("popcat_open_trans.png");
+	Texture close = rl.LoadTexture("popcat_close_trans.png");
 
-
+	// hard coded 
+	float height_weight = 900.0/720.0;
+	float width_weight = 1200.0/1280.0;
+	Color alpha = c:WHITE;
+	
+	float yaw_flip = 1;
+	int yaw_thresh = 20;
 
 	c:Sound pop = c:LoadSound("assets/pop.mp3");
 	bool popping = true;
@@ -207,14 +213,34 @@ struct FaceElement : ElementImpl {
 
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
-		Face f = face_data.get(((current_time - e#start_time) * 30) as int % face_data.size);
-		Rectangle openSourceRec = { 0, 0, open.width, -open.height};
-		Rectangle closeSourceRec = { 0, 0, close.width, -close.height};
-		c:c:`
-		Rectangle sourceRec = { 0, 0, (float)f.w, (float)f.h };
-        Rectangle destRec = { f.x, f.y, f.w, f.h };
-        Vector2 origin = { f.w/2.0f, f.h/2.0f };
-		`;
+		if (face_data.is_empty()) {
+			return;
+		}
+		alpha.a = 150;
+
+		// todo: unhard framerate
+		
+		Face f = face_data.get(((current_time - e#start_time) * 24) as int % face_data.size);
+
+		yaw_flip = (f.yaw > yaw_thresh) ? -1.0 | 1.0;
+
+		float face_w = (f.w as float * width_weight);
+		float face_h = (f.h as float * height_weight);
+		int face_x = ((f.x as float * width_weight) + face_w/2.0) as int;
+		int face_y = (f.y as float * height_weight + face_h/2.0) as int;
+
+		Rectangle openSourceRec = { 0, 0, yaw_flip * open.width, open.height};
+		Rectangle closeSourceRec = { 0, 0, yaw_flip * close.width, close.height};
+		Rectangle sourceRec = { 0, 0, f.w as float, f.h as float };
+
+        Rectangle destRec = { face_x, face_y, face_w, face_h};
+        Vec2 origin = { face_w/2, face_h/2};
+		int roll = f.roll;
+		int roll_thresh = 90;
+		int base = (roll > 0) ? 180 | -180;
+		if (dabs(roll) > roll_thresh) {
+			roll = (base - roll) % 180;
+		}
 
 		if (popping == false && f.m == 1) {
 			popping = true;
@@ -224,11 +250,11 @@ struct FaceElement : ElementImpl {
 			popping = false;
 		}
 		if (f.m == 1) {
-			c:DrawTexturePro(open, openSourceRec, c:destRec, c:origin, f.roll, c:WHITE);
+			c:DrawTexturePro(open, openSourceRec, c:destRec, c:origin, roll, alpha);
 			// d.TextureAtSize(open, f.x, f.y, f.w, f.h);
 		}
 		else {
-			c:DrawTexturePro(close, closeSourceRec, c:destRec, c:origin, f.roll, c:WHITE);
+			c:DrawTexturePro(close, closeSourceRec, c:destRec, c:origin, roll, alpha);
 			// d.TextureAtSize(close, f.x, f.y, f.w, f.h);
 		}
 	}

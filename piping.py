@@ -19,7 +19,7 @@ model_points = np.array([
     (150.0, -150.0, -125.0)  # Right mouth corner
 ])
 
-cap = cv2.VideoCapture("open_mouth.mp4")
+cap = cv2.VideoCapture("white_lotus_short.mp4")
 
 # Camera internals
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -40,6 +40,7 @@ dist_coeffs = np.zeros((4, 1))  # Assuming no lens distortion
 
 def main():
     while cap.isOpened():
+        x_min, y_min, box_width, box_height, mouth_open_dist, roll, pitch, yaw, threshold = [0] * 9
         result, frame = cap.read()  # read frames from the video
         if result is False:
             break  # terminate the loop if the frame is not read successfully
@@ -106,27 +107,26 @@ def main():
             mouth_open_dist = np.linalg.norm(top - bottom)
 
             # Threshold (adjust this value depending on your camera resolution and test results)
-            threshold = 15  
+            threshold = 10
 
             if mouth_open_dist > threshold:
                 cv2.putText(frame, "Mouth: OPEN", (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             else:
                 cv2.putText(frame, "Mouth: CLOSED", (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
+        faces = {"x": x_min,
+                "y": y_min,
+                "w": box_width,
+                "h": box_height,
+                "mouth": int(bool(mouth_open_dist > threshold)),
+                "roll": int(roll),
+                "pitch": int(pitch),
+                "yaw": int(yaw)}
 
-            faces = {"x": x_min,
-                     "y": y_min,
-                     "w": box_width,
-                     "h": box_height,
-                     "mouth": int(bool(mouth_open_dist > threshold)),
-                     "roll": int(roll),
-                     "pitch": int(pitch),
-                     "yaw": int(yaw)}
 
-
-            cv2.imshow("Face Rotation", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+        cv2.imshow("Face Rotation", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
             
         yield faces
 

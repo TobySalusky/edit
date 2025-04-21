@@ -74,7 +74,7 @@ int frame_rate = 60;
 
 int current_frame = 0;
 float current_time = 0;
-float max_time = 30;
+float max_time = 60;
 int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
 

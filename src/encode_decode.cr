@@ -633,7 +633,7 @@ void fill_rl_image(c:AVFrame^ pict, int width, int height, List<Image> &imported
 			img.setXY(x, y, c:pixel);
 		}
 	}
-    c:ImageFlipVertical(^img);
+    // c:ImageFlipVertical(^img);
 	imported_images.add(img);
 	c:c:`
 	av_freep(&rgb_frame->data[0]);  // Free the data
