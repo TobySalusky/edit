@@ -808,13 +808,19 @@ void bubblechart(FxArgs& args, using BarChartArgs& margs) {
 		return;
 	}
 
-	int num_data_fields = 4;
-	
+	int num_data_fields = 3;
+
 	List<Color> default_colors = .();
 	default_colors.add(ColorAlpha(Colors.Red, 0.75));
 	default_colors.add(ColorAlpha(Colors.Blue, 0.75));
 	default_colors.add(ColorAlpha(Colors.Green, 0.75));
 	default_colors.add(ColorAlpha(Colors.Yellow, 0.75));
+	default_colors.add(ColorAlpha(Colors.Orange, 0.75));
+	default_colors.add(ColorAlpha(Colors.Purple, 0.75));
+	default_colors.add(ColorAlpha(Colors.Black, 0.75));
+	default_colors.add(ColorAlpha(Colors.Magenta, 0.75));
+	default_colors.add(ColorAlpha(Colors.Brown, 0.75));
+	default_colors.add(ColorAlpha(Colors.Gray, 0.75));
 
 	int num_ticks = 10; // Make modifiable
 	float max_x = 0.0;
@@ -834,12 +840,18 @@ void bubblechart(FxArgs& args, using BarChartArgs& margs) {
 		}
 	}
 
-	for (int i in 0..data_count) {
-		float x = margs.data.get(i * num_data_fields);
-		float y = margs.data.get(i * num_data_fields + 1);
-		float size = margs.data.get(i * num_data_fields + 2);
-		Vec2 p = v2(x / max_x * args.scale.x, y / max_y * args.scale.y);
-		d.Circle(args.pos + p, size, default_colors.get(i % default_colors.size));
+	// debug
+	max_x = 400;
+	max_y = 80;
+
+	int i = 0;
+	while (i < data_count * 2) {
+		float x = margs.data.get(i);
+		float y = margs.data.get(i + 1);
+		float size = margs.data.get(margs.data.size - 11 + i/2 % 10);
+		Vec2 p = v2(x / max_x * args.scale.x, args.scale.y - (y / max_y * args.scale.y));
+		d.Circle(args.pos + p, size, default_colors.get((i/2-1) % default_colors.size + 1));
+		i = i + 2;
 	}
 
 	// Draw x-axis
@@ -874,31 +886,43 @@ void bubblechart(FxArgs& args, using BarChartArgs& margs) {
 		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
 	}
 
+	List<char^> companyNames = .();
+	companyNames.add("Apple");
+	companyNames.add("NVIDIA");
+	companyNames.add("Microsoft");
+	companyNames.add("Amazon");
+	companyNames.add("Alphabet");
+	companyNames.add("Meta");
+	companyNames.add("Tesla");
+	companyNames.add("TSMC");
+	companyNames.add("Berkshire");
+	companyNames.add("Broadcom");
+
 	// Draw legend
 	Vec2 legend_pos = Vec2(args.pos.x + args.scale.x - 150, args.pos.y - 20);
-	for (int i in 1..data_count) {
+	for (int i in 0..data_count) {
 		Color color = default_colors.get(i % default_colors.size);
 		Vec2 rect_pos = legend_pos + Vec2{.x = 0, .y = i * 30};
 		d.Rect(rect_pos, .(20, 20), color);
 
-		char^ legend_label = t"{margs.data.get(i * num_data_fields + 3)}";
+		char^ legend_label = companyNames.get(i % companyNames.size);
 		d.Text(legend_label, rect_pos.x as int + 30, rect_pos.y as int + 5, 20, Colors.White);
 	}
 
 	// Draw chart title
-	char^ title = t"Bubble Chart";
+	char^ title = t"Market Cap vs Revenue with Workforce Size 2022-2024";
 	int title_width = c:MeasureText(title, 30);
-	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 60) as int, 30, Colors.White);
 
 	// Draw x-axis label
-	char^ x_axis_label = t"X-Axis";
+	char^ x_axis_label = t"Market Cap ($10B)";
 	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
-	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
+	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 50) as int, 20, Colors.White);
 
 	// Draw y-axis label
-	char^ y_axis_label = t"Y-Axis";
+	char^ y_axis_label = t"Revenue\n($10B)";
 	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
-	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 60) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
 
 

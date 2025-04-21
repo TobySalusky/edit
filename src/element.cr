@@ -1204,8 +1204,8 @@ struct Element {
 	void DrawGizmos() {
 		let gizmoColor = Color{.r=255,.g=0,.b=255,.a=50};
 		// d.RectRot(pos, scale, rotation, gizmoColor);
-		d.RectOutline(pos, scale, hex("00000088"));
-		d.Circle(pos + scale * v2(0.5, 0.5), 10, hex("9999FF55"));
+		// d.RectOutline(pos, scale, hex("00000088"));
+		// d.Circle(pos + scale * v2(0.5, 0.5), 10, hex("9999FF55"));
 	}
 
 	void Draw(float current_time) {
