@@ -1,3 +1,5 @@
+// NOTE: many edits, compare+patch to update
+
 #include "raylib.h"
 #include "raymath.h"
 #include "stdint.h"
@@ -5,7 +7,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 
-#include "clay.h"
+#include "claydev.h"
 
 #define CLAY_RECTANGLE_TO_RAYLIB_RECTANGLE(rectangle) (Rectangle) { .x = rectangle.x, .y = rectangle.y, .width = rectangle.width, .height = rectangle.height }
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
@@ -82,9 +84,50 @@ Ray GetScreenToWorldPointWithZDistance(Vector2 position, Camera camera, int scre
     return ray;
 }
 
+// NOTE: edited(for :edit), this is original
+// Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData) {
+//     // Measure string size for Font
+//     Clay_Dimensions textSize = { 0 };
+//
+//     float maxTextWidth = 0.0f;
+//     float lineTextWidth = 0;
+//
+//     float textHeight = config->fontSize;
+//     Font* fonts = (Font*)userData;
+//     Font fontToUse = fonts[config->fontId];
+//     // Font failed to load, likely the fonts are in the wrong place relative to the execution dir.
+//     // RayLib ships with a default font, so we can continue with that built in one. 
+//     if (!fontToUse.glyphs) {
+//         fontToUse = GetFontDefault();
+//     }
+//
+//     float scaleFactor = config->fontSize/(float)fontToUse.baseSize;
+//
+//     for (int i = 0; i < text.length; ++i)
+//     {
+//         if (text.chars[i] == '\n') {
+//             maxTextWidth = fmax(maxTextWidth, lineTextWidth);
+//             lineTextWidth = 0;
+//             continue;
+//         }
+//         int index = text.chars[i] - 32;
+//         if (fontToUse.glyphs[index].advanceX != 0) lineTextWidth += fontToUse.glyphs[index].advanceX;
+//         else lineTextWidth += (fontToUse.recs[index].width + fontToUse.glyphs[index].offsetX);
+//     }
+//
+//     maxTextWidth = fmax(maxTextWidth, lineTextWidth);
+//
+//     textSize.width = maxTextWidth * scaleFactor;
+//     textSize.height = textHeight;
+//
+//     return textSize;
+// }
 
-// NOTE: was: static inline Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData) {
 Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData) {
+	void** user_data_ptr = userData;
+	int* font_count_ptr = (int*) user_data_ptr[1];
+	int font_count = *font_count_ptr;
+
     // Measure string size for Font
     Clay_Dimensions textSize = { 0 };
 
@@ -92,8 +135,15 @@ Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig
     float lineTextWidth = 0;
 
     float textHeight = config->fontSize;
-    Font* fonts = (Font*)userData;
-    Font fontToUse = fonts[config->fontId];
+    Font* fonts = (Font*)user_data_ptr[0];
+
+	int font_id = config->fontId;
+	if (font_id >= font_count) {
+		printf("[WARNING(clay_renderer_raylib.c)]: font_id (%d) >= num_fonts\n", config->fontId);
+		font_id = 0;
+	}
+
+    Font fontToUse = fonts[font_id];
     // Font failed to load, likely the fonts are in the wrong place relative to the execution dir.
     // RayLib ships with a default font, so we can continue with that built in one. 
     if (!fontToUse.glyphs) {

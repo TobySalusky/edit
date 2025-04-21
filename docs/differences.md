@@ -2,26 +2,26 @@
 
 Access off Struct Pointer
 C:   ->
-rpp: #
+crust: #
 
 Bitwise And
 C:   &
-rpp: ~&
+crust: ~&
 
 Bitwise Or
 C:   |
-rpp: ~|
+crust: ~|
 
 Bitwise Xor
 C:   ^
-rpp: ~^
+crust: ~^
 
 ---
 # Other Syntax Differences ---
 
 Ternary
 C:   a ? b : c
-rpp: a ? b | c
+crust: a ? b | c
 
 ---
 Calling C Stuff RAW (Raw: meaning that you get no useful typechecking directly for anything that you do this for)

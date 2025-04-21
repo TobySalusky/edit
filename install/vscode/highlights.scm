@@ -86,6 +86,7 @@
  "sizeof"
  "static"
  "using"
+ "clay" ; temporary!
 ] @keyword
 
 [
