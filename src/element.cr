@@ -321,7 +321,11 @@ choice CustomLayerKind {
 				let& stolen = stealee as CustomLayerList;
 				for (int i in 0..stolen.layers.size) {
 					it.AddLayer();
-					it.layers.get(i).kind.StealData(stolen.layers.get(i).kind);
+					if (it.layers.get(i).kind == stolen.layers.get(i).kind) {
+						it.layers.get(i).kind.StealData(stolen.layers.get(i).kind);
+					} else {
+						println(t"[WARNING]: desirialize - CustomLayerList, layers[{i}].kind != old_layers[{i}].kind");
+					}
 				}
 				// TODO: wee sus on this one, just check ok? :7))))))333
 				// it.layers = ;
@@ -893,17 +897,25 @@ struct CustomPureFnElement : ElementImpl {
 									CustomLayerList it -> {
 										for (let& old_layer in it.layers) {
 											bool found = false;
+											bool found_but_bad = false;
 											for (let& new_layer in layers) {
 												if (str_eq(old_layer.name, new_layer.name)) {
-													found = true;
-													// TODO:(rae-crust) new_layer..StealData(old_layer);
-													new_layer.kind.StealData(old_layer.kind);
+													if (new_layer.kind == old_layer.kind) {
+														found = true;
+														new_layer.kind.StealData(old_layer.kind);
+													} else {
+														found_but_bad = true;
+														println(t"[NOTE]: while doing deserialize-custom-transfer, found {old_layer.name}, whose type seems to have changed [TODO: proper transfer in this case (mark deleted_member = true)], old_layer.which = {(old_layer.kind as c:any).kind as int}, new_layer.which = {(new_layer.kind as c:any).kind as int}");
+													}
 													break;
 												}
 											}
 											
 											if (!found) {
 												layers.add(old_layer with { deleted_member = true });
+											} else if (found_but_bad) {
+												println("[TODO]: found_but_bad case (data transfer on-deserialize)");
+												// layers.add(old_);
 											}
 										}
 									},
