@@ -12,7 +12,7 @@ struct Face {
 	int yaw;
 }
 
-List<Face> cv_pipe() {
+List<Face> cv_pipe(char^ videoFP) {
 	
 	List<Face> face_data = .();
 

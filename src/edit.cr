@@ -1025,7 +1025,14 @@ void AddFaceElemModal(using ModalState& state) {
 			state.set_errmsg(f"Open-mouth Image file '{textbox3#buffer}' does not exist!");
 		} else {
 
-			// TODO: add face elem using paths!
+			// Add face elem using paths!
+			char^ vfp = textbox1#buffer;
+			char^ cmp = textbox2#buffer;
+			char^ omp = textbox3#buffer;
+
+			char^ vn = c:GetFileNameWithoutExt(textbox1#buffer);
+			AddNewElementAt(Element(FaceElement.Make(vfp, omp, cmp), c:strcat(vn, "-- Face"), 0, 3, -1, v2(0, 0), v2(100, 100)));
+			
 			CloseModal();
 		}
 	}
@@ -1670,7 +1677,6 @@ int main(int argc, char^^ argv) {
 	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(FaceElement.Make(), "Face", 0, 3, -1, v2(0, 0), v2(100, 100)));
 
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
