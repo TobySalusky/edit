@@ -37,3 +37,7 @@ bool ListContainsString(List<char^>& list, char^ str) {
     }
     return false;
 }
+
+bool StringContains(char^ str, char^ substr) {
+    return c:strstr(str, substr) != NULL;
+}

@@ -65,7 +65,7 @@ int frame_rate = 60;
 
 int current_frame = 0;
 float current_time = 0;
-float max_time = 5;
+float max_time = 30;
 int max_frames = (max_time * frame_rate) as int;
 float time_per_frame = 1.0 / frame_rate;
 
@@ -342,7 +342,7 @@ void LeftPanelUI() {
 				// Load data and apply to keyframe
 				Data data = Data(file_path);
 				elements.get(selected_elem_i).ApplyKeyframeData(data);
-				// elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
+				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
 				data_list.add(data);
 				show_add_element_options = false;
 			}
@@ -1418,17 +1418,21 @@ int main(int argc, char^^ argv) {
 
 	images.reserve(max_frames);
 
-	//AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 5, 5, -1, v2(150, 150), v2(500, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("scatterplot"), "scatterplot", 10, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("line_graph"), "line_graph", 15, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("bubblechart"), "bubblechart", 20, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
+	AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 25, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Red });
+	// AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
 	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
-	AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
+	// AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
 
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
 	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(100, 100), v2(1000, 500)) with { color = Colors.Blue });
 
 	selected_elem_i = 0;
 

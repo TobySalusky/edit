@@ -1130,7 +1130,7 @@ struct Element {
 					let& layer_list = layer.kind as CustomLayerList;
 					StrMap<int> layer_map = .();
 	
-					// Create a map of layer names to CustomLayerFloat
+					// Create a map of layer names to layer indices
 					for (let i = 0; i < layer_list.layers.size; i++;) {
 						let layer_name = layer_list.layers.get(i).name;
 						layer_map.put(layer_name, i);
@@ -1140,29 +1140,51 @@ struct Element {
 					for (let i = 0; i < data.data.size; i++;) {
 						let row = data.data.get(i);
 						let layer_name = row.get(t"Name");
-						let value = row.get_float(t"Value");
-						let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
-						// let out_interpolation_mode = ListContainsString(data.headers, "OutInterpolationMode") ? row.get_int(t"OutInterpolationMode") | KeyframeInterpolationMode.Linear;
-						// let in_interpolation_mode = ListContainsString(data.headers, "InInterpolationMode") ? row.get_int(t"InInterpolationMode") | KeyframeInterpolationMode.Linear;
 	
 						if (!layer_map.has(layer_name)) {
-							layer_list.AddFloatLayer();
+							// Add a new layer if it doesn't exist
+							if (ListContainsString(data.headers, "Value")) {
+								layer_list.AddFloatLayer();
+							} else if (ListContainsString(data.headers, "Text")) {
+								layer_list.AddStrLayer();
+							}
+	
 							let new_layer = ^layer_list.layers.get(layer_list.layers.size - 1);
 							new_layer#name = layer_name;
 							layer_map.put(layer_name, layer_list.layers.size - 1);
 						}
-	
-						// (layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
-						// 	.time = keyframe,
-						// 	.value = value,
-						// 	.out_interpolation_mode = out_interpolation_mode,
-						// 	.in_interpolation_mode = in_interpolation_mode
-						// });
+
+							// Handle float values
+							if (ListContainsString(data.headers, "Value") && !StringContains(row.get(t"Value"),"\"")) {
+								let value = row.get_float(t"Value");
+								let keyframe = ListContainsString(data.headers, "Time") ? row.get_float(t"Time") | frame_time;
+								let out_interpolation_mode = KeyframeInterpolationMode.Linear;
+								let in_interpolation_mode = KeyframeInterpolationMode.Linear;
+		
+								(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerFloat).kl_value.Insert({
+									.time = keyframe,
+									.value = value,
+									.out_interpolation_mode = out_interpolation_mode,
+									.in_interpolation_mode = in_interpolation_mode
+								});
+							}
+		
+							// // Handle string values
+							// if (ListContainsString(data.headers, "Value") && StringContains(row.get(t"Value"),"\"")) {
+							// 	let text_value = row.get(t"Value");
+							// 	println(t"found text value: {text_value}");
+							// 	(layer_list.layers.get(layer_map.get(layer_name)).kind as CustomLayerStr).value.Set({
+							// 		.time = keyframe,
+							// 		.value = text_value,
+							// 		.out_interpolation_mode = out_interpolation_mode,
+							// 		.in_interpolation_mode = in_interpolation_mode
+							// 	});
+							// }
 					}
 				}
 			}
 		}
-
+	
 		// Default keyframed parameters
         for (let& row in data.data) {
             let keyframe_t = frame_time;
@@ -1171,19 +1193,16 @@ struct Element {
                 keyframe_t = row.get_float(t"Time");
             }
 
-            if (ListContainsString(data.headers, "X")) {
-				panic("TODO: rae");
-    //             kl_pos_x().InsertValue(
-    //                 keyframe_t,
-    //                 row.get_float(t"X")
-				// );
-            }
-            if (ListContainsString(data.headers, "Y")) {
-				panic("TODO: rae");
-    //             kl_pos_y().InsertValue(
-    //                 keyframe_t,
-    //                 row.get_float(t"Y")
-				// );
+            if (ListContainsString(data.headers, "X")) { // this sucks...
+				float x = row.get_float("X");
+				float y = (ListContainsString(data.headers, "Y"))  ? row.get_float("Y") | x;
+				if (ListContainsString(data.headers, "Y")) {
+					println("[WARNING]: please put Y in your data row, WHAT ARE YOU DOING?!!!");
+				}
+                kl_pos().InsertValue(
+                    keyframe_t,
+                    v2(x, y)
+				);
             }
             if (ListContainsString(data.headers, "Scale")) {
 				float scale = row.get_float(t"Scale");

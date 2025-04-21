@@ -125,7 +125,10 @@ void StringWheel(using FxArgs& args, using StringWheelArgs& margs) {
 @fx_args
 struct BarChartArgs {
 	List<float> data = {};
-	// List<float> data2;
+	List<char^> strs = .();
+	char^ chart_title = "Bar Chart";
+	float font_size = 32;
+	float rot = 30;
 }
 
 @fx_fn
@@ -150,6 +153,9 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 		}
 	}
 
+	//Debug
+	max_bar_value = 400;
+
 	// Draw bars
     for (int i in 0..bar_count) {
 
@@ -165,9 +171,21 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 	// Draw y-axis
     d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
 
+	List<char^> companyNames = .();
+	companyNames.add("Apple");
+	companyNames.add("NVIDIA");
+	companyNames.add("Microsoft");
+	companyNames.add("Amazon");
+	companyNames.add("Alphabet");
+	companyNames.add("Meta");
+	companyNames.add("Tesla");
+	companyNames.add("TSMC");
+	companyNames.add("Berkshire");
+	companyNames.add("Broadcom");
+
 	// Draw x-axis ticks and labels
 	for (int i in 0..bar_count) {
-		char^ bar_label = t"bar {i+1}";
+		char^ bar_label = companyNames.get(i % companyNames.size);
 		int text_width = c:MeasureText(bar_label, 20);
 		
 		// Draw tick and text label
@@ -186,14 +204,23 @@ void bar_chart(FxArgs& args, using BarChartArgs& margs) {
 		defer c:free(curr_y_label_str);
 
 		// Draw tick and text label
-
 		int tick_y = args.pos.y as int + args.scale.y as int - (i + 1) * (bar_height as int / bar_count as int);
 		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
 		d.Text(curr_y_label_str, args.pos.x as int - text_width as int - 15, tick_y as int - 5, 20, Colors.White);
 	}
 
+	// Draw x-axis label
+	char^ x_axis_label = t"Company";
+	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
+	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
+
+	// Draw y-axis label
+	char^ y_axis_label = t"Market\nCap\n($10B)";
+	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 60) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+
 	// Draw chart title
-	char^ title = t"Bar Chart";
+	char^ title = "Market Cap 2022-2024";
 	int title_width = c:MeasureText(title, 30);
 	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
 }
@@ -254,6 +281,18 @@ void pie_chart(FxArgs& args, using BarChartArgs& margs) {
 		angle = end_angle;
 	}
 
+	List<char^> companyNames = .();
+	companyNames.add("Apple");
+	companyNames.add("NVIDIA");
+	companyNames.add("Microsoft");
+	companyNames.add("Amazon");
+	companyNames.add("Alphabet");
+	companyNames.add("Meta");
+	companyNames.add("Tesla");
+	companyNames.add("TSMC");
+	companyNames.add("Berkshire");
+	companyNames.add("Broadcom");
+
 	// Draw legend
 	Vec2 legend_pos = center + Vec2{.x = radius + 50, .y = -radius};
 	for (int i in 0..margs.data.size) {
@@ -261,12 +300,12 @@ void pie_chart(FxArgs& args, using BarChartArgs& margs) {
 		Vec2 rect_pos = legend_pos + Vec2{.x = 0, .y = i * 30};
 		d.Rect(rect_pos, .(20, 20), color);
 
-		char^ legend_label = t"Label {i+1}";
+		char^ legend_label = companyNames.get(i % companyNames.size);
 		d.Text(legend_label, rect_pos.x as int + 30, rect_pos.y as int + 5, 20, Colors.White);
 	}
 
 	// Draw chart title
-	char^ title = t"Pie Chart";
+	char^ title = t"Market Cap 2022-2024";
 	int title_width = c:MeasureText(title, 30);
 	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 60) as int, 30, Colors.White);
 }
@@ -569,10 +608,14 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 		}
 	}
 
+	//debug
+	max_x = 400;
+	max_y = 400;
+
 	for (int i in 0..data_count) {
 		float x = margs.data.get(i * 2);
 		float y = margs.data.get(i * 2 + 1);
-		Vec2 p = v2(x / max_x * args.scale.x, y / max_y * args.scale.y);
+		Vec2 p = v2(x / max_x * args.scale.x, args.scale.y - (y / max_y * args.scale.y));
 		d.Circle(args.pos + p, 5, args.color);
 	}
 
@@ -608,19 +651,19 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
 	}
 	// Draw chart title
-	char^ title = t"Scatter Plot";
+	char^ title = t"Market Cap vs Revenue 2021-2023";
 	int title_width = c:MeasureText(title, 30);
 	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
 
 	// Draw x-axis label
-	char^ x_axis_label = t"X-Axis";
+	char^ x_axis_label = t"Market Cap ($10B)";
 	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
 	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
 
 	// Draw y-axis label
-	char^ y_axis_label = t"Y-Axis";
+	char^ y_axis_label = t"Rev.\n($10B)";
 	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
-	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 60) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
 
 @fx_fn
@@ -738,6 +781,106 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
 	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
+
+@fx_fn
+void bubblechart(FxArgs& args, using BarChartArgs& margs) {
+	if (margs.data.size == 0) {
+		return;
+	}
+
+	int num_data_fields = 4;
+	
+	List<Color> default_colors = .();
+	default_colors.add(ColorAlpha(Colors.Red, 0.75));
+	default_colors.add(ColorAlpha(Colors.Blue, 0.75));
+	default_colors.add(ColorAlpha(Colors.Green, 0.75));
+	default_colors.add(ColorAlpha(Colors.Yellow, 0.75));
+
+	int num_ticks = 10; // Make modifiable
+	float max_x = 0.0;
+	float max_y = 0.0;
+	int data_count = margs.data.size / num_data_fields;
+	if (data_count < 1) {
+		return;
+	}
+	for (int i in 0..data_count) {
+		float x = margs.data.get(i * num_data_fields);
+		float y = margs.data.get(i * num_data_fields + 1);
+		if (x > max_x) {
+			max_x = x;
+		}
+		if (y > max_y) {
+			max_y = y;
+		}
+	}
+
+	for (int i in 0..data_count) {
+		float x = margs.data.get(i * num_data_fields);
+		float y = margs.data.get(i * num_data_fields + 1);
+		float size = margs.data.get(i * num_data_fields + 2);
+		Vec2 p = v2(x / max_x * args.scale.x, y / max_y * args.scale.y);
+		d.Circle(args.pos + p, size, default_colors.get(i % default_colors.size));
+	}
+
+	// Draw x-axis
+	d.Line(args.pos + v2(0, args.scale.y), args.pos + v2(args.scale.x, args.scale.y), 2, Colors.White);
+
+	// Draw y-axis
+	d.Line(args.pos, .(args.pos.x, args.pos.y + args.scale.y), 2, Colors.White);
+
+	// Draw x-axis ticks and labels
+	for (int i in 0..num_ticks) {
+		float tick_value = max_x / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_x = args.pos.x + (i as float) * (args.scale.x / num_ticks);
+		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + args.scale.y + 10), 2, Colors.White);
+		d.Text(tick_label, (tick_x - text_width / 2) as int, (args.pos.y + args.scale.y) as int + 15, 20, Colors.White);
+	}
+
+	// Draw y-axis ticks and labels
+	for (int i in 0..num_ticks) {
+		float tick_value = max_y / num_ticks * i;
+		char^ tick_label = c:malloc(6);
+		c:gcvt(tick_value, 3, tick_label);
+		int text_width = c:MeasureText(tick_label, 20);
+		defer c:free(tick_label);
+
+		float tick_y = args.pos.y + args.scale.y - (i as float) * (args.scale.y / num_ticks);
+		d.Line(.(args.pos.x - 10, tick_y), .(args.pos.x, tick_y), 2, Colors.White);
+		d.Text(tick_label, (args.pos.x as int) - (text_width as int) - 15, (tick_y as int) - 10, 20, Colors.White);
+	}
+
+	// Draw legend
+	Vec2 legend_pos = Vec2(args.pos.x + args.scale.x - 150, args.pos.y - 20);
+	for (int i in 1..data_count) {
+		Color color = default_colors.get(i % default_colors.size);
+		Vec2 rect_pos = legend_pos + Vec2{.x = 0, .y = i * 30};
+		d.Rect(rect_pos, .(20, 20), color);
+
+		char^ legend_label = t"{margs.data.get(i * num_data_fields + 3)}";
+		d.Text(legend_label, rect_pos.x as int + 30, rect_pos.y as int + 5, 20, Colors.White);
+	}
+
+	// Draw chart title
+	char^ title = t"Bubble Chart";
+	int title_width = c:MeasureText(title, 30);
+	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
+
+	// Draw x-axis label
+	char^ x_axis_label = t"X-Axis";
+	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
+	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
+
+	// Draw y-axis label
+	char^ y_axis_label = t"Y-Axis";
+	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+}
+
 
 Color ColorAlpha(Color color, float alpha) {
 	color.a = (alpha * 255.0) as int;
