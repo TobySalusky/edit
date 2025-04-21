@@ -219,6 +219,7 @@ struct FaceElement : ElementImpl {
 
 	CustomLayer^ CustomLayersList() -> NULL;
 
+	void UI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
 		if (face_data.is_empty()) {

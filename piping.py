@@ -19,7 +19,12 @@ model_points = np.array([
     (150.0, -150.0, -125.0)  # Right mouth corner
 ])
 
-cap = cv2.VideoCapture("white_lotus_short.mp4")
+
+file_path = "white_lotus_short.mp4"
+# file_path = "C:/Users\data\Downloads/riko.mp4"
+# file_path = "C:/Users\data\Downloads\gojo_toji.mp4"
+
+cap = cv2.VideoCapture(file_path)
 
 # Camera internals
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
