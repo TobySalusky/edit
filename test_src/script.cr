@@ -626,13 +626,15 @@ void scatterplot(FxArgs& args, using BarChartArgs& margs) {
 
 	//debug
 	max_x = 400;
-	max_y = 400;
+	max_y = 80;
 
-	for (int i in 0..data_count) {
-		float x = margs.data.get(i * 2);
-		float y = margs.data.get(i * 2 + 1);
+	int i = 0;
+	while (i < data_count * 2) {
+		float x = margs.data.get(i);
+		float y = margs.data.get(i + 1);
 		Vec2 p = v2(x / max_x * args.scale.x, args.scale.y - (y / max_y * args.scale.y));
 		d.Circle(args.pos + p, 5, args.color);
+		i = i + 2;
 	}
 
 	// Draw x-axis
@@ -761,11 +763,13 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 		char^ tick_label = c:malloc(6);
 		c:gcvt(tick_value, 3, tick_label);
 		int text_width = c:MeasureText(tick_label, 20);
+		char^ year_label = t"{2015 + i}";
+		text_width = c:MeasureText(year_label, 20);
 		defer c:free(tick_label);
 
 		float tick_x = args.pos.x + padding_left + (i as float) * ((args.scale.x - padding_left - padding_right) / num_ticks);
 		d.Line(.(tick_x, args.pos.y + args.scale.y), .(tick_x, args.pos.y + args.scale.y + 10), 2, Colors.White);
-		d.Text(tick_label, (tick_x - text_width / 2) as int, (args.pos.y + args.scale.y) as int + 15, 20, Colors.White);
+		d.Text(year_label, (tick_x - text_width / 2) as int, (args.pos.y + args.scale.y) as int + 15, 20, Colors.White);
 	}
 
 	// Draw y-axis ticks and labels
@@ -783,19 +787,19 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 	}
 
 	// Draw chart title
-	char^ title = t"Line Graph";
+	char^ title = t"Market Caps of Apple vs NVIDIA & Microsoft vs Amazon";
 	int title_width = c:MeasureText(title, 30);
 	d.Text(title, (args.pos.x + args.scale.x / 2 - title_width / 2) as int, (args.pos.y - 40) as int, 30, Colors.White);
 
 	// Draw x-axis label
-	char^ x_axis_label = t"X-Axis";
+	char^ x_axis_label = t"Year";
 	int x_axis_label_width = c:MeasureText(x_axis_label, 20);
 	d.Text(x_axis_label, (args.pos.x + args.scale.x / 2 - x_axis_label_width / 2) as int, (args.pos.y + args.scale.y + 40) as int, 20, Colors.White);
 
 	// Draw y-axis label
-	char^ y_axis_label = t"Y-Axis";
+	char^ y_axis_label = t"Market\nCap\n($10B)";
 	int y_axis_label_width = c:MeasureText(y_axis_label, 20);
-	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 50) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
+	d.Text(y_axis_label, (args.pos.x - y_axis_label_width - 60) as int, (args.pos.y + args.scale.y / 2 - 10) as int, 20, Colors.White);
 }
 
 @fx_fn
