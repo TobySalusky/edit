@@ -611,6 +611,12 @@ struct Drawer {
 		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
 
+	void TextureRotCenter(Texture texture, Vec2 center, Vec2 dimen, float rot, Color color = Colors.White) {
+		Rectangle dest = RectV(center, dimen);
+
+		c:DrawTexturePro(texture, texture.SourceRect(), dest, dimen.scale(0.5), rot, color);
+	}
+
 	void TextureAtSizeV(Texture texture, Vec2 pos, Vec2 dimen, Color color = Colors.White) {
 		Rectangle dest = RectV(pos, dimen);
 

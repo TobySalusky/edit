@@ -76,7 +76,7 @@ struct RectElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
-		d.RectRot(e#pos, e#scale, e#rotation, e#color);
+		d.RectRot(e#pos, e#scale, e#rotation, e#TintColor());
 	}
 
 	int Kind() -> KIND_RECT;
@@ -92,7 +92,7 @@ struct CircleElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
-		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#color); // TODO: allow ellipse
+		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#TintColor()); // TODO: allow ellipse
 	}
 
 	int Kind() -> KIND_CIRCLE;
@@ -130,7 +130,7 @@ struct ImageElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
-		d.TextureAtSize(ImageCache.Get(file_path), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+		d.TextureRotCenter(ImageCache.Get(file_path), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
 	}
 
 	int Kind() -> KIND_IMAGE;
@@ -1021,6 +1021,13 @@ struct Element {
 	
 	Data^ data;
 
+
+	Color TintColor() {
+		Color tint = color;
+		tint.a = (tint.a as float * (opacity / 100.0)) as..;
+		return tint;
+	}
+
 	List<CustomLayer>^ CustomLayersListInternalPtr() -> content_impl#CustomLayersList() == NULL ? NULL | ^((content_impl#CustomLayersList())#kind as CustomLayerList).layers;
 
 	void Serialize(Path p, bool is_load) {
@@ -1156,8 +1163,8 @@ struct Element {
 		:scale,
 		.uniform_scale = true,
 		.rotation = 0,
-		.opacity = 1,
-		.color = c:GREEN,
+		.opacity = 100,
+		.color = Colors.White,
 		.visible = true,
 		.data = NULL,
 		.err_msg = NULL,
@@ -1202,6 +1209,7 @@ struct Element {
 	void UpdateState(float t) {
 		float lt = t - start_time;
 		default_layers.UpdateState(lt);
+		opacity = std.clamp(opacity, 0, 100);
 		// scale.y = scale.x; // uniform scale
 
 		// TODO: color
