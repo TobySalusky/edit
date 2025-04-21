@@ -1,1 +1,1 @@
-cp ../rpp/packs/plugin_core/plugin_core.rpp plugin_src
+cp ../crust/packs/plugin_core/plugin_core.cr plugin_src

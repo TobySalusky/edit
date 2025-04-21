@@ -3,13 +3,13 @@
 Editing software with a mixed approach to video consisting of graphical programming/procedural style + standard visual editing/clipping/keying.
 
 Notable Structure:
-* `install/`           - everything you need to work with R++ (rpp exe w/ lsp support & vscode extension)
+* `install/`           - everything you need to work with Crust (cr exe w/ lsp support & vscode extension)
 * `scripts/`           - important setup & run scripts
-* `docs/`              - learning materials (e.g. for R++) - more to come
-* `src/`               - .rpp code for edit program
-* `test_src/`          - .rpp code for user-loaded script in edit program (see: `cool_effect` in `script.rpp`)
+* `docs/`              - learning materials (e.g. for Crust) - more to come
+* `src/`               - .cr code for edit program
+* `test_src/`          - .cr code for user-loaded script in edit program (see: `cool_effect` in `script.cr`)
 * `test_src/external/` - files copied from `src/`'s raylib & std sub-modules (DO NOT EDIT, since changes will be overriden)
-* `include/`           - c header files accessible for include (c:import) from .rpp
+* `include/`           - c header files accessible for include (c:import) from .cr
 * `local-run.bat`'s    - common run command(s) I use, depending on the directory (notably `./`, `src`, & `test_src`)
 Build/Temp:
 * `out/`               - generated c code from src
@@ -36,22 +36,22 @@ CMAKE_GENERATOR=`MinGW Makefiles`
 
 ---
 
-## Guide: Getting R++ (.rpp) setup!
+## Guide: Getting Crust (.cr) setup!
 
 ### Install
 add to PATH: `<path-to-this-repo>\install\win\bin`
 add environment variable
-RPP_INSTALL_PATH=`<path-to-this-repo>\install`
+CRUST_INSTALL_PATH=`<path-to-this-repo>\install`
 
 ---
 
-## Guide: Setting up .rpp VSCode Support (technically optional, but recommended :D)
+## Guide: Setting up crust VSCode Support (technically optional, but recommended :D)
 * Open VSCode to Extensions Tab
 * At top-right, hit 3-dots...
 * "Install from .VSIX" (bottom option)
-* Select `<path-to-this-repo>\install\vscode\rpp-0.0.1.vsix`
+* Select `<path-to-this-repo>\install\vscode\crust-0.0.1.vsix`
 
-If your `rpp` is installed correctly, you should be good to go! :DDD
+If your `crust` is installed correctly, you should be good to go! :DDD
 
 ## Guide: Setting up this project!
 
@@ -70,12 +70,12 @@ Now to run or re-compile the program:
 
 > this may take a decent bit the first time, since cmake may need to download/build raylib, but after that, it should be pretty quick!
 
-NOTE: The generated C-code from `rpp` creates a .gitignored project `out/` folder, which we execute `cmake` on to create `build/`
+NOTE: The generated C-code from `crust` creates a .gitignored project `out/` folder, which we execute `cmake` on to create `build/`
 * On Windows, it's important that the output executable `.\build\edit.exe` has `libraylib.dll` in the same immediate directory -- otherwise it will silently crash D: (due to shared-lib dependency)
 
 ### Hot-reload Compiling the Test Code
 
-While the program is running, you can make changes to the rendering code in `test_src\script.rpp's` `cool_effect(...)` function!
+While the program is running, you can make changes to the rendering code in `test_src\script.cr's` `cool_effect(...)` function!
 
 Use `.\scripts\test-run.bat` or `test_src\local-run.bat` - which (if things work correctly), should produce a `newlibscript.dll` into `test_resource/`, to be loaded by .\edit.exe at runtime
 
@@ -84,7 +84,7 @@ Use `.\scripts\test-run.bat` or `test_src\local-run.bat` - which (if things work
 ## Language-Tool/Extension Functionality to Expect (Currently)
 LSP features provided:
 * diagnostics (errors / warnings)
-    - for certain critical mistakes in writing .rpp, there will appear a single warning at the very top of the file (generally, though, you should be able to see multiple errors at once)
+    - for certain critical mistakes in writing crust, there will appear a single warning at the very top of the file (generally, though, you should be able to see multiple errors at once)
 * syntax highlighting (technically not from LSP, but within the same extension :D)
 * goto-definition, goto references, & rename (highly recommend!)  --there are a few places like generic-heavy code where these might be iffy, but they work pretty well otherwise
 * hover - basic type or field information on expressions & statements
