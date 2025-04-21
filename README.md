@@ -1,5 +1,33 @@
 # Edit
 
+## New Addition (Serialization! - Apr 20~)
+
+* ensure that you create a `saves/` folder in `edit/`
+
+HOTKEYS:
+- key `o`: Open Modal (type project name into textbox and enter -- opened from `saves/<project_name>`)
+- key `s`: Save Modal (type project name into textbox and enter -- saved to `saves/<project_name>`)
+    * NOTE: when you save over an existing project name, the previous save will be renamed to `saves/<project_name>_old_<random_number>`
+
+---
+### Serialization via command line (not recommended rn imo)
+
+* after building program: (e.g. `.\scripts\run.bat`)
+
+On-quit, save a project with name
+`.\build\edit.exe -s <save_name>`
+
+On-open, open a save with name
+`.\build\edit.exe -o <save_name>`
+
+Eg:
+`.\build\edit.exe -s abc1`
+`.\build\edit.exe -o abc1 -s abc2`
+> I recommend not saving to the same name atm, to maintain the last version if anything went wrong (also I think there may be some issues with writing to the same location... not sure tbh but I don't trust it)
+
+
+---
+
 Editing software with a mixed approach to video consisting of graphical programming/procedural style + standard visual editing/clipping/keying.
 
 Notable Structure:

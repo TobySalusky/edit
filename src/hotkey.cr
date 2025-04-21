@@ -44,12 +44,17 @@ struct HotKeys {
 
 	static HotKey QuickCut = HotKey.DvoKey(KEY.B, KEY.N); // contextual delete? like blender? // AT LEAST: remove Keys at current pos?
 
+	static HotKey OpenProject = HotKey.DvoKey(KEY.O, KEY.S);
+	static HotKey SaveProject = HotKey.DvoKey(KEY.S, KEY.SEMICOLON);
+
 	// :hotkey:temp
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
 	static HotKey Temp_DeleteElement = HotKey.DvoKey(KEY.X, KEY.B);
 	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
 
-	static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
+	// static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
+
+
 	static HotKey Temp_AddElementCool = HotKey.DvoKey(KEY.N, KEY.L);
 
 	static HotKey Temp_LeftSidebar_Less = HotKey.DvoKey(KEY.Y, KEY.T);

@@ -907,6 +907,7 @@ struct Keys {
 	int ENTER;
 	int ESCAPE;
 	int BACKSPACE;
+	int SEMICOLON;
 	// TODO: other special keys - see: https://github.com/raysan5/raylib/blob/master/src/raylib.h
 }
 Keys make_keys() -> {
@@ -918,6 +919,7 @@ Keys make_keys() -> {
 	.ENTER = c:KEY_ENTER,
 	.ESCAPE = c:KEY_ESCAPE,
 	.BACKSPACE = c:KEY_BACKSPACE,
+	.SEMICOLON = c:KEY_SEMICOLON,
 };
 
 struct Keyboard {

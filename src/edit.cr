@@ -791,6 +791,127 @@ void ExportingModal(using ModalState& state) {
 	// TODO: is_ffmpegging
 }
 
+void SaveProjectModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("SaveProjectModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Project Name: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("SaveProjectModal-file-input"), .("SaveProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		string buf = string(textbox#buffer);
+		string project_name = buf.trim();
+		defer project_name.delete();
+
+		Path p = Path("saves")/project_name;
+		defer free(p.str);
+
+		if (io.dir_exists(p)) {
+			Path new_p = Path("saves")/t"{project_name.str}_old_{rl.GetRandomValue(0, 1000)}";
+			defer free(new_p.str);
+
+			if (!io.mv(p, new_p)) {
+				state.set_errmsg(f"moving old save from '{p.str}' to '{new_p.str}' failed, write to a different name pls :)");
+			} else {
+				ProjectSave.Create(p, project_name);
+				CloseModal();
+			}
+		} else {
+			ProjectSave.Create(p, project_name);
+			CloseModal();
+		}
+	}
+}
+
+void OpenProjectModal(using ModalState& state) {
+	if (just_opened) {
+		GetTextInput(UiElementID.ID("OpenProjectModal-file-input")).Activate();
+	}
+
+	TextInputState^ textbox;
+
+	#clay({
+		.layout = {
+			.sizing = {
+				CLAY_SIZING_GROW(),
+				CLAY_SIZING_FIXED(rem(1.5))
+			},
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+		}
+	}) {
+		clay_text("Project Name: ", {
+			.fontSize = rem(1),
+			.textColor = Colors.White,
+		});
+		textbox = ^TextBoxMaintained(UiElementID.ID("OpenProjectModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
+	}
+
+	if (errmsg != NULL) {
+		#clay({
+			.layout = {
+				.sizing = {
+					CLAY_SIZING_GROW(),
+					CLAY_SIZING_FIXED(rem(1.5))
+				},
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER }
+			}
+		}) {
+			clay_text(errmsg, {
+				.fontSize = rem(1),
+				.textColor = theme.errmsg,
+			});
+		}
+	}
+
+	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
+		string buf = string(textbox#buffer);
+		string project_name = buf.trim();
+		defer project_name.delete();
+
+		Path p = Path("saves")/project_name;
+		defer free(p.str);
+		if (!io.dir_exists(p)) {
+			state.set_errmsg(f"Project Save directory '{p.str}' does not exist");
+		} else {
+			ProjectSave.Load(Path("saves")/project_name);
+			CloseModal();
+		}
+	}
+}
+
 // TODO: future e.g: MyCustomElem + ChromaKey(GREEN) + BlahCustomEffect
 // TODO: future e.g: my_imgs/*.png, vid.mp4, extra_audio.ogg
 void QuickAddModal(using ModalState& state) {
@@ -1084,6 +1205,13 @@ void GameTick() {
 
 		if (HotKeys.QuickAdd.IsPressed()) { // NOTE: A (quick-add)
 			OpenModalFn(QuickAddModal);
+		}
+
+		if (HotKeys.SaveProject.IsPressed()) {
+			OpenModalFn(SaveProjectModal);
+		}
+		if (HotKeys.OpenProject.IsPressed()) {
+			OpenModalFn(OpenProjectModal);
 		}
 	}
 
