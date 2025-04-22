@@ -2,6 +2,7 @@ import theming;
 import rl;
 import std;
 import clay_lib;
+import ui_elements;
 
 struct InterpolationFns {
 	// easing function
@@ -282,7 +283,64 @@ struct KeyframeLayer<T> {
 	void Clear() {
 		for (let& keyframe in keyframes) { keyframe.delete(); }
 		keyframes.delete();
-		keyframes = List<Keyframe<T>>();
+		keyframes = .();
+	}
+
+	bool HasKeyframeAtTime(float t) {
+		for (let& keyframe in keyframes) {
+			if (keyframe.time == t) { return true; }
+		}
+		return false;
+	}
+
+	Keyframe<T>^ PrevKeyframeBeforeTime(float t) {
+		for (int i in 0..keyframes.size) {
+			if (keyframes.get(i).time < t && (i == keyframes.size - 1 || keyframes.get(i + 1).time >= t)) {
+				return ^keyframes.get(i);
+			}
+		}
+		return NULL;
+	}
+
+	Keyframe<T>^ NextKeyframeAfterTime(float t) {
+		for (let& keyframe in keyframes) {
+			if (keyframe.time > t) {
+				return ^keyframe;
+			}
+		}
+		return NULL;
+	}
+
+	void RemoveAtTime(float t) {
+		for (int i = keyframes.size - 1; i >= 0; i--;) {
+			if (keyframes.get(i).time == t) {
+				keyframes.get(i).delete();
+				keyframes.remove_at(i); 
+			}
+		}
+	}
+
+	void ControlButtons(T^ value, CustomLayerUIParams& params) {
+		clay_x_grow_spacer();
+		if (ClayButton("<", Clay_ElementId(t"{^this}-prev-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+			Keyframe<T>^ prev = PrevKeyframeBeforeTime(params.curr_local_time);
+			if (prev != NULL) {
+				params.global_time = params.element.start_time + prev#time;
+			}
+		}
+		if (ClayButton("O", Clay_ElementId(t"{^this}-toggle-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+			if (HasKeyframeAtTime(params.curr_local_time)) {
+				RemoveAtTime(params.curr_local_time);
+			} else {
+				InsertValue(params.curr_local_time, *value);
+			}
+		}
+		if (ClayButton(">", Clay_ElementId(t"{^this}-next-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+			Keyframe<T>^ next = NextKeyframeAfterTime(params.curr_local_time);
+			if (next != NULL) {
+				params.global_time = params.element.start_time + next#time;
+			}
+		}
 	}
 
 	void UI(Rectangle rect, CustomLayerUIParams& params) {
@@ -300,7 +358,7 @@ struct KeyframeLayer<T> {
 				Vec2 offset = v2(dimens.x * t, 0);
 
 				let& assets = keyframe.assets();
-				let sizing = Clay_Sizing(rem(1), rem(1));
+				Clay_Sizing sizing = .(rem(1), rem(1));
 				bool keyframe_hovered = false;
 				#clay({
 					.layout = {
@@ -315,18 +373,17 @@ struct KeyframeLayer<T> {
 						},
 					},
 					.backgroundColor = Colors.Black,
-					.image = Clay_ImageElementConfig(assets.outline)
-					// TODO: NOTE: in template .() does not work correctly
+					.image = .(assets.outline)
 				}) {
 					keyframe_hovered = Clay.Hovered();
 					
 					#clay({
-						.layout = { .sizing = Clay_Sizing(0, 0) },
+						.layout = { .sizing = .(0, 0) },
 					}) {
 						#clay({
 							.layout = { :sizing },
 							.backgroundColor = Colors.Gray,
-							.image = Clay_ImageElementConfig(assets.front)
+							.image = .(assets.front)
 						}) {}
 					}
 
@@ -339,7 +396,7 @@ struct KeyframeLayer<T> {
 								.offset = {},
 								.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH
 							},
-							.image = Clay_ImageElementConfig(assets.highlight),
+							.image = .(assets.highlight),
 							.backgroundColor = theme.keyframe_hover_highlight,
 						}) {}
 					}

@@ -56,7 +56,7 @@ void main() {
 
 	if (texture_mode == 0) {
 		if (has_closest) {
-			finalColor = vec4(0, closest_f / path_radius, 0, 1);
+			finalColor = vec4(closest_f / path_radius, 0, 0, 1);
 		} else {
 			finalColor = vec4(0, 0, 0, 0);
 		}

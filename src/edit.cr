@@ -1497,7 +1497,7 @@ void SidePanelContents() {
 
 	float curr_local_time = std.clamp(current_time - selected_elem.start_time, 0, selected_elem.duration);
 
-	CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = current_time };
+	CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = current_time, .element = selected_elem, };
 	selected_elem.UI(params);
 }
 

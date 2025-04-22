@@ -412,62 +412,44 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color); // Main triangle
 	}
 }
-//
-// // // helper for `cool_effect` effect
-// // List<Vec2> GenPoints(int pixels_per) {
-// // 	pixels_per = std.maxi(1, pixels_per);
-// // 	List<Vec2> points = .();
-// //
-// // 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
-// // 		points.add(.(i*pixels_per, 0));
-// // 		points.add(.(i*pixels_per, CANVAS_HEIGHT));
-// // 	}
-// // 	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
-// // 		points.add(.(0, i*pixels_per));
-// // 		points.add(.(CANVAS_WIDTH, i*pixels_per));
-// // 	}
-// //
-// // 	return points;
-// // }
-// //
-// // // EFFECTS --------
-// // helper for `cool_effect` effect
-// List<Vec2> GenPoints(int pixels_per) {
-// 	pixels_per = std.maxi(1, pixels_per);
-// 	List<Vec2> points = .();
-//
-// 	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
-// 		points.add(.(i*pixels_per, 0));
-// 		points.add(.(i*pixels_per, CANVAS_HEIGHT));
-// 	}
-// 	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
-// 		points.add(.(0, i*pixels_per));
-// 		points.add(.(CANVAS_WIDTH, i*pixels_per));
-// 	}
-//
-// 	return points;
-// }
-//
-// // EFFECTS --------
-// // @fx_args
-// // struct CoolArgs {
-// // 	float pixels_per;
-// // }
-// //
-// // @fx_fn
-// // void cool_effect(FxArgs& args, CoolArgs& margs) {
-// // 	Vec2 center = args.pos + args.scale.divide(2);
-// //
-// // 	let points = GenPoints(margs.pixels_per as int);
-// // 	defer points.delete();
-// // 	for (let p in points) {
-// // 		d.Line(p, center, 3, Colors.Orange);
-// // 	}
-// //
-// // 	d.Circle(center, 11, Colors.Black);
-// // 	d.Circle(center, 10, args.color);
-// // }
-// //
+
+// helper for `cool_effect` effect
+List<Vec2> GenPoints(int pixels_per) {
+	pixels_per = std.maxi(1, pixels_per);
+	List<Vec2> points = .();
+
+	for (int i in 0..=(CANVAS_WIDTH/pixels_per)) {
+		points.add(.(i*pixels_per, 0));
+		points.add(.(i*pixels_per, CANVAS_HEIGHT));
+	}
+	for (int i in 0..=(CANVAS_HEIGHT/pixels_per)) {
+		points.add(.(0, i*pixels_per));
+		points.add(.(CANVAS_WIDTH, i*pixels_per));
+	}
+
+	return points;
+}
+
+// EFFECTS --------
+@fx_args
+struct CoolArgs {
+	float pixels_per = 20;
+}
+
+@fx_fn
+void cool_effect(FxArgs& args, CoolArgs& margs) {
+	Vec2 center = args.pos + args.scale.divide(2);
+
+	let points = GenPoints(margs.pixels_per as int);
+	defer points.delete();
+	for (let p in points) {
+		d.Line(p, center, 3, args.color);
+	}
+
+	d.Circle(center, 11, Colors.Black);
+	d.Circle(center, 10, args.color);
+}
+
 // // @fx_args
 // // struct StringWheelArgs {
 // // 	List<char^> strs = .(); // list of string

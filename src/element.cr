@@ -173,7 +173,7 @@ struct VideoElement : ElementImpl {
 	void Draw(Element^ e, float current_time) {
 		if (loaded) {
 			int frame_idx = ((current_time - (e#start_time - start_offset)) * (dec_fr * speed)) as int % frames.size; 
-			d.TextureAtSize(frames.get(frame_idx), e#pos.x, e#pos.y, e#scale.x, e#scale.y);
+			d.TextureRotCenter(frames.get(frame_idx), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
 		}
 	}
 
@@ -451,6 +451,7 @@ struct CustomLayerUIParams {
 	float curr_local_time;
 
 	float& global_time;
+	Element& element;
 }
 
 
@@ -580,6 +581,8 @@ struct CustomLayer {
 								it.kl_value.InsertValue(curr_local_time, !(*it.value));
 								it.kl_value.Set(it.value, curr_local_time);
 							}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerFloat it -> {
 							let changed = SlidingFloatTextBox(.(t"{it.value}"), it.value);
@@ -587,6 +590,8 @@ struct CustomLayer {
 								it.kl_value.InsertValue(curr_local_time, changed as Some);
 								it.kl_value.Set(it.value, curr_local_time);
 							}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerInt it -> {
 							// TODO: int-sliding-textbox
@@ -595,6 +600,8 @@ struct CustomLayer {
 								it.kl_value.InsertValue(curr_local_time, changed as Some);
 								it.kl_value.Set(it.value, curr_local_time);
 							}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerVec2 it -> {
 							#clay({
@@ -632,6 +639,8 @@ struct CustomLayer {
 									it.kl_value.Set(it.value, curr_local_time);
 								}
 							}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerColor it -> {
 							#clay({
@@ -721,6 +730,8 @@ struct CustomLayer {
 								.backgroundColor = *it.value,
 								.border = .(1, theme.panel_border), // TODO: better color
 							}) {}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerStr it -> {
 							Rectangle rect = Clay.GetBoundingBox(content_id);
@@ -730,6 +741,8 @@ struct CustomLayer {
 								it.kl_value.InsertValue(curr_local_time, strdup(change_text)); // NOTE: keyframes MUST delete str as it is owned!!!
 								it.kl_value.Set(it.value, curr_local_time);
 							}
+
+							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerList it -> { // it is NOT ref!!??
 						// NOTE: never called
