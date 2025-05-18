@@ -51,79 +51,49 @@ struct NumberInputTheme {
 	Color bg;
 }
 
+// default value is dark theme!
 struct Theme {
-	Color bg;
-	Color canvas_bg;
-	Color panel;
-	Color panel_border;
-	Color button; // TODO: button_hover
-	Color button_hover; // TODO: button_hover
-	Color button_err;
-	Color active;
+	Color bg = hex("222222");
+	Color canvas_bg = hex("CCCCCC");
+	Color panel = hex("4f4f4f");
+	Color panel_border = hex("6b6b6b");
+	Color button = hex("333333");
+	Color button_hover = hex("222222");
+	Color button_err = hex("765941");
+	Color active = hex("FFAA00AA");
 
-	NumberInputTheme number_input;
-
-	TimelineElementColorSet elem_ui_pink; // normal
-	TimelineElementColorSet elem_ui_yellow; // warning
-	TimelineElementColorSet elem_ui_blue; // selected
-
-	Color timeline_layer_info_gray;
-	// Color elem_ui_yellow;
-
-	Color keyframe_hover_highlight;
-	Color modal_bg_darken;
-	Color errmsg;
-
-	Color progress_bar_bg;
-	Color progress_bar_fg;
-
-	Color timeline_second_line;
-	Color timeline_tenth_second_line;
-}
-
-Theme MakeDarkTheme() -> {
-	// TODO: hex"..."
-	// .bg = hex("616161"),
-	.bg = hex("222222"),
-	.canvas_bg = hex("CCCCCC"),
-	.panel = hex("4f4f4f"),
-	.panel_border = hex("6b6b6b"),
-	.button = hex("333333"),
-	.button_hover = hex("222222"),
-	.button_err = hex("765941"),
-	.active = hex("FFAA00AA"),
-
-	.number_input = {
+	NumberInputTheme number_input = {
 		.text = hex("3bddff"),
 		.bg = hex("3b3b3b"),
-	},
+	};
 
-	// .elem_ui_yellow = hex("CFAE55"),
-	.elem_ui_pink = {
+	TimelineElementColorSet elem_ui_pink = { // normal
 		.bg = hex("D6BCD6"),
 		.border = hex("BFA6BF"),
 		.text = hex("3D353D"),
-	},
-	.elem_ui_yellow = {
+	};
+	TimelineElementColorSet elem_ui_yellow = { // warning
 		.bg = hex("#eddd95"),
 		.border = hex("#ccbe7e"),
 		.text = hex("#302e21"),
-	},
-	.elem_ui_blue = {
+	};
+	TimelineElementColorSet elem_ui_blue = { // selected
 		.bg = hex("#86a5d1"),
 		.border = hex("#768fb3"),
 		.text = hex("#20252b"),
-	},
-	.timeline_layer_info_gray = hex("AAAAAA"),
-	.keyframe_hover_highlight = hex("0000FF99"),
-	.modal_bg_darken = hex("00000033"),
-	.errmsg = hex("FF4444"),
+	};
 
-	.progress_bar_bg = hex("262626"), // gray
-	.progress_bar_fg = hex("afc7af"), // green
+	Color timeline_layer_info_gray = hex("AAAAAA");
 
-	.timeline_second_line = hex("6b6b6bDD"),
-	.timeline_tenth_second_line = hex("6b6b6b55"),
-};
+	Color keyframe_hover_highlight = hex("0000FF99");
+	Color modal_bg_darken = hex("00000033");
+	Color errmsg = hex("FF4444");
 
-Theme theme = MakeDarkTheme();
+	Color progress_bar_bg = hex("262626");
+	Color progress_bar_fg = hex("afc7af");
+
+	Color timeline_second_line = hex("6b6b6bDD");
+	Color timeline_tenth_second_line = hex("6b6b6b55");
+}
+
+Theme theme = {};

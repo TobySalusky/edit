@@ -601,6 +601,29 @@ void WalkFileTreeBasic(char^ dir_path, FileTreeWalker^ visitor) {
 }
 
 
+
+
+
+
+
+
+struct None {}
+choice Opt<T> {
+	 T as Some, None;
+
+	 static Opt<T> Some(T val) -> val;
+}
+None none = {};
+
+choice Result<TRes, TErr> {
+	TRes as Ok, TErr as Err;
+}
+
+
+
+
+
+
 // stat  ----------------
 c:`typedef struct stat file_stat;`
 @extern
@@ -785,6 +808,16 @@ struct IO_lib {
 		};
 	}
 
+	Strings? lines_opt(char^ file_path) {
+		FILE^ f = this.open(file_path, "r");
+		defer this.close(f);
+
+		return Strings{
+			.n = f#num_lines(),
+			.strs = f#lines()
+		};
+	}
+
 	char^ cwd() {
 		// TODO: danger - long (but possibly not long enough path length?!!)
 		return c:getcwd(c:NULL, 1024);
@@ -804,21 +837,6 @@ struct Box<T> {
 
 	T^ make(T val) -> Self.Make(val);
 }
-
-
-
-struct None {}
-choice Opt<T> {
-	 T as Some, None;
-
-	 static Opt<T> Some(T val) -> val;
-}
-None none = {};
-
-choice Result<TRes, TErr> {
-	TRes as Ok, TErr as Err;
-}
-
 
 struct std {
 	static float max(float a, float b) -> c:fmax(a, b);

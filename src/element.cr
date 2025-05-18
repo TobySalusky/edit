@@ -12,12 +12,16 @@ import clay_lib;
 import ui_elements;
 import encode_decode;
 
-int KIND_RECT = 0;
-int KIND_CIRCLE = 1;
-int KIND_IMAGE = 2;
-int KIND_FX_FN = 3;
-int KIND_VIDEO = 4;
-int KIND_FACE = 5;
+enum ElementKind {
+	RECT,
+	CIRCLE,
+	IMAGE,
+	FX_FN,
+	VIDEO,
+	FACE,
+	;
+	bool operator:==(Self other) -> this as int == other as int;
+}
 interface ElementImpl {
 	void Draw(Element^ e, float current_time);
 
@@ -30,23 +34,23 @@ interface ElementImpl {
 
 	CustomLayer^ CustomLayersList();
 
-	int Kind();
+	ElementKind Kind();
 	void _FillYaml(yaml_object& yo);
 }
 
-ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
+ElementImpl^ ElementImplFromYaml(ElementKind kind, yaml_object& yo) {
 	ElementImpl^ it;
 	switch (kind) {
-		KIND_RECT -> {
+		.RECT -> {
 			it = RectElement.Make();
 		},
-		KIND_CIRCLE -> {
+		.CIRCLE -> {
 			it = CircleElement.Make();
 		},
-		KIND_IMAGE -> {
+		.IMAGE -> {
 			it = ImageElement.Make(yo.get_str("file_path"));
 		},
-		KIND_FX_FN -> {
+		.FX_FN -> {
 			let em = CustomPureFnElement.Make(yo.get_str("fn_name"));
 			let custom_layer_list_s = yaml_serializer.Obj(yo.get_obj("custom_layer_list"), true);
 			em#custom_layer_list = CustomLayer.Deserialize(custom_layer_list_s);
@@ -54,11 +58,11 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 
 			it = em;
 		},
-		KIND_VIDEO -> {
+		.VIDEO -> {
 			it = VideoElement.Make(yo.get_str("video_file_path"), yo.get_float("dec_fr"));
 		},
 		else -> {
-			println(t"[WARNING]: ElementImplFromYaml unknown case {kind}");
+			println(t"[WARNING]: ElementImplFromYaml unknown case {kind as int}");
 			it = RectElement.Make();
 		}
 	}
@@ -68,7 +72,7 @@ ElementImpl^ ElementImplFromYaml(int kind, yaml_object& yo) {
 
 yaml_object ElementImplToYaml(ElementImpl^ impl) {
 	yaml_object yo = {};
-	yo.put_int("kind", impl#Kind());
+	yo.put_int("kind", impl#Kind() as int);
 	impl#_FillYaml(yo);
 	return yo;
 }
@@ -81,7 +85,7 @@ struct RectElement : ElementImpl {
 		d.RectRot(e#pos, e#scale, e#rotation, e#TintColor());
 	}
 
-	int Kind() -> KIND_RECT;
+	ElementKind Kind() -> .RECT;
 	void _FillYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "rect";
@@ -98,7 +102,7 @@ struct CircleElement : ElementImpl {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#TintColor()); // TODO: allow ellipse
 	}
 
-	int Kind() -> KIND_CIRCLE;
+	ElementKind Kind() -> .CIRCLE;
 	void _FillYaml(yaml_object& yo) { }
 
 	char^ ImplTypeStr() -> "circle";
@@ -137,7 +141,7 @@ struct ImageElement : ElementImpl {
 		d.TextureRotCenter(ImageCache.Get(file_path), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
 	}
 
-	int Kind() -> KIND_IMAGE;
+	ElementKind Kind() -> .IMAGE;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("file_path", file_path);
 	}
@@ -177,7 +181,7 @@ struct VideoElement : ElementImpl {
 		}
 	}
 
-	int Kind() -> KIND_VIDEO;
+	ElementKind Kind() -> .VIDEO;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("video_file_path", video_file_path);
 		yo.put_float("dec_fr", dec_fr);
@@ -197,8 +201,6 @@ struct VideoElement : ElementImpl {
 	}
 }
 
-c:`typedef CustomFnHandle (*CustomPureFnGetter)(void);`;
-c:`typedef CustomStructHandle (*CustomArgsNewFn)(void);`;
 c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
 c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
 
@@ -830,7 +832,7 @@ struct CustomPureFnElement : ElementImpl {
 	CustomLayer custom_layer_list;
 	Opt<CustomStructHandle> custom_args_handle;
 
-	int Kind() -> KIND_FX_FN;
+	ElementKind Kind() -> .FX_FN;
 	void _FillYaml(yaml_object& yo) {
 		yo.put_literal("fn_name", fn_name);
 		yo.put_obj("custom_layer_list", custom_layer_list.Serialize());
@@ -858,7 +860,7 @@ struct CustomPureFnElement : ElementImpl {
 		switch (fn_getter_res) {
 			void^ ok -> {
 
-				c:CustomPureFnGetter fn_getter = ok;
+				fn_ptr<CustomFnHandle()> fn_getter = ok as ..;
 				CustomFnHandle fn_handle = fn_getter();
 
 				FxArgs base_args = {
@@ -873,14 +875,14 @@ struct CustomPureFnElement : ElementImpl {
 				};
 
 				if (fn_handle.custom_arg_t_name != NULL) {
-					c:CustomPureFnWithCustomParams fn = fn_handle.ptr;
+					fn_ptr<void(FxArgs^, void^)> fn = fn_handle.ptr as ..;
 
 					if (custom_args_handle is None) {
 						let fx_new_fn_name = t"__scriptgen_NewFxArgs_{fn_handle.custom_arg_t_name}";
 						let fn_args_new_res = code_man.GetFn(fx_new_fn_name); // creates handle
 						switch (fn_args_new_res) {
 							void^ ok -> {
-								c:CustomArgsNewFn args_new_fn = ok;
+								fn_ptr<CustomStructHandle()> args_new_fn = ok as ..;
 								CustomStructHandle the_struct_handle = args_new_fn();
 
 								println(t"called {fx_new_fn_name}: -> struct w/ {the_struct_handle.members.size} members");
@@ -1016,7 +1018,7 @@ struct CustomPureFnElement : ElementImpl {
 						}
 					}
 				} else {
-					c:CustomPureFnWithoutCustomParams fn = fn_handle.ptr;
+					fn_ptr<void(FxArgs^)> fn = fn_handle.ptr as ..;
 					custom_args_handle = none;
 
 					// println(t"calling __scriptgen_NewFxFn_{fn_name}(<Args>)");
@@ -1094,7 +1096,6 @@ struct Element {
 	
 	Data^ data;
 
-
 	// Opt<float> _LastKeyframeTime(char^ key_name, float current_local_time, CustomLayerList& list) {
 	// 	for (let& layer in list.layers) {
 	// 		if (str_eq(key_name, layer.name)) {
@@ -1102,6 +1103,9 @@ struct Element {
 	// 	}
 	// 	return none;
 	// }
+
+	ElementKind Kind() -> content_impl#Kind();
+	bool IsVideo() -> Kind() == .VIDEO;
 
 	Color TintColor() {
 		Color tint = color;
@@ -1153,9 +1157,9 @@ struct Element {
 
 		// impl
 		if (is_load) {
-			content_impl = ElementImplFromYaml(s.obj.get_int("kind"), s.obj.get_obj("impl"));
+			content_impl = ElementImplFromYaml(s.obj.get_int("kind") as ElementKind, s.obj.get_obj("impl"));
 		} else {
-			s.obj.put_int("kind", content_impl#Kind());
+			s.obj.put_int("kind", Kind() as int);
 			s.obj.put_object("impl", ElementImplToYaml(content_impl));
 		}
 

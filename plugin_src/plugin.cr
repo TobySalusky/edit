@@ -1,3 +1,5 @@
+include path("../std");
+
 import plugin_core;
 import std;
 import list;

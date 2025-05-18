@@ -1,3 +1,7 @@
+include path("../std");
+include path("../raylib");
+include path("../common");
+
 import std;
 import rl;
 import script;

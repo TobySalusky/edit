@@ -42,7 +42,20 @@ typedef Vector4 Vec4;
 @extern struct Ray{}
 @extern struct Matrix{}
 
+struct RaylibLogLevels {
+	int ALL = c:LOG_ALL;        // Display all logs
+    int TRACE = c:LOG_TRACE;          // Trace logging, intended for internal use only
+    int DEBUG = c:LOG_DEBUG;          // Debug logging, used for internal debugging, it should be disabled on release builds
+    int INFO = c:LOG_INFO;           // Info logging, used for program execution info
+    int WARNING = c:LOG_WARNING;        // Warning logging, used on recoverable failures
+    int ERROR = c:LOG_ERROR;          // Error logging, used on unrecoverable failures
+    int FATAL = c:LOG_FATAL;          // Fatal logging, used to abort program: exit(EXIT_FAILURE)
+    int NONE = c:LOG_NONE;            // Disable logging
+}
+
 struct Raylib {
+	RaylibLogLevels LogLevel = {};
+
 	// =================================
 	// Window-related functions
     void InitWindow(int width, int height, char^ title) -> c:InitWindow(width, height, title);  // Initialize window and OpenGL context
@@ -277,7 +290,7 @@ struct Raylib {
     void SetMouseScale(float scaleX, float scaleY) -> c:SetMouseScale(scaleX, scaleY);         // Set mouse scaling
     float GetMouseWheelMove() -> c:GetMouseWheelMove();                          // Get mouse wheel movement for X or Y, whichever is larger
     Vec2 GetMouseWheelMoveV() -> c:GetMouseWheelMoveV();                       // Get mouse wheel movement for both X and Y
-    void SetMouseCursor(int cursor) -> c:SetMouseCursor(cursor);                        // Set mouse cursor
+    void SetMouseCursor(MouseCursor cursor) -> c:SetMouseCursor(cursor);                        // Set mouse cursor
 
     // Input-related functions: touch
     int GetTouchX() -> c:GetTouchX();                                    // Get touch position X for touch point 0 (relative to screen size)
@@ -979,6 +992,20 @@ struct ShaderLocationHandle { // stack/mem Shader must stay valid!
 }
 
 Shader make_shader(char^ fragFileName) -> c:LoadShader(0, fragFileName);
+
+// enum
+@extern struct MouseCursor {}
+@extern MouseCursor MOUSE_CURSOR_DEFAULT;       // Default pointer shape
+@extern MouseCursor MOUSE_CURSOR_ARROW;         // Arrow shape
+@extern MouseCursor MOUSE_CURSOR_IBEAM;         // Text writing cursor shape
+@extern MouseCursor MOUSE_CURSOR_CROSSHAIR;     // Cross shape
+@extern MouseCursor MOUSE_CURSOR_POINTING_HAND; // Pointing hand cursor
+@extern MouseCursor MOUSE_CURSOR_RESIZE_EW;     // Horizontal resize/move arrow shape
+@extern MouseCursor MOUSE_CURSOR_RESIZE_NS;     // Vertical resize/move arrow shape
+@extern MouseCursor MOUSE_CURSOR_RESIZE_NWSE;   // Top-left to bottom-right diagonal resize/move arrow shape
+@extern MouseCursor MOUSE_CURSOR_RESIZE_NESW;   // The top-right to bottom-left diagonal resize/move arrow shape
+@extern MouseCursor MOUSE_CURSOR_RESIZE_ALL;    // The omnidirectional resize/move cursor shape
+@extern MouseCursor MOUSE_CURSOR_NOT_ALLOWED;   // The operation-not-allowed shape
 
 //  3D ---------------------------------
 @extern struct Camera {

@@ -1,0 +1,9 @@
+[package]
+name = "paint"
+version = "0.1.0"
+
+[dependencies]
+raylib = "0.1.0"
+std = "0.1.0"
+yaml = "0.1.0"
+

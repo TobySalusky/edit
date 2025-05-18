@@ -264,7 +264,7 @@ char^ TextBox(UiElementID ui_id, Clay_ElementId clay_id, char^ init_text, Clay_S
 	bool hovered = Clay.PointerOver(clay_id);
 
 	if (hovered) {
-		cursor_type = .Textbox;
+		cursor_type = .IBeam;
 	}
 
 	if (mouse.LeftClickPressed() && hovered) {
@@ -379,7 +379,7 @@ Opt<int> SlidingIntegralTextBox(Clay_ElementId id, int ival, void^ ptr, SlidingI
 
 	if (hovered) {
 		bg = theme.panel_border;
-		cursor_type = .SlideLeftRight;
+		cursor_type = .Pointer;
 	}
 
 	#clay({
@@ -424,7 +424,7 @@ Opt<float> SlidingFloatTextBox(Clay_ElementId id, float^ f, SlidingFloatTextBoxC
 
 	if (hovered) {
 		bg = theme.panel_border;
-		cursor_type = .SlideLeftRight;
+		cursor_type = .Pointer;
 	}
 
 	#clay({
@@ -462,20 +462,27 @@ struct PanelExpander {
 	char^ save_config_name; // @not-null
 	float min;
 	bool reverse = false;
+	bool vertical = false; // vertical means line is horizontal (maybe rename?)
 
 	// internal
 	bool dragging = false;
 	float f_at_drag_start = 0;
-	float x_at_drag_start = 0;
+	float axis_coord_at_drag_start = 0;
+
+	float _GetAxisCoord() -> vertical ? mouse.GetPos().y | mouse.GetPos().x;
 
 	void Update() {
 		assert(save_config_name != NULL, "save_config_name == NULL!!!");
 		assert(f != NULL, "f == NULL!!!");
 
 		bool moused_over = false;
+
 		#clay({
 			.layout = {
-				.sizing = {
+				.sizing = vertical ? {
+					.width = CLAY_SIZING_GROW(),
+					.height = CLAY_SIZING_FIXED(1),
+				} | {
 					.width = CLAY_SIZING_FIXED(1),
 					.height = CLAY_SIZING_GROW(),
 				},
@@ -485,7 +492,10 @@ struct PanelExpander {
 		}) {
 			#clay({
 				.layout = {
-					.sizing = {
+					.sizing = vertical ? {
+						.width = CLAY_SIZING_GROW(),
+						.height = CLAY_SIZING_FIXED(16),
+					} | {
 						.width = CLAY_SIZING_FIXED(16),
 						.height = CLAY_SIZING_GROW(),
 					},
@@ -496,7 +506,7 @@ struct PanelExpander {
 		}
 
 		if (dragging) {
-			float diff = mouse.GetPos().x - x_at_drag_start;
+			float diff = _GetAxisCoord() - axis_coord_at_drag_start;
 			if (reverse) {
 				diff *= -1;
 			}
@@ -512,7 +522,7 @@ struct PanelExpander {
 		}
 
 		if (!dragging && mouse.LeftClickPressed() && moused_over) {
-			x_at_drag_start = mouse.GetPos().x;
+			axis_coord_at_drag_start = _GetAxisCoord();
 			f_at_drag_start = *f;
 			dragging = true;
 		}

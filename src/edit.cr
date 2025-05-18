@@ -1,3 +1,7 @@
+include path("../std");
+include path("../raylib");
+include path("../common");
+
 c:c:`
 #pragma GCC diagnostic push
 #ifdef _WIN32
@@ -37,6 +41,9 @@ import clay_app;
 c:import "tinyfiledialogs.h";
 
 // Canvas and window
+
+int edit_version = ReadEditVersion(); // NOTE: initialized
+int oldest_supported_edit_version = 1;
 
 int window_width = GlobalSettings.get_int("window_width", 1200); // loaded from GlobalSettings
 int window_height = GlobalSettings.get_int("window_height", 900);
@@ -210,15 +217,29 @@ struct CommandLineArgs {
 	}
 }
 
+struct ProjectSaveLoadSettings {
+	bool force = false;
+}
+
 struct ProjectSave {
-	static void Load(Path project_dir_path) { // TODO: don't leak mem :)
+	static void Load(Path project_dir_path, ProjectSaveLoadSettings settings = {}) { // TODO: don't leak mem :)
 		elements = .(); // clear elements
 		selected_elem_i = 0;
 		
 		let obj = yaml_parser{}.parse_file(project_dir_path/"manifest.yaml");
 
 		char^ project_name = obj.get_str("project_name");
-		char^ edit_version = obj.get_str("edit_version");
+		int project_edit_version = obj.get_int("edit_version"); // NOTE: unused currently
+		if (!(project_edit_version >= oldest_supported_edit_version)) {
+			println(t"[DEBUG-WARNING]: Project '{project_name}' is of version={project_edit_version}, which is unsupported");
+			if (settings.force) {
+				println(t"[DEBUG-WARNING]: Continuing due to `force=true` option, crash possible!");
+			} else {
+				println(t"[DEBUG-WARNING]: Skipping Project Load to avoid possible crash!");
+				return;
+			}
+		}
+
 		int num_elements = obj.get_int("num_elements");
 		set_max_time(obj.get_float_default("max_time", 30));
 
@@ -247,7 +268,7 @@ struct ProjectSave {
 
 		yaml_object manifest = {};
 		manifest.put_literal("project_name", name);
-		manifest.put_literal("edit_version", "0.0.1");
+		manifest.put_int("edit_version", edit_version);
 		manifest.put_int("num_elements", elements.size);
 		manifest.put_float("max_time", max_time);
 
@@ -385,7 +406,6 @@ void LeftPanelUI() {
 	d.RectR(.(0, 0, left_panel_width, 32), theme.button);
 	let& selected_elem = elements.get(selected_elem_i);
 	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
-	// KeyframeTimelineUI();
 
 	// SlidingFloatTextBox(.("my_f"), my_f);
 }
@@ -414,14 +434,15 @@ TimelineState timeline = {
 	.dragging_caret = false,
 };
 
-int keyframe_timeline_ui_height = 100;
-int element_timeline_ui_height = 180;
+float composition_timeline_height = GlobalSettings.get_float("composition_timeline_height", 180);
+PanelExpander composition_timeline_panel_expander = { ^composition_timeline_height, "composition_timeline_height", .min = 100 };
+
 void ElementTimelineUI() {
 	float timeline_view_start = 0;
 	float timeline_view_duration = max_time;
 
 	int show_layers = std.maxi(layers.size + 1, 3);
-	float height = element_timeline_ui_height;
+	float height = composition_timeline_height;
 	float layer_height = height / show_layers;
 
 	float whole_width = window_width as float - left_panel_width;
@@ -485,7 +506,7 @@ void ElementTimelineUI() {
 		d.RectR(r.Inset(1), color_set.bg);
 
 		char^ name_addendum = "";
-		if (elem.content_impl#Kind() == KIND_VIDEO) {
+		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
 			if (vid#loading) { name_addendum = t" (loading{LoadingDotDotDotStr()})"; }
 		}
@@ -509,7 +530,7 @@ void ElementTimelineUI() {
 			if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
 				cursor_type = CursorType.ResizeHoriz;
 			} else {
-				cursor_type = CursorType.SlideLeftRight;
+				cursor_type = CursorType.Pointer;
 			}
 		} else if (hovering) {
 			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
@@ -517,7 +538,7 @@ void ElementTimelineUI() {
 			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
 				cursor_type = CursorType.ResizeHoriz;
 			} else {
-				cursor_type = CursorType.SlideLeftRight;
+				cursor_type = CursorType.Pointer;
 			}
 		}
 
@@ -589,64 +610,6 @@ void ElementTimelineUI() {
 
 bool keyframe_timeline_dragging = false;
 // TODO: move over!
-void KeyframeTimelineUI() {
-	int info_width = 100;
-	// int width = window_width - left_panel_width - info_width;
-	int width = left_panel_width as ..;
-	int height = keyframe_timeline_ui_height;
-
-	int y_start = 32;
-	Vec2 info_tl = v2(0, y_start);
-
-	Vec2 tl = v2(info_width, y_start);
-	Vec2 dimens = v2(width - info_width, height);
-
-
-	//  info -------------------
-	d.Rect(info_tl, v2(info_width, height), theme.panel);
-	// d.Rect(tl + v2(info_width - 1, 0), v2(1, height), theme.panel_border);
-	// /info -------------------
-
-	//  ui -------------------
-	d.Rect(tl, dimens, theme.panel);
-	d.Rect(tl, v2(dimens.x, 1), theme.panel_border);
-
-	let& selected_elem = elements.get(selected_elem_i);
-
-	d.Rect(tl + v2(dimens.x * std.clamp((current_time - selected_elem.start_time) / selected_elem.duration, 0, 1), 0), v2(1, dimens.y), theme.active);
-
-	int i = 0;
-
-
-	int kl_height = height / 5;
-	Vec2 kl_dimens = v2(dimens.x, kl_height);
-	float max_elem_time = selected_elem.duration;
-
-	float curr_lt = current_time - selected_elem.start_time;
-	// KeyframeLayerUI_Float(selected_elem.kl_pos_x, tl, kl_dimens, max_elem_time, curr_lt, "x", i); i++;
-	// KeyframeLayerUI_Float(selected_elem.kl_pos_y, tl, kl_dimens, max_elem_time, curr_lt, "y", i); i++;
-	// KeyframeLayerUI_Float(selected_elem.kl_scale, tl, kl_dimens, max_elem_time, curr_lt, "scale", i); i++;
-	// KeyframeLayerUI_Float(selected_elem.kl_rotation, tl, kl_dimens, max_elem_time, curr_lt, "angle", i); i++;
-	// KeyframeLayerUI_Float(selected_elem.kl_opacity, tl, kl_dimens, max_elem_time, curr_lt, "opacity", i); i++;
-
-	// .UI(max_elem_time, curr_lt, layer.name, i);
-	if (mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens)) {
-		keyframe_timeline_dragging = true;
-	}
-
-	if (mouse.LeftClickDown() && keyframe_timeline_dragging) {
-		float new_time = std.clamp(((mouse.GetPos().x - tl.x) / dimens.x), 0, 1) * selected_elem.duration + selected_elem.start_time;
-		if (new_time <= 0) { new_time = 0; }
-		if (new_time >= max_time) { new_time = max_time; }
-		SetTime(new_time); // TODO: add snap-to-frame-set-time
-		SetFrame(current_frame);
-	}
-
-	if (!mouse.LeftClickDown()) {
-		keyframe_timeline_dragging = false;
-	}
-	//  /ui -------------------
-}
 
 float SnapToNearestFramesTime(float time) -> ((time / time_per_frame) as int) as float / frame_rate;
 
@@ -668,7 +631,7 @@ bool ElementIsVisibleNow(Element& elem) {
 
 void UpdateState() {
 	for (let& elem in elements) {
-		if (elem.content_impl#Kind() == KIND_VIDEO) {
+		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
 			if (!vid#loaded && vid#loading && !is_video_importing) {
 				// convert images to textures
@@ -691,7 +654,7 @@ void UpdateState() {
 		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
 			elem.UpdateState(current_time);
 		}
-		if (elem.content_impl#Kind() == KIND_VIDEO) {
+		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
 			if (!vid#loaded && !vid#loading && !is_video_importing) {
 				vid#loading = true;
@@ -1352,12 +1315,8 @@ void GameTick() {
 }
 
 void RenderAfter() {
-	if (cursor_type != .Default) {
-		Cursor.Hide();
-		d.TextureAtRect(cursor_type.GetTexture(), RectCenter(mouse.GetPos(), Vec2_one.scale(40)));
-	} else {
-		Cursor.Show();
-	}
+	// TODO: this shouldn't be in RenderAfter
+	rl.SetMouseCursor(cursor_type as MouseCursor);
 }
 
 float video_play_pause_mute_ui_height = 32;
@@ -1424,7 +1383,7 @@ void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
 
 	Vec2 pos = v2(0, 0);
 	if (dropped_via_mouse) {
-		// pos = ...; // TODO: place at mouse position!
+		pos = mp_world_space;
 	}
 	println(t"File dropped: {strcmp(file_type, ".png")}");
 	if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
@@ -1434,10 +1393,9 @@ void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
 		char^ img_name = c:GetFileNameWithoutExt(file_path);
 
 		AddNewSelectedElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, pos, v2(img.width, img.height)));
-
 	} else if (strcmp(file_type, ".csv") == 0) {
 		// Handle data file
-		Data data = Data(file_path);
+		Data data = .(file_path);
 		data_list.add(data);
 		elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
 	} else if (strcmp(file_type, ".mp4") == 0) {
@@ -1462,7 +1420,7 @@ Rectangle UnCoveredArea() {
 		return .(0, 0, window_width, window_height);
 	}
 
-	return .(left_panel_width, 0, window_width as float - left_panel_width, window_height - (element_timeline_ui_height));
+	return .(left_panel_width, 0, window_width as float - left_panel_width, window_height as float - (composition_timeline_height));
 }
 
 Rectangle canvas_rect = { 0, 0, 0, 0};
@@ -1535,7 +1493,7 @@ void LayoutUI() {
     #clay({
 		.id = CLAY_ID("main"),
 		.layout = {
-			.sizing = .(window_width, window_height - element_timeline_ui_height),
+			.sizing = .(window_width, window_height as float - composition_timeline_height),
 			// .padding = { .left = left_panel_width as int }
 		}, 
 		.backgroundColor = Colors.Transparent,
@@ -1612,15 +1570,19 @@ void LayoutUI() {
 
 int main(int argc, char^^ argv) {
 	CommandLineArgs args = .(argc, argv);
+
 	Env.DebugPrint();
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
+	rl.SetTraceLogLevel(rl.LogLevel.ERROR); // During startup, we generally only care to see errors
 	EditClayApp.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}");
 	defer EditClayApp.Deinit();
 
 	// NOTE: (rae-TODO): FIX weirdness when GetScreenHeight >= actual-screen-height
 	// println(t"aa: {rl.GetScreenWidth()} {rl.GetRenderWidth()}");
 	// println(t"aa: {rl.GetScreenHeight()} {rl.GetRenderHeight()}");
+	println(t"h: {rl.GetMonitorHeight(0)=} {rl.GetMonitorWidth(0)=}");
+	// if ()
 
 	defer GlobalSettings.SaveUpdates();
 
@@ -1630,7 +1592,6 @@ int main(int argc, char^^ argv) {
 
 	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
-	CursorType.LoadAssets();
 	KeyframeAssets.LoadAssets();
 
 	// Audio init and close
@@ -1660,20 +1621,6 @@ int main(int argc, char^^ argv) {
 	images.reserve(max_frames);
 
 	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 0, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("pie_chart"), "pie_chart", 5, 5, -1, v2(150, 150), v2(500, 500)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("scatterplot"), "scatterplot", 10, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("line_graph"), "line_graph", 15, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bubblechart"), "bubblechart", 20, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Blue });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("bar_chart"), "bar_chart", 25, 5, -1, v2(150, 150), v2(1000, 500)) with { color = Colors.Red });
-	// AddNewElementAt(Element(CustomPureFnElement.Make("perlin_field"), "perlin_field", 1, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("nonexistent"), "nonexistent", 1, 0.5, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("cool_effect"), "cool_effect", 3, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("PointSwarm"), "PointSwarm", 0, 3, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("StringWheel"), "StringWheel", 0, 3, -1, v2(0, 0), v2(100, 100)));
-
-	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx"), "MyFx", 0, 2, -1, v2(0, 0), v2(100, 100)));
-	// AddNewElementAt(Element(CustomPureFnElement.Make("MyFx2"), "MyFx2", 2, 2, -1, v2(0, 0), v2(100, 100)));
 
 	selected_elem_i = 0;
 
@@ -1699,9 +1646,21 @@ int main(int argc, char^^ argv) {
 		}
 	}
 
+	// rl.SetTraceLogLevel(rl.LogLevel.DEBUG); // now that the program is running, we may care more about ongoing loads/raylib-IO calls
+
 	EditClayApp.MainLoop(GameTick, RenderAfter);
 
     return 0;
+}
+
+int ReadEditVersion() {
+	let lines = io.lines_opt("version.txt").! else {
+		println("[DEBUG-WARNING]: missing version.txt (using version=1)");
+		return 1;
+	};
+	defer lines.delete();
+
+	return c:atoi(lines.at(0));
 }
 
 c:c:`
