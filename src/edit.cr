@@ -1,6 +1,5 @@
-include path("../std");
-include path("../raylib");
 include path("../common");
+include path("../../crust/packs/color_print");
 
 c:c:`
 #pragma GCC diagnostic push
@@ -11,7 +10,10 @@ c:c:`
 #endif
 `;
 
+// TODO: on ColorPicker & other temporary mini-windows... bottom-right corner three-diag-lines (expand/shrink)
+
 import rl;
+import globals;
 import theming;
 import timer;
 import thread;
@@ -32,16 +34,23 @@ import yaml;
 import global_settings;
 import hotkey;
 import cursor;
+import textures;
+import warn;
 
 import encode_decode;
 
 import clay_lib;
 import clay_app;
 
+import color_print;
+import std;
+import hr_std;
+
 c:import "tinyfiledialogs.h";
 
 // Canvas and window
 
+// TODO: implement this
 int edit_version = ReadEditVersion(); // NOTE: initialized
 int oldest_supported_edit_version = 1;
 
@@ -55,16 +64,6 @@ int canvas_height = 900;
 RenderTexture canvas_temp; // actual texture drawn to, gets flipped vertically to become final `canvas`
 RenderTexture canvas;
 
-Texture eye_open_icon;
-Texture eye_closed_icon;
-Texture warning_icon;
-Texture image_icon;
-
-Texture play_icon;
-Texture pause_icon;
-Texture muted_icon;
-Texture unmuted_icon;
-
 // Audio
 
 c:Sound fxMP3;
@@ -77,36 +76,20 @@ int max_images;
 
 // Video
 
-int frame_rate = 60;
+// TODO: max element-used time for composition
+float DEFAULT_VIEW_RANGE_MIN_TIME = 30;
 
-int current_frame = 0;
-float current_time = 0;
-
-float max_time = GlobalSettings.get_float("default_max_time", 5); // 5 second default, can be changed in saves/globalsettings.yaml
-int max_frames = (max_time * frame_rate) as int;
-void set_max_time(float new_max_time) {
-	max_time = GlobalSettings.set_float("max_time", new_max_time);
-	max_frames = (max_time * frame_rate) as int;
-}
-
-float time_per_frame = 1.0 / frame_rate;
-
-float STREAM_DURATION = time_per_frame * max_frames;
-int STREAM_FRAME_RATE = frame_rate;
-
-float dec_frame_rate = frame_rate;
+float calc_view_range_max_time() -> std.max(DEFAULT_VIEW_RANGE_MIN_TIME, Comp().effective_max_time() * 1.5);
+float visual_view_range_max_time = DEFAULT_VIEW_RANGE_MIN_TIME;
 
 enum ApplicationMode {
 	Running, Exporting, Paused;
-	bool operator:==(Self other) -> this as int == other as int;
-	bool operator:!=(Self other) -> this as int != other as int;
 }
 
 ApplicationMode mode = .Running;
 
 enum ExportType {
 	FFMPEG_CALL, INTERNAL;
-	bool operator:==(Self other) -> this as int == other as int;
 }
 
 ExportType export_type = ExportType.INTERNAL;
@@ -115,7 +98,7 @@ float INIT_VOLUME = 0.6;
 float master_volume = INIT_VOLUME;
 bool muted = false;
 
-bool is_running() -> mode == ApplicationMode.Running;
+bool is_running() -> mode == .Running;
 bool is_exporting() -> mode == .Exporting;
 bool is_paused() -> mode == .Paused;
 
@@ -123,15 +106,99 @@ bool ui_hidden = false;
 
 // TODO: sort elements? (insertion sort) -> sort-by layer
 // NOTE: currently we traverse N times for rendering, N = # of layers used
-List<Element> elements = .();
+// Element[] elements = .();
 
-List<Layer> layers = .(); // metadata stored per-layer (layers do not directly contain elements!)
+// EditLayer[] layers = .(); // metadata stored per-layer (layers do not directly contain elements!)
 // TODO: vid_layers & audio_layers -> combined_layers (negative indices for audio? -> rendering ui purposes?)
 
-List<Data> data_list = .();
+// List<Data> data_list = .();
 
-int selected_elem_i = 0;
+Project^[] projects = {};
+int? selected_project_index = none;
 
+bool has_proj() -> match (selected_project_index) {
+	int index -> index >= 0 && (index) < projects.size,
+	None -> false,
+};
+Project^ __fake_error_proj = NULL;
+Project& Proj() {
+	if (!has_proj()) {
+		warn(.MISSING_PROJECT, "Requested project, but none was active");
+		if (__fake_error_proj == NULL) {
+			__fake_error_proj = Project.new();
+		}
+		return *__fake_error_proj;
+	}
+	return *projects[selected_project_index.!];
+}
+
+bool has_selected_elements() {
+	if (!has_comp()) { return false; }
+
+	return !Comp().selection.is_empty();
+}
+
+Element& get_primary_selected_element() {
+	if (!has_selected_elements()) {
+		// TODO:
+		panic("get_primary_selected_element failed: TODO, warn and return fake!");
+	}
+	return Comp().elements.GetRef(Comp().selection[0]);
+}
+
+ElementIterable get_selected_elements_iter() {
+	// if (!has_selected_elements()) {
+	// 	// TODO: 
+	// }
+	return {
+		.comp = ^Comp(),
+		.handles = Comp().selection,
+	};
+}
+
+bool has_comp() {
+	if (!has_proj()) { return false; }
+	Project& p = Proj();
+	return match (p.selected_comp_index) {
+		int index -> index >= 0 && (index) < p.comps.size,
+		None -> false,
+	};
+}
+
+Composition^ __fake_error_comp = NULL;
+Composition& Comp() {
+	if (!has_comp()) {
+		warn(.MISSING_COMPOSITION, "Requested composition, but none was active");
+		if (__fake_error_comp == NULL) {
+			if (__fake_error_proj == NULL) {
+				__fake_error_proj = Project.new();
+			}
+			__fake_error_comp = Composition.new(__fake_error_proj, 1, 1);
+		}
+		return *__fake_error_comp;
+	}
+	Project& p = Proj();
+	return *p.comps[p.selected_comp_index.!];
+}
+
+
+// Project& proj;
+// Composition& comp;
+// ElementStorage& elements;
+// EditLayer[]& layers;
+//
+// void update_global_refs() {
+// 	let proj_ptr = ^get_proj();
+// 	let comp_ptr = ^get_comp();
+// 	let elements_ptr = ^comp_ptr#elements;
+// 	let layers_ptr = ^comp_ptr#layers;
+// 	c:`
+// 	proj = proj_ptr;
+// 	comp = comp_ptr;
+// 	elements = elements_ptr;
+// 	layers = layers_ptr;
+// 	`;
+// }
 
 struct RepeatingTimer {
 	float max;
@@ -223,97 +290,166 @@ struct ProjectSaveLoadSettings {
 
 struct ProjectSave {
 	static void Load(Path project_dir_path, ProjectSaveLoadSettings settings = {}) { // TODO: don't leak mem :)
-		elements = .(); // clear elements
-		selected_elem_i = 0;
-		
-		let obj = yaml_parser{}.parse_file(project_dir_path/"manifest.yaml");
-
-		char^ project_name = obj.get_str("project_name");
-		int project_edit_version = obj.get_int("edit_version"); // NOTE: unused currently
-		if (!(project_edit_version >= oldest_supported_edit_version)) {
-			println(t"[DEBUG-WARNING]: Project '{project_name}' is of version={project_edit_version}, which is unsupported");
-			if (settings.force) {
-				println(t"[DEBUG-WARNING]: Continuing due to `force=true` option, crash possible!");
-			} else {
-				println(t"[DEBUG-WARNING]: Skipping Project Load to avoid possible crash!");
-				return;
-			}
-		}
-
-		int num_elements = obj.get_int("num_elements");
-		set_max_time(obj.get_float_default("max_time", 30));
-
-		// obj.delete();
-
-		let layers_list_obj = yaml_parser{}.parse_file(project_dir_path/"layers.yaml");
-
-		layers = .();
-		for (int i in 0..layers_list_obj.list.size) {
-			let& layer_obj = layers_list_obj.at_obj(i);
-			layers.add(Layer{
-				.visible = layer_obj.get_bool("visible"), // TODO: get_bool
-			});
-		}
-
-		for (int i in 0..num_elements) {
-			// TODO: free RectElement!
-			AddNewElementAt(Element(RectElement.Make(), "basic_element_for_overwrite", 0, 1, -1, v2(0, 0), v2(200, 150)));
-			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", true);
-			elements.get(i).LinkDefaultLayers();
-		}
+		// let obj = yaml_parser{}.parse_file(project_dir_path/"manifest.yaml");
+		//
+		// char^ project_name = obj.get_str("project_name");
+		// int project_edit_version = obj.get_int("edit_version"); // NOTE: unused currently
+		// if (!(project_edit_version >= oldest_supported_edit_version)) {
+		// 	println(t"[DEBUG-WARNING]: Project '{project_name}' is of version={project_edit_version}, which is unsupported");
+		// 	// if (settings.force) {
+		// 	// 	println(t"[DEBUG-WARNING]: Continuing due to `force=true` option, crash possible!");
+		// 	// } else {
+		// 	// 	println(t"[DEBUG-WARNING]: Skipping Project Load to avoid possible crash!");
+		// 	// 	return;
+		// 	// }
+		// }
+		//
+		// elements = .(); // clear elements
+		// // TODO: will crash program if no elements loaded!!!
+		// selected_elem_i = 0;
+		//
+		// int num_elements = obj.get_int("num_elements");
+		// set_max_time(obj.get_float_default("max_time", 30));
+		//
+		// // obj.delete();
+		//
+		// let layers_list_obj = yaml_parser{}.parse_file(project_dir_path/"layers.yaml");
+		//
+		// layers = .();
+		// for (int i in 0..layers_list_obj.list.size) {
+		// 	let& layer_obj = layers_list_obj.at_obj(i);
+		// 	layers.add(EditLayer{
+		// 		.visible = layer_obj.get_bool("visible"), // TODO: get_bool
+		// 	});
+		// }
+		//
+		// for (int i in 0..num_elements) {
+		// 	// TODO: free RectElement!
+		// 	AddNewElementAt(Element(RectElement.Make(), "basic_element_for_overwrite", 0, 1, -1, v2(0, 0), v2(200, 150)));
+		// 	elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", true);
+		// 	elements.get(i).LinkDefaultLayers();
+		// }
 	}
 
   static void Create(Path project_dir_path, char^ name) {
-		io.mkdir(project_dir_path);
-
-		yaml_object manifest = {};
-		manifest.put_literal("project_name", name);
-		manifest.put_int("edit_version", edit_version);
-		manifest.put_int("num_elements", elements.size);
-		manifest.put_float("max_time", max_time);
-
-		manifest.serialize_to(project_dir_path/"manifest.yaml");
-
-		yaml_object layers_obj = {}; // TODO: free
-		for (let& layer in layers) {
-			yaml_object layer_obj = {};
-			layer_obj.put_bool("visible", layer.visible);
-			layers_obj.push_object(layer_obj);
-		}
-		layers_obj.serialize_to(project_dir_path/"layers.yaml");
-
-		io.mkdir(project_dir_path/"elements");
-
-		for (int i in 0..elements.size) {
-			elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", false);
-		}
+		// io.mkdir(project_dir_path);
+		//
+		// yaml_object manifest = {};
+		// manifest.put_literal("project_name", name);
+		// manifest.put_int("edit_version", edit_version);
+		// manifest.put_int("num_elements", elements.size);
+		// manifest.put_float("max_time", max_time);
+		//
+		// manifest.serialize_to(project_dir_path/"manifest.yaml");
+		//
+		// yaml_object layers_obj = {}; // TODO: free
+		// for (let& layer in layers) {
+		// 	yaml_object layer_obj = {};
+		// 	layer_obj.put_bool("visible", layer.visible);
+		// 	layers_obj.push_object(layer_obj);
+		// }
+		// layers_obj.serialize_to(project_dir_path/"layers.yaml");
+		//
+		// io.mkdir(project_dir_path/"elements");
+		//
+		// for (int i in 0..elements.size) {
+		// 	elements.get(i).Serialize(project_dir_path/t"elements/{i}.yaml", false);
+		// }
 	}
 }
 
 // adds element, adding it's corresponding layer if necessary (NOTE: will create up to N layers, if placed at layer N...)
 // NOTE: direct use discouraged, generally use AddNewElementAt, since that won't cause overlap issues
-void AddLayersTill(int layer) {
-	while (layer >= layers.size) {
-		layers.add({
-			.visible = true
-		});
+// void AddLayersTill(int layer) {
+// 	while (layer >= layers.size) {
+// 		layers.add({
+// 			.visible = true
+// 		});
+// 		vertical_view_range_slider.range.end++;
+// 	}
+// }
+
+// ElementHandle AddNewElementToFirstOpenLayerAtT(Element elem, EditLayer& layer, bool select_element = false) {
+// 	let handle = comp.elements.Add(elem);
+// 	layer.element_handles.add(handle); // TODO: sort/organize?
+//
+// 	if (select_element) {
+// 		// comp.se
+// 		// TODO: select for comp
+// 	}
+// 	return handle;
+// }
+
+ElementHandle AddNewSelectedElementAt(Element new_elem) { // adds to first available layer at that time
+	int index = FirstAvailableLayerIndexAt(new_elem.start_time, new_elem.duration);
+	let& layers = Comp().layers;
+	if (index == layers.size) {
+		layers.add(EditLayer.new(^Comp()));
 	}
+	let& layer = *layers[index];
+
+	return AddNewElementToLayer(new_elem, layer, true);
 }
 
-void AddNewElement(Element elem) {
-	AddLayersTill(elem.layer);
-	elements.add(elem);
-	for (let& elem in elements) { // NOTE: we need to link elements everytime one is added, since their addresses can change!
-		elem.LinkDefaultLayers();
-	}
+// bool UNDO_GROUP__begin() -> true;
+// void UNDO_GROUP__end(bool _) { }
+
+void SetSelection(ElementHandle handle) {
+	ElementHandle[] old_selection = Comp().selection.copy();
+	ElementHandle[] new_selection = {};
+	new_selection.add(handle);
+
+	Comp().COMMIT_ACTION(SetSelectionAction{
+		.selection = new_selection,
+	}, SetSelectionAction{
+		.selection = old_selection,
+	});
 }
+
+ElementHandle AddNewElementToLayer(Element new_elem, EditLayer& layer, bool select_element = false) {
+	// open $UNDO_GROUP();
+	ElementHandle handle = { .id = new_elem.id, .last_index = Comp().elements.impl.size };
+
+	Comp().COMMIT_ACTION(CreateNewElementAction{
+		.element = new_elem,
+		.layer = ^layer,
+	}, DeleteElementAction{
+		:handle,
+	});
+
+	if (select_element) {
+		SetSelection(handle);
+	}
+	return handle;
+}
+
+void DeleteElement(ElementHandle eh) {
+	let elem = Comp().elements.GetOptConcrete(eh).! else return;
+
+	Comp().COMMIT_ACTION(DeleteElementAction{
+		.handle = eh,
+	}, CreateNewElementAction{
+		.element = elem,
+		.layer = elem.layer,
+	});
+}
+
+// void AddNewElement(Element elem) {
+// 	AddLayersTill(elem.layer);
+// 	elements.add(elem);
+// 	for (let& elem in elements) { // NOTE: we need to link elements everytime one is added, since their addresses can change!
+// 		elem.LinkDefaultLayers();
+// 	}
+// }
 
 // gets first layer at which there wouldn't be a collision if an element at this time/length were added!
-int FirstAvailableLayerAt(float start_time, float duration) {
+int FirstAvailableLayerIndexAt(float start_time, float duration) {
+	let& layers = Comp().layers;
 	for (int i in 0..layers.size) {
 		bool collision = false;
-		for (let& elem in elements) { // TODO: don't loop over all elements... (just the ones on the right layer pls :D)
-			if (elem.layer == i && elem.CollidesWith(start_time, duration)) {
+		let& layer = layers[i];
+		for (let& elem in layer#elem_iter()) { // TODO: don't loop over all elements... (just the ones on the right layer pls :D)
+			if (elem.layer == layer && elem.CollidesWith(start_time, duration)) {
 				collision = true;
 				break;
 			}
@@ -324,18 +460,18 @@ int FirstAvailableLayerAt(float start_time, float duration) {
 }
 
 // sets elem to correct layer (NOTE: pass with layer=-1, for clarity)
-void AddNewElementAt(Element elem) {
-	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
-}
-
-void AddNewSelectedElementAt(Element elem) {
-	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
-	SelectNewestElement();
-}
-
-void SelectNewestElement() {
-	selected_elem_i = elements.size - 1;
-}
+// void AddNewElementAt(Element elem) {
+// 	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
+// }
+//
+// void AddNewSelectedElementAt(Element elem) {
+// 	AddNewElement(elem with { layer = FirstAvailableLayerAt(elem.start_time, elem.duration) });
+// 	SelectNewestElement();
+// }
+//
+// void SelectNewestElement() {
+// 	selected_elem_i = elements.size - 1;
+// }
 
 float new_element_default_duration = 0.5;
 
@@ -343,72 +479,72 @@ bool look_at_controls = false;
 bool show_add_element_options = false;
 
 float left_panel_width = GlobalSettings.get_float("left_panel_width", 300);
-void LeftPanelUI() {
-	d.Rect(v2(0, 0), v2(left_panel_width, window_height), theme.panel);
-	d.Rect(v2(left_panel_width, 0), v2(1, window_height), theme.panel_border);
-
-	// Elements List
-	Vec2 btn_dimens = v2(left_panel_width - 20, 40);
-
-	if (show_add_element_options) {
-		Vec2 options_tl = v2(10, window_height - 170);
-		Vec2 options_dims = v2(left_panel_width - 20, 100);
-		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
-
-		// Add media file
-		Vec2 icon_dimens = v2((left_panel_width - 40) / 3, 80);
-		Vec2 icon_tl = options_tl + v2(5, 5);
-		if (Button(icon_tl, icon_dimens, "")) {
-			char^ file_path = OpenImageFileDialog("Select an image");
-			if (file_path != NULL) {
-				Image img = Image.Load(file_path);
-				defer img.Unload();
-
-				char^ img_name = c:GetFileNameWithoutExt(file_path);
-				AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, v2(0, 0), v2(img.width, img.height)));
-				SelectNewestElement();
-				show_add_element_options = false;
-			}
-		}
-		d.TextureAtSizeV(image_icon, icon_tl, icon_dimens);
-
-		// Add data
-		icon_tl = icon_tl + v2((left_panel_width - 40) / 3, 0);
-		if (Button(icon_tl, icon_dimens, "{data}")) {
-			char^ file_path = OpenDataFileDialog("Select a data file");
-			println(t"Selected data file: {file_path}");
-			if (strlen(file_path) > 0) {
-				// Load data and apply to keyframe
-				Data data = Data(file_path);
-				elements.get(selected_elem_i).ApplyKeyframeData(data);
-				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
-				data_list.add(data);
-				show_add_element_options = false;
-			}
-		}
-
-		// Add arbitrary element (Temporary)
-		Vec2 plus_tl = options_tl + v2((left_panel_width - 10) / 3 * 2, 5);
-		if (Button(plus_tl, v2((left_panel_width - 40) / 3, 80), "+")) {
-			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
-			SelectNewestElement();
-		}
-	}
-	
-	// Add Element Button
-	Vec2 tl = v2(10, window_height - 50);
-	if (Button(tl, btn_dimens, "+")) {
-		show_add_element_options = true;
-	} else if (mouse.LeftClickPressed()) {
-		show_add_element_options = false;
-	}
-
-	d.RectR(.(0, 0, left_panel_width, 32), theme.button);
-	let& selected_elem = elements.get(selected_elem_i);
-	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
-
-	// SlidingFloatTextBox(.("my_f"), my_f);
-}
+// void LeftPanelUI() {
+// 	d.Rect(v2(0, 0), v2(left_panel_width, window_height), theme.panel);
+// 	d.Rect(v2(left_panel_width, 0), v2(1, window_height), theme.panel_border);
+//
+// 	// Elements List
+// 	Vec2 btn_dimens = v2(left_panel_width - 20, 40);
+//
+// 	if (show_add_element_options) {
+// 		Vec2 options_tl = v2(10, window_height - 170);
+// 		Vec2 options_dims = v2(left_panel_width - 20, 100);
+// 		d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
+//
+// 		// Add media file
+// 		Vec2 icon_dimens = v2((left_panel_width - 40) / 3, 80);
+// 		Vec2 icon_tl = options_tl + v2(5, 5);
+// 		if (Button(icon_tl, icon_dimens, "")) {
+// 			char^ file_path = OpenImageFileDialog("Select an image");
+// 			if (file_path != NULL) {
+// 				Image img = Image.Load(file_path);
+// 				defer img.Unload();
+//
+// 				char^ img_name = c:GetFileNameWithoutExt(file_path);
+// 				AddNewElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, v2(0, 0), v2(img.width, img.height)));
+// 				SelectNewestElement();
+// 				show_add_element_options = false;
+// 			}
+// 		}
+// 		d.TextureAtSizeV(Textures.image_icon, icon_tl, icon_dimens);
+//
+// 		// Add data
+// 		icon_tl = icon_tl + v2((left_panel_width - 40) / 3, 0);
+// 		if (Button(icon_tl, icon_dimens, "{data}")) {
+// 			char^ file_path = OpenDataFileDialog("Select a data file");
+// 			println(t"Selected data file: {file_path}");
+// 			if (strlen(file_path) > 0) {
+// 				// Load data and apply to keyframe
+// 				Data data = Data(file_path);
+// 				elements.get(selected_elem_i).ApplyKeyframeData(data);
+// 				elements.get(selected_elem_i).ApplyData(Box<Data>.Make(data));
+// 				data_list.add(data);
+// 				show_add_element_options = false;
+// 			}
+// 		}
+//
+// 		// Add arbitrary element (Temporary)
+// 		Vec2 plus_tl = options_tl + v2((left_panel_width - 10) / 3 * 2, 5);
+// 		if (Button(plus_tl, v2((left_panel_width - 40) / 3, 80), "+")) {
+// 			AddNewElementAt(Element(CircleElement.Make(), NULL, current_time, new_element_default_duration, -1, v2(0, 0), v2(100, 100)) with { color = Colors.Green });
+// 			SelectNewestElement();
+// 		}
+// 	}
+// 	
+// 	// Add Element Button
+// 	Vec2 tl = v2(10, window_height - 50);
+// 	if (Button(tl, btn_dimens, "+")) {
+// 		show_add_element_options = true;
+// 	} else if (mouse.LeftClickPressed()) {
+// 		show_add_element_options = false;
+// 	}
+//
+// 	d.RectR(.(0, 0, left_panel_width, 32), theme.button);
+// 	let& selected_elem = elements.get(selected_elem_i);
+// 	d.Text(t"Selected: {selected_elem.name}", 5, 5, 20, Colors.RayWhite);
+//
+// 	// SlidingFloatTextBox(.("my_f"), my_f);
+// }
 // float my_f = 10;
 
 struct TimelineState {
@@ -435,202 +571,210 @@ TimelineState timeline = {
 };
 
 float composition_timeline_height = GlobalSettings.get_float("composition_timeline_height", 180);
-PanelExpander composition_timeline_panel_expander = { ^composition_timeline_height, "composition_timeline_height", .min = 100 };
+PanelExpander composition_timeline_panel_expander = { ^composition_timeline_height, "composition_timeline_height", .min = 100, .reverse = true, .vertical = true };
 
-void ElementTimelineUI() {
-	float timeline_view_start = 0;
-	float timeline_view_duration = max_time;
+float asset_manager_panel_width = GlobalSettings.get_float("asset_manager_panel_width", 180);
+PanelExpander asset_manager_panel_expander  = { ^asset_manager_panel_width, "asset_manager_panel_width", .min = 100 };
 
-	int show_layers = std.maxi(layers.size + 1, 3);
-	float height = composition_timeline_height;
-	float layer_height = height / show_layers;
-
-	float whole_width = window_width as float - left_panel_width;
-	Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
-	Vec2 whole_dimens = v2(whole_width, height);
-	Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
-	d.RectR(whole_rect, theme.panel);
-
-	float info_width = 32;
-
-	for (int i in 0..show_layers) { // empty skeleton for layers
-		float x = whole_tl.x;
-		float y = whole_rect.b() - (i + 1) as float * layer_height;
-		Rectangle r = .(x, y, info_width, layer_height);
-
-		d.RectR(r.Inset(1), theme.button);
-		d.RectR(.(x, y, whole_width, 1), theme.panel_border);
-
-		if (layers.size > i) {
-			// layer info ui -------
-			let& layer = layers.get(i);
-
-			if (Button(r.tl(), r.dimen(), "")) {
-				layer.visible = !layer.visible;
-			}
-
-			d.Text(t"L{i}", x as int + 6, y as int + 6, 12, theme.timeline_layer_info_gray);
-
-			if (layer.visible) {
-				d.TextureAtRect(eye_open_icon, r.Inset(6).FitIntoSelfWithAspectRatio(1, 1));
-			}
-			// ---------------------
-		}
-	}
-
-	Vec2 tl = whole_tl + v2(info_width, 0);
-	Vec2 dimens = whole_dimens - v2(info_width, 0);
-
-	bool pressed_inside = mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens);
-
-	float width = dimens.x;
-
-	for (int i in 0..elements.size) {
-		let& elem = elements.get(i);
-		// elem.TimelineUI();
-		float x = tl.x + (elem.start_time - timeline_view_start) / timeline_view_duration * width;
-		float y = whole_rect.b() - (elem.layer + 1) as float * layer_height;
-
-		float w = elem.duration / timeline_view_duration * width;
-
-		Rectangle r = .(x, y, w, layer_height);
-
-		bool has_err = elem.err_msg != NULL;
-		TimelineElementColorSet color_set = (selected_elem_i == i) ? theme.elem_ui_blue | 
-			(has_err ? theme.elem_ui_yellow | theme.elem_ui_pink);
-		// selected -> blue
-		// warning -> yellow
-		// otherwise -> pink
-
-		d.RectR(r, color_set.border);
-		d.RectR(r.Inset(1), color_set.bg);
-
-		char^ name_addendum = "";
-		if (elem.IsVideo()) {
-			VideoElement^ vid = (c:elem#content_impl.ptr);
-			if (vid#loading) { name_addendum = t" (loading{LoadingDotDotDotStr()})"; }
-		}
-		d.Text(t"{elem.name}{name_addendum}", x as int + 6, y as int + 6, 12, color_set.text);
-		d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
-
-		bool hovering = mouse.GetPos().Between(r.tl(), r.br());
-		if (has_err) {
-			Vec2 warning_dimen = v2(16, 16);
-			d.TextureAtSizeV(warning_icon, r.br() - warning_dimen - v2(6, 6), warning_dimen);
-
-			if (hovering) {
-				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
-				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
-				d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
-				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
-			}
-		}
-
-		if (timeline.is_dragging_elem_any()) {
-			if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
-				cursor_type = CursorType.ResizeHoriz;
-			} else {
-				cursor_type = CursorType.Pointer;
-			}
-		} else if (hovering) {
-			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
-				cursor_type = CursorType.ResizeHoriz;
-			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
-				cursor_type = CursorType.ResizeHoriz;
-			} else {
-				cursor_type = CursorType.Pointer;
-			}
-		}
-
-
-		if (hovering && mouse.LeftClickPressed()) {
-			selected_elem_i = i;
-
-			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
-				timeline.dragging_elem_start = true;
-			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
-				timeline.dragging_elem_end = true;
-			} else {
-				timeline.dragging_elem = true;
-			}
-			timeline.elem_drag_init_mouse_x = mouse.GetPos().x;
-			timeline.elem_drag_init_start = elem.start_time;
-			timeline.elem_drag_init_end = elem.end_time();
-		}
-	}
-
-	d.Rect(whole_rect.bl(), v2(dimens.x, 1), theme.panel_border); // TODO: change
-
-	d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
-
-	// mouse interactions --------------------
-	if (pressed_inside && !timeline.is_dragging_elem_any()) {
-		timeline.dragging_caret = true;
-	}
-
-	if (mouse.LeftClickDown()) {
-		float t_on_timeline_unbounded = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
-		float t_on_timeline_bounded = std.clamp(t_on_timeline_unbounded, 0, max_time);
-		if (timeline.dragging_caret) {
-			float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
-			if (new_time <= 0) { new_time = 0; }
-			if (new_time >= max_time) { new_time = max_time; }
-			SetTime(new_time); // TODO: add snap-to-frame-set-time
-			SetFrame(current_frame);
-		} else if (timeline.dragging_elem) {
-			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-			let& selected_elem = elements.get(selected_elem_i);
-			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
-			selected_elem.start_time = std.max(0, selected_elem.start_time);
-
-			selected_elem.layer = (((whole_rect.b() - mouse.GetPos().y) / layer_height) as int);
-			AddLayersTill(selected_elem.layer);
-		} else if (timeline.dragging_elem_start) {
-			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-			let& selected_elem = elements.get(selected_elem_i);
-			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
-			selected_elem.start_time = std.max(0, selected_elem.start_time);
-			selected_elem.duration = (timeline.elem_drag_init_end - timeline.elem_drag_init_start) - (selected_elem.start_time - timeline.elem_drag_init_start);
-		} else if (timeline.dragging_elem_end) {
-			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-			let& selected_elem = elements.get(selected_elem_i);
-			selected_elem.duration = SnapToNearestFramesTime((timeline.elem_drag_init_end - timeline.elem_drag_init_start) + (t_on_timeline_unbounded - og_t_on_timeline));
-		}
-	}
-
-	if (!mouse.LeftClickDown()) {
-		timeline.dragging_caret = false;
-		timeline.dragging_elem = false;
-		timeline.dragging_elem_start = false;
-		timeline.dragging_elem_end = false;
-
-		CullEmptyLayers();
-	}
-}
+// void CompositionTimelineUI() {
+// 	float timeline_view_start = 0;
+// 	float timeline_view_duration = max_time;
+//
+// 	int show_layers = std.maxi(layers.size + 1, 3);
+// 	float height = composition_timeline_height;
+// 	float layer_height = height / show_layers;
+//
+// 	float whole_width = window_width as float - left_panel_width;
+// 	Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
+// 	Vec2 whole_dimens = v2(whole_width, height);
+// 	Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
+// 	d.RectR(whole_rect, theme.panel);
+//
+// 	float info_width = 32;
+//
+// 	for (int i in 0..show_layers) { // empty skeleton for layers
+// 		float x = whole_tl.x;
+// 		float y = whole_rect.b() - (i + 1) as float * layer_height;
+// 		Rectangle r = .(x, y, info_width, layer_height);
+//
+// 		d.RectR(r.Inset(1), theme.button);
+// 		d.RectR(.(x, y, whole_width, 1), theme.panel_border);
+//
+// 		if (layers.size > i) {
+// 			// layer info ui -------
+// 			let& layer = layers.get(i);
+//
+// 			if (Button(r.tl(), r.dimen(), "")) {
+// 				layer.visible = !layer.visible;
+// 			}
+//
+// 			d.Text(t"L{i}", x as int + 6, y as int + 6, 12, theme.timeline_layer_info_gray);
+//
+// 			if (layer.visible) {
+// 				d.TextureAtRect(Textures.eye_open_icon, r.Inset(6).FitIntoSelfWithAspectRatio(1, 1));
+// 			}
+// 			// ---------------------
+// 		}
+// 	}
+//
+// 	Vec2 tl = whole_tl + v2(info_width, 0);
+// 	Vec2 dimens = whole_dimens - v2(info_width, 0);
+//
+// 	bool pressed_inside = mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens);
+//
+// 	float width = dimens.x;
+//
+// 	for (int i in 0..elements.size) {
+// 		let& elem = elements.get(i);
+// 		// elem.TimelineUI();
+// 		float x = tl.x + (elem.start_time - timeline_view_start) / timeline_view_duration * width;
+// 		float y = whole_rect.b() - (elem.layer + 1) as float * layer_height;
+//
+// 		float w = elem.duration / timeline_view_duration * width;
+//
+// 		Rectangle r = .(x, y, w, layer_height);
+//
+// 		bool has_err = elem.err_msg != NULL;
+// 		TimelineElementColorSet color_set = (selected_elem_i == i) ? theme.elem_ui_blue | 
+// 			((has_err) ? theme.elem_ui_yellow | theme.elem_ui_pink);
+// 		// selected -> blue
+// 		// warning -> yellow
+// 		// otherwise -> pink
+//
+// 		d.RectR(r, color_set.border);
+// 		d.RectR(r.Inset(1), color_set.bg);
+//
+// 		char^ name_addendum = "";
+// 		if (elem.IsVideo()) {
+// 			VideoElement^ vid = (c:elem#content_impl.ptr);
+// 			if (vid#loading) { name_addendum = t" (loading{LoadingDotDotDotStr()})"; }
+// 		}
+// 		d.Text(t"{elem.name}{name_addendum}", x as int + 6, y as int + 6, 12, color_set.text);
+// 		d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
+//
+// 		bool hovering = mouse.GetPos().Between(r.tl(), r.br());
+// 		if (has_err) {
+// 			Vec2 warning_dimen = v2(16, 16);
+// 			d.TextureAtSizeV(Textures.warning_icon, r.br() - warning_dimen - v2(6, 6), warning_dimen);
+//
+// 			if (hovering) {
+// 				Vec2 options_tl = mouse.GetPos() + v2(0, 10);
+// 				Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+// 				d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
+// 				d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
+// 			}
+// 		}
+//
+// 		if (timeline.is_dragging_elem_any()) {
+// 			if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
+// 				cursor_type = CursorType.ResizeHoriz;
+// 			} else {
+// 				cursor_type = CursorType.Pointer;
+// 			}
+// 		} else if (hovering) {
+// 			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+// 				cursor_type = CursorType.ResizeHoriz;
+// 			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+// 				cursor_type = CursorType.ResizeHoriz;
+// 			} else {
+// 				cursor_type = CursorType.Pointer;
+// 			}
+// 		}
+//
+//
+// 		if (hovering && mouse.LeftClickPressed()) {
+// 			selected_elem_i = i;
+//
+// 			if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+// 				timeline.dragging_elem_start = true;
+// 			} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+// 				timeline.dragging_elem_end = true;
+// 			} else {
+// 				timeline.dragging_elem = true;
+// 			}
+// 			timeline.elem_drag_init_mouse_x = mouse.GetPos().x;
+// 			timeline.elem_drag_init_start = elem.start_time;
+// 			timeline.elem_drag_init_end = elem.end_time();
+// 		}
+// 	}
+//
+// 	d.Rect(whole_rect.bl(), v2(dimens.x, 1), theme.panel_border); // TODO: change
+//
+// 	d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
+//
+// 	// mouse interactions --------------------
+// 	if (pressed_inside && !timeline.is_dragging_elem_any()) {
+// 		timeline.dragging_caret = true;
+// 	}
+//
+// 	if (mouse.LeftClickDown()) {
+// 		float t_on_timeline_unbounded = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+// 		float t_on_timeline_bounded = std.clamp(t_on_timeline_unbounded, 0, max_time);
+// 		if (timeline.dragging_caret) {
+// 			float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+// 			if (new_time <= 0) { new_time = 0; }
+// 			if (new_time >= max_time) { new_time = max_time; }
+// 			SetTime(new_time); // TODO: add snap-to-frame-set-time
+// 			SetFrame(current_frame);
+// 		} else if (timeline.dragging_elem) {
+// 			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+// 			let& selected_elem = elements.get(selected_elem_i);
+// 			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+// 			selected_elem.start_time = std.max(0, selected_elem.start_time);
+//
+// 			selected_elem.layer = (((whole_rect.b() - mouse.GetPos().y) / layer_height) as int);
+// 			AddLayersTill(selected_elem.layer);
+// 		} else if (timeline.dragging_elem_start) {
+// 			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+// 			let& selected_elem = elements.get(selected_elem_i);
+// 			selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+// 			selected_elem.start_time = std.max(0, selected_elem.start_time);
+// 			selected_elem.duration = (timeline.elem_drag_init_end - timeline.elem_drag_init_start) - (selected_elem.start_time - timeline.elem_drag_init_start);
+// 		} else if (timeline.dragging_elem_end) {
+// 			float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+// 			let& selected_elem = elements.get(selected_elem_i);
+// 			selected_elem.duration = SnapToNearestFramesTime((timeline.elem_drag_init_end - timeline.elem_drag_init_start) + (t_on_timeline_unbounded - og_t_on_timeline));
+// 		}
+// 	}
+//
+// 	if (!mouse.LeftClickDown()) {
+// 		timeline.dragging_caret = false;
+// 		timeline.dragging_elem = false;
+// 		timeline.dragging_elem_start = false;
+// 		timeline.dragging_elem_end = false;
+//
+// 		// CullEmptyLayers();
+// 	}
+// }
 
 bool keyframe_timeline_dragging = false;
 // TODO: move over!
 
-float SnapToNearestFramesTime(float time) -> ((time / time_per_frame) as int) as float / frame_rate;
+float SnapToNearestFramesTime(float time) ->
+	let& comp = Comp() in
+		((time / comp.time_per_frame) as int) as float / comp.frame_rate;
 
 void SetFrame(int frame) {
-	current_time = time_per_frame * frame;
-	current_frame = frame;
+	let& comp = Comp();
+	comp.current_time = comp.time_per_frame * frame;
+	comp.current_frame = frame;
 	UpdateState();
 }
 
 void SetTime(float new_time) {
-	current_time = new_time;
-	current_frame = (current_time / time_per_frame) as int;
+	let& comp = Comp();
+	comp.current_time = new_time;
+	comp.current_frame = (comp.current_time / comp.time_per_frame) as int;
 	UpdateState();
 }
 
-bool ElementIsVisibleNow(Element& elem) {
-	return elem.visible && elem.ActiveAtTime(current_time) && layers.get(elem.layer).visible;
-}
+bool ElementIsVisibleNow(Element& elem) ->
+	let& comp = Comp() in
+		elem.visible && elem.ActiveAtTime(comp.current_time) && elem.layer#visible;
 
 void UpdateState() {
-	for (let& elem in elements) {
+	let& comp = Comp(); // ensure that comp is not changed within here!
+	for (let& elem in comp.elements) {
 		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
 			if (!vid#loaded && vid#loading && !is_video_importing) {
@@ -650,9 +794,9 @@ void UpdateState() {
 			}
 		}
 	}
-	for (let& elem in elements) {
+	for (let& elem in comp.elements) {
 		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
-			elem.UpdateState(current_time);
+			elem.UpdateState(comp.current_time);
 		}
 		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
@@ -662,22 +806,32 @@ void UpdateState() {
 				go_with(ImportVideoThread, vid);
 			}
 		}
+		// if (elem.linked_to is Some) {
+		// 	let linked_elem = Comp().elements.Get(elem.linked_to as Some);
+		// 	if (linked_elem != NULL) {
+		// 		elem.start_time = linked_elem#start_time;
+		// 		elem.duration = linked_elem#duration;
+		// 	}
+		// }
 	}
 }
 
 void DrawFrameToCanvas() {
 	canvas_temp.Begin();
 	d.ClearBackground(theme.bg);
-	for (int i in 0..layers.size) {
-		for (let& elem in elements) {
-			if (elem.layer == i && ElementIsVisibleNow(elem)) {
-				elem.Draw(current_time);
+	let& comp = Comp();
+	for (let& layer in comp.layers) {
+		for (let& elem in layer#elem_iter()) {
+			if (ElementIsVisibleNow(elem)) {
+				elem.Draw(comp.current_time);
 			}
 		}
 	}
 
 	if (!is_exporting()) {
-		elements.get(selected_elem_i).DrawGizmos();
+		for (let& element in get_selected_elements_iter()) {
+			element.DrawGizmos();
+		}
 	}
 
 	canvas_temp.End();
@@ -688,7 +842,7 @@ void DrawFrameToCanvas() {
 }
 
 void ExportVideoThread() {
-	ExportVideo(frame_rate, "out", "edit_video");
+	ExportVideo(Comp().frame_rate, "out", "edit_video");
 
 	SetMode(.Paused);
 	SetFrame(0);
@@ -728,14 +882,15 @@ void SetMode(ApplicationMode new_mode) {
 	}
 }
 
-void CullEmptyLayers() {
-	for (int i = layers.size - 1; i >= 0; i--;) {
-		for (let& elem in elements) {
-			if (elem.layer == i) { return; }
-		}
-		layers.pop_back();
-	}
-}
+// void CullEmptyLayers() {
+// 	for (int i = layers.size - 1; i >= 0; i--) {
+// 		for (let& elem in elements) {
+// 			if (elem.layer == i) { return; }
+// 		}
+// 		layers.pop_back();
+// 		vertical_view_range_slider.range.end--; // NOTE: do this?
+// 	}
+// }
 
 Vec2 GetMousePosWorldSpace() {
 	// TODO: fix this???
@@ -778,7 +933,7 @@ void SaveProjectModal(using ModalState& state) {
 
 	TextInputState^ textbox;
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -791,11 +946,11 @@ void SaveProjectModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox = ^TextBoxMaintained(UiElementID.ID("SaveProjectModal-file-input"), .("SaveProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox = ^TextBoxMaintained(UiElementID.ID("SaveProjectModal-file-input"), .("SaveProjectModal-file-input"), "", .Grow(), rem(1));
+	};
 
 	if (errmsg != NULL) {
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = {
 					CLAY_SIZING_GROW(),
@@ -808,7 +963,7 @@ void SaveProjectModal(using ModalState& state) {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
-		}
+		};
 	}
 
 	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
@@ -843,7 +998,7 @@ void OpenProjectModal(using ModalState& state) {
 
 	TextInputState^ textbox;
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -856,11 +1011,11 @@ void OpenProjectModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox = ^TextBoxMaintained(UiElementID.ID("OpenProjectModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox = ^TextBoxMaintained(UiElementID.ID("OpenProjectModal-file-input"), .("OpenProjectModal-file-input"), "", .Grow(), rem(1));
+	};
 
 	if (errmsg != NULL) {
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = {
 					CLAY_SIZING_GROW(),
@@ -873,7 +1028,7 @@ void OpenProjectModal(using ModalState& state) {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
-		}
+		};
 	}
 
 	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
@@ -901,7 +1056,7 @@ void AddFaceElemModal(using ModalState& state) {
 	TextInputState^ textbox2;
 	TextInputState^ textbox3;
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -915,10 +1070,10 @@ void AddFaceElemModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox1 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input"), .("OpenProjectModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox1 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input"), .("OpenProjectModal-file-input"), "", .Grow(), rem(1));
+	};
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -932,10 +1087,10 @@ void AddFaceElemModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox2 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-2"), .("OpenProjectModal-file-input-2"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox2 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-2"), .("OpenProjectModal-file-input-2"), "", .Grow(), rem(1));
+	};
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -948,11 +1103,11 @@ void AddFaceElemModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox3 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-3"), .("OpenProjectModal-file-input-3"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox3 = ^TextBoxMaintained(UiElementID.ID("AddFaceElemModal-file-input-3"), .("OpenProjectModal-file-input-3"), "", .Grow(), rem(1));
+	};
 
 	if (errmsg != NULL) {
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = {
 					CLAY_SIZING_GROW(),
@@ -965,7 +1120,7 @@ void AddFaceElemModal(using ModalState& state) {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
-		}
+		};
 	}
 
 	if (key.IsPressed(KEY.ENTER)) {
@@ -987,13 +1142,14 @@ void AddFaceElemModal(using ModalState& state) {
 // TODO: future e.g: MyCustomElem + ChromaKey(GREEN) + BlahCustomEffect
 // TODO: future e.g: my_imgs/*.png, vid.mp4, extra_audio.ogg
 void QuickAddModal(using ModalState& state) {
+	let& comp = Comp();
 	if (just_opened) {
 		GetTextInput(UiElementID.ID("QuickAddModal-file-input")).Activate();
 	}
 
 	TextInputState^ textbox;
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -1006,11 +1162,11 @@ void QuickAddModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox = ^TextBoxMaintained(UiElementID.ID("QuickAddModal-file-input"), .("QuickAddModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox = ^TextBoxMaintained(UiElementID.ID("QuickAddModal-file-input"), .("QuickAddModal-file-input"), "", .Grow(), rem(1));
+	};
 
 	if (errmsg != NULL) {
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = {
 					CLAY_SIZING_GROW(),
@@ -1023,7 +1179,7 @@ void QuickAddModal(using ModalState& state) {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
-		}
+		};
 	}
 
 	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
@@ -1032,9 +1188,9 @@ void QuickAddModal(using ModalState& state) {
 		defer text.delete();
 
 		if (text == .("rect")) {
-			AddNewSelectedElementAt(Element(RectElement.Make(), "rect", current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			AddNewSelectedElementAt(Element(RectElement.Make(), "rect", comp.current_time, 1, NULL, v2(0, 0), v2(canvas_width, canvas_height)));
 		} else if (text == .("circle")) {
-			AddNewSelectedElementAt(Element(CircleElement.Make(), "circle", current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+			AddNewSelectedElementAt(Element(CircleElement.Make(), "circle", comp.current_time, 1, NULL, v2(0, 0), v2(canvas_width, canvas_height)));
 		}
 
 		if (text.contains(".")) {
@@ -1050,7 +1206,7 @@ void QuickAddModal(using ModalState& state) {
 					// fn properly loaded
 					let name = strdup(text);
 					CustomPureFnElement^ fn_elem = CustomPureFnElement.Make(name);
-					AddNewSelectedElementAt(Element(fn_elem, name, current_time, 1, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+					AddNewSelectedElementAt(Element(fn_elem, name, comp.current_time, 1, NULL, v2(0, 0), v2(canvas_width, canvas_height)));
 					CloseModal();
 				},
 				char^ err -> {
@@ -1075,6 +1231,7 @@ void QuickAddModal(using ModalState& state) {
 }
 
 void AddVideoFromPath(char^ path, Vec2 pos = {}) {
+	let& comp = Comp();
 	if (!io.file_exists(path)) {
 		println("[WARNING]: AddVideoFromPath path does not exist!");
 		return;
@@ -1083,7 +1240,8 @@ void AddVideoFromPath(char^ path, Vec2 pos = {}) {
 	char^ video_path = strdup(path);
 	char^ video_name = strdup(rl.GetFileNameWithoutExt(video_path)); // strdup-ed b/c GetFileNameWithoutExt returns static string
 	VideoElement^ ve = VideoElement.Make(video_path);
-	AddNewSelectedElementAt(Element(ve, video_name, current_time, time_per_frame * max_frames, -1, v2(0, 0), v2(canvas_width, canvas_height)));
+	// TODO: don't use max_time as length of video!!! get actual timing before spawning Element
+	AddNewSelectedElementAt(Element(ve, video_name, comp.current_time, comp.effective_max_time(), NULL, v2(0, 0), v2(canvas_width, canvas_height)));
 }
 
 void ImportMovieModal(using ModalState& state) {
@@ -1093,7 +1251,7 @@ void ImportMovieModal(using ModalState& state) {
 
 	TextInputState^ textbox;
 
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				CLAY_SIZING_GROW(),
@@ -1106,11 +1264,11 @@ void ImportMovieModal(using ModalState& state) {
 			.fontSize = rem(1),
 			.textColor = Colors.White,
 		});
-		textbox = ^TextBoxMaintained(UiElementID.ID("ImportMovieModal-file-input"), .("ImportMovieModal-file-input"), "", Clay_Sizing.Grow(), rem(1));
-	}
+		textbox = ^TextBoxMaintained(UiElementID.ID("ImportMovieModal-file-input"), .("ImportMovieModal-file-input"), "", .Grow(), rem(1));
+	};
 
 	if (errmsg != NULL) {
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = {
 					CLAY_SIZING_GROW(),
@@ -1123,7 +1281,7 @@ void ImportMovieModal(using ModalState& state) {
 				.fontSize = rem(1),
 				.textColor = theme.errmsg,
 			});
-		}
+		};
 	}
 
 	if (key.IsPressed(KEY.ENTER) && textbox#is_active()) {
@@ -1138,7 +1296,9 @@ void ImportMovieModal(using ModalState& state) {
 }
 
 bool first_frame = true;
+// TODO: don't update comp inside method b/c of `comp`... or use Comp()
 void GameTick() {
+	let& comp = Comp();
 	cursor_type = .Default;
 
 	ui_element_activated_this_frame = false;
@@ -1147,19 +1307,22 @@ void GameTick() {
 		UpdateWindowSize(rl.GetScreenWidth(), rl.GetScreenHeight());
 	}
 
-	mp_world_space = GetMousePosWorldSpace();
+	last_mouse_pos = mouse_pos;
+	mouse_pos = mouse.GetPos();
+	last_ws_mouse_pos = ws_mouse_pos;
+	ws_mouse_pos = GetMousePosWorldSpace();
 
 	if (check_code_timer.DidRepeatWhileUpdating()) {
 		code_man.CheckModifiedTimeAndReloadIfNecessary();
 	}
 
 	// d.ClearBackground(theme.bg);
-	d.ClearBackground(Colors.Black);
+	d.ClearBackground(Colors.Purple); // NOTE: purple to see if any leaks thru!
 
-	if (HotKeys.PlayPause.IsPressed()) {
+	if (HotKeys.PlayPause.IsPressed() && has_comp()) {
 		if (is_running()) {
 			SetMode(.Paused);
-			SetFrame(current_frame);
+			SetFrame(Comp().current_frame);
 		} else if (is_paused()) {
 			SetMode(.Running);
 		}
@@ -1170,9 +1333,9 @@ void GameTick() {
 	}
 
 	// export movie
-	if (HotKeys.ExportMovie.IsPressed() && mode != .Exporting) { // NOTE: E (export)
+	if (HotKeys.ExportMovie.IsPressed() && mode != .Exporting && has_comp()) { // NOTE: E (export)
 		SetMode(.Exporting);
-		export_state = make_export_state(max_frames);
+		export_state = make_export_state(Comp().effective_max_frames());
 		SetFrame(0);
 
 		OpenModalFn(ExportingModal);
@@ -1182,15 +1345,15 @@ void GameTick() {
 		ui_hidden = !ui_hidden;
 	}
 
-	if (elements.size > 1 && (HotKeys.DeleteSelection.IsPressed() || HotKeys.AlternativeDeleteSelection.IsPressed())) {
-		elements.remove_at(selected_elem_i);
-		CullEmptyLayers();
-		if (selected_elem_i == elements.size) { selected_elem_i--; }
-	}
+	// if (elements.size > 1 && (HotKeys.DeleteSelection.IsPressed() || HotKeys.AlternativeDeleteSelection.IsPressed())) {
+	// 	elements.remove_at(selected_elem_i);
+	// 	// CullEmptyLayers();
+	// 	if (selected_elem_i == elements.size) { selected_elem_i--; }
+	// }
 
-	if (HotKeys.Temp_ClearTimeline.IsPressed()) {
-		elements.get(selected_elem_i).ClearTimelinesCompletely();
-	}
+	// if (HotKeys.Temp_ClearTimeline.IsPressed()) {
+	// 	elements.get(selected_elem_i).ClearTimelinesCompletely();
+	// }
 
 	// if (HotKeys.Temp_ReloadCode.IsPressed()) {
 	// 	code_man.Reload();
@@ -1213,11 +1376,13 @@ void GameTick() {
 	DrawFrameToCanvas();
 
 	if (is_running()) {
-		float new_time = current_time + rl.GetFrameTime();
-		if (new_time > max_time) { new_time = 0; }
-		SetTime(new_time);
+		if (has_comp()) {
+			float new_time = comp.current_time + rl.GetFrameTime();
+			if (new_time > comp.effective_max_time()) { new_time = 0; }
+			SetTime(new_time);
+		}
 	} else if (is_exporting()) {
-		if (export_state.frames_rendered < max_frames) {
+		if (export_state.frames_rendered < comp.effective_max_frames()) {
 			// Images of format type: PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 == 7 (by raylib.h)
 			// Appears equivalent to PIX_FMT_RGBA of FFMPEG
 			Image img = rl.LoadImageFromTexture(canvas.texture);
@@ -1236,11 +1401,11 @@ void GameTick() {
 				`;
 
 				export_state.frames_rendered++;
-				SetFrame(current_frame + 1);
+				SetFrame(comp.current_frame + 1);
 			}
 			
 		}
-		if (!export_state.is_ffmpegging && export_state.frames_rendered == max_frames) {
+		if (!export_state.is_ffmpegging && export_state.frames_rendered == comp.effective_max_frames()) {
 			export_state.is_ffmpegging = true;
 			export_state.start_ffmpeg_time = c:GetTime();
 			go(ExportVideoThread);
@@ -1254,20 +1419,20 @@ void GameTick() {
 	if (!is_exporting()) {
 		if (mouse.LeftClickPressed()) {
 			// TODO:(toby) go down in layer!!!, not by i
-			for (int i = elements.size - 1; i >= 0; i--;) {
-				if (ElementIsVisibleNow(elements.get(i)) && elements.get(i).Hovered()) {
-					selected_elem_i = i;
+			for (let& element in Comp().elements) {
+				if (ElementIsVisibleNow(element) && element.Hovered()) {
+					SetSelection(element.handle());
 					break;
 				}
 			}
 		}
 
-		if (HotKeys.KeyAtCurrentPosition.IsPressed()) { // NOTE: K (keyframe)
-			let& elem = elements.get(selected_elem_i);
-			float keyframe_t = std.clamp(current_time - elem.start_time, 0, elem.duration);
+		if (HotKeys.KeyAtCurrentPosition.IsPressed() && has_selected_elements()) { // NOTE: K (keyframe)
+			let& elem = get_primary_selected_element();
+			float keyframe_t = std.clamp(comp.current_time - elem.start_time, 0, elem.duration);
 			elem.kl_pos().InsertValue(
 				keyframe_t,
-				mp_world_space
+				ws_mouse_pos
 			);
 		}
 
@@ -1292,8 +1457,8 @@ void GameTick() {
 	}
 
 	if (!ui_hidden) {
-		LeftPanelUI();
-		ElementTimelineUI();
+		// LeftPanelUI();
+		// CompositionTimelineUI();
 	}
 	// VideoPlayPauseMuteUI(PlaceVideoPlayPauseMuteUI()); // TODO: fade out when non-interacted in ui-hidden mode!
 
@@ -1316,7 +1481,7 @@ void GameTick() {
 
 void RenderAfter() {
 	// TODO: this shouldn't be in RenderAfter
-	rl.SetMouseCursor(cursor_type as MouseCursor);
+	rl.SetMouseCursor(cursor_type._to_raylib_cursor_type());
 }
 
 float video_play_pause_mute_ui_height = 32;
@@ -1343,11 +1508,13 @@ float video_play_pause_mute_ui_height = 32;
 // }
 
 void SyncEncodingDecodingEditInfo() {
-	from_edit = {
+	let& comp = Comp();
+	from_edit = 
+	{
 		:images,
 		:canvas_width, :canvas_height,
-		.STREAM_DURATION = time_per_frame * max_frames,
-		.STREAM_FRAME_RATE = frame_rate
+		.STREAM_DURATION = comp.time_per_frame * comp.effective_max_frames(),
+		.STREAM_FRAME_RATE = comp.frame_rate
 	};
 }
 
@@ -1357,7 +1524,7 @@ void SyncEncodingDecodingEditInfo() {
 // }
 
 void ExportVideoThreadMain() {
-	ExportVideo(frame_rate, "out", "edit_video");
+	ExportVideo(Comp().frame_rate, "out", "edit_video");
 
 	SetMode(.Paused);
 	SetFrame(0);
@@ -1383,7 +1550,7 @@ void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
 
 	Vec2 pos = v2(0, 0);
 	if (dropped_via_mouse) {
-		pos = mp_world_space;
+		pos = ws_mouse_pos;
 	}
 	println(t"File dropped: {strcmp(file_type, ".png")}");
 	if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
@@ -1392,12 +1559,12 @@ void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
 		defer img.Unload();
 		char^ img_name = c:GetFileNameWithoutExt(file_path);
 
-		AddNewSelectedElementAt(Element(ImageElement.Make(file_path), strdup(img_name), current_time, new_element_default_duration, -1, pos, v2(img.width, img.height)));
+		AddNewSelectedElementAt(Element(ImageElement.Make(file_path), strdup(img_name), Comp().current_time, new_element_default_duration, NULL, pos, v2(img.width, img.height)));
 	} else if (strcmp(file_type, ".csv") == 0) {
-		// Handle data file
-		Data data = .(file_path);
-		data_list.add(data);
-		elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
+		// // Handle data file
+		// Data data = .(file_path);
+		// data_list.add(data);
+		// elements.get(selected_elem_i).ApplyKeyframeData(data, current_time, (1.0 / frame_rate));
 	} else if (strcmp(file_type, ".mp4") == 0) {
 		// Handle video file
 		AddVideoFromPath(file_path, pos);
@@ -1429,59 +1596,549 @@ enum PanelDragDir {
 	Left, Right, Top, Bottom, 
 	Expand // only 1 expand per axis!
 }
-void SidePanelContents() {
-	Element& selected = elements.get(selected_elem_i);
-
-	#clay({
-		.layout = {
-			.sizing = {
-				.width = CLAY_SIZING_GROW(),
-				.height = CLAY_SIZING_FIXED(rem(2)),
-			},
-			.padding = { 8, 8, 2, 2 }
-		},
-		.backgroundColor = theme.button,
-	}) {
-		CLAY_TEXT(.(t"Selected: {selected.name}"), CLAY_TEXT_CONFIG({
-			.fontSize = rem(1.5),
-			.textColor = Colors.White
-		}));
-	}
-	// // vert spacer ---
-	// #clay({ .layout = { .sizing = .(0, 16) } }) {}
-
-	let& selected_elem = elements.get(selected_elem_i);
-	float max_elem_time = selected_elem.duration;
-
-	float curr_local_time = std.clamp(current_time - selected_elem.start_time, 0, selected_elem.duration);
-
-	CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = current_time, .element = selected_elem, };
-	selected_elem.UI(params);
-}
 
 void SidePanel() {
+	let& comp = Comp();
+	// TODO: @scope $Panel(...);
+	$Panel(left_panel_expander) {
+		if (!has_selected_elements()) { return; }
 
-	#clay({
-		.id = CLAY_ID("side-panel"),
-		.layout = {
-			.sizing = { CLAY_SIZING_FIXED(left_panel_width), CLAY_SIZING_GROW() },
-		},
-		.backgroundColor = theme.panel,
-	}) {
-		#clay({
+		Element& selected_elem = get_primary_selected_element();
+
+		$clay({
 			.layout = {
 				.sizing = {
-					.width = CLAY_SIZING_PERCENT(1),
-					.height = CLAY_SIZING_PERCENT(1),
-				},  
-				.layoutDirection = CLAY_TOP_TO_BOTTOM,
+					.width = CLAY_SIZING_GROW(),
+					.height = CLAY_SIZING_FIXED(rem(2)),
+				},
+				.padding = { 8, 8, 2, 2 }
 			},
+			.backgroundColor = theme.button,
 		}) {
-			SidePanelContents();
-		}
+			CLAY_TEXT(.(t"Selected: {selected_elem.name}"), CLAY_TEXT_CONFIG({
+				.fontSize = rem(1.5),
+				.textColor = Colors.White
+			}));
+		};
+		// // vert spacer ---
+		// $clay({ .layout = { .sizing = .(0, 16) } }) {};
 
-		left_panel_expander.Update();
+		float max_elem_time = selected_elem.duration;
+
+		float curr_local_time = std.clamp(comp.current_time - selected_elem.start_time, 0, selected_elem.duration);
+
+		CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = comp.current_time, .element = selected_elem, };
+		selected_elem.UI(params);
+	};
+}
+
+void AssetManagerUI() {
+	$VERT({ .backgroundColor = theme.button, .layout = {.sizing = .Grow()}}) {
+		clay_text("Assets", { .fontSize = rem(1), .textColor = Colors.White });
+	};
+}
+
+void AddExtraEmptyLayerIfNone() {
+	let& comp = Comp();
+	let& layers = comp.layers;
+	if (layers.is_empty() || !layers.back()#element_handles.is_empty()) {
+		layers.add(EditLayer.new(^comp));
+		comp.vertical_view_range_slider.range.end++;
 	}
+}
+
+int prev_last_s = 0;
+// returns hovering
+bool CompositionTimelineSecondTickerUI(Composition& comp, float layer_info_width, float time_to_width_pixels) {
+	bool hovering = false;
+	$HORIZ_FIXED(rem(1)) {
+		$clay({ .layout = { .sizing = .(layer_info_width, 0) } }) {
+			// TODO: lil' config/button stuff here?
+		};
+		Clay_ElementId composition_timeline_ticker_id = .("composition-timeline-ticker");
+		float composition_timeline_ticker_right_x = Clay.GetBoundingBox(composition_timeline_ticker_id).br().x;
+
+		$HORIZ_GROW({ .id = composition_timeline_ticker_id }) {
+			hovering = Clay.Hovered();
+			// draw second ticks
+			int last_s = comp.view_range_slider.range.end as int;
+
+			Clay_ElementId last_second_id = .("last-second-timeline-tick");
+			for (int s = std.ceil(comp.view_range_slider.range.start); (s) <= last_s; s++) {
+				float x = (s as float - comp.view_range_slider.range.start) * time_to_width_pixels;
+
+				Color text_color = theme.panel;
+				if (s == last_s) {
+					float right_x = Clay.GetBoundingBox(last_second_id).tl().x + 4 + c:MeasureText(t"{last_s}s", rem(0.75));
+					if (right_x >= composition_timeline_ticker_right_x) {
+						text_color = Colors.Transparent;
+					}
+					if (last_s != prev_last_s) {
+						prev_last_s = last_s;
+						text_color = Colors.Transparent;
+					}
+				}
+
+				$VERT({
+					.id = (s == last_s) ? last_second_id | {},
+					.border = {
+						.color = theme.panel,
+						.width = { .left = 1 },
+					},
+					.layout = {
+						.sizing = .(1, rem(1)),
+						.padding = { .left = 4 },
+					},
+					.floating = {
+						.offset = { :x },
+						.attachTo = CLAY_ATTACH_TO_PARENT,
+						.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+					},
+				}) {
+					clay_y_grow_spacer();
+
+					clay_text(t"{s}s", {
+						.fontSize = rem(0.75),
+						.textColor = text_color,
+					});
+				};
+			}
+		};
+		$clay({ .layout = { .sizing = .(rem(1), rem(1)) } });
+	};
+	return hovering;
+}
+
+struct CompositionTimelineUIState {
+	float t_at_drag_start = 0;
+	float x_at_mdrag_start = 0;
+
+	int layer_i_at_drag_start = 0;
+
+	float layer_f_at_mdrag_start_relative_marker = 0;
+
+	float current_caret_time_at_drag_start = 0;
+
+	bool is_mdragging_view = false; // middle-click-dragging
+
+	ViewRange view_range_at_mdrag_start = { .start = 0, .end = 0 };
+	ViewRange vertical_view_range_at_mdrag_start = { .start = 0, .end = 0 };
+
+	bool is_dragging_caret = false; // left-click-dragging
+
+	bool is_dragging_element_start = false;
+	bool is_dragging_element = false;
+	bool is_dragging_element_end = false;
+
+	bool is_dragging_selection = false;
+
+	bool is_ldragging_any() -> is_dragging_caret || is_dragging_element_start || is_dragging_element || is_dragging_element_end || is_dragging_selection;
+	bool is_mdragging_any() -> is_mdragging_view;
+
+	void stop_ldragging_any() {
+		is_dragging_caret = false;
+		is_dragging_element_start = false;
+		is_dragging_element = false;
+		is_dragging_element_end = false;
+		is_dragging_selection = false;
+	}
+	void stop_mdragging_any() {
+		is_mdragging_view = false; 
+	}
+}
+
+@no_hr
+CompositionTimelineUIState composition_ui_state = {}; // TODO: rework `using xxxx` to work like match (reference extend or reference...), and thus fix the issue of not persisting the hot-reload status of the variable
+void CompositionTimelineUI_Clay() {
+	using composition_ui_state;
+
+	bool hovering_timeline_back = false;
+
+	if (!has_comp()) {
+		$HORIZ_GROW({
+			.backgroundColor = theme.button,
+		}) {
+			clay_text("No Active Composition", { .fontSize = rem(1), .textColor = Colors.White });
+		};
+		return;
+	}
+
+	let& comp = Comp();
+	using comp;
+
+	Clay_ElementId layer_container_id = .("CompositionTimelineUI");
+	Rectangle layer_container_bounds = Clay.GetBoundingBox(layer_container_id);
+	float layer_info_width = 40;
+	float scrollable_timeline_width = layer_container_bounds.width; // space for timeline
+	float layer_height = layer_container_bounds.height / vertical_view_range_slider.range.width();
+	float time_to_width_pixels = scrollable_timeline_width / std.max(0.00001, view_range_slider.range.width()); // TODO: better error-handling!
+	float unit_to_height_pixels = layer_container_bounds.height / std.max(0.00001, vertical_view_range_slider.range.width()); // TODO: better error-handling!
+	float y_scroll = -(layers.size as float - vertical_view_range_slider.range.end) * unit_to_height_pixels;
+
+	EditLayer^ hovered_layer = NULL;
+
+	bool is_hovering_caret_moving_location = false;
+
+	$VERT_GROW({
+		.backgroundColor = theme.button,
+	}) {
+		is_hovering_caret_moving_location = CompositionTimelineSecondTickerUI(comp, layer_info_width, time_to_width_pixels);
+		$HORIZ_GROW({
+			.border = Clay_BorderElementConfig.Between(1, theme.panel_border)
+		}) {
+			$VERT_FIXED(layer_info_width, {
+				.layout = {
+					.sizing = .Grow(),
+				},
+				.clip = {
+					.vertical = true,
+					.childOffset = {
+						.y = y_scroll
+					},
+				},
+				.border = {
+					.color = theme.panel_border,
+					.width = { .betweenChildren = 1, .bottom = 1 },
+				}
+			}) {
+				for (int i = layers.size - 1; i >= 0; i--) { // TODO: culling based on vertical view range!
+					EditLayer^ layer = layers[i];
+					$HORIZ_FIXED(layer_height) {
+						// layer info section
+						$VERT_FIXED(layer_info_width, { .border = Clay_BorderElementConfig.Right(1, theme.panel_border) }) {
+							if (ClayIconButton(layer#visible ? Textures.eye_open_icon | Textures.empty, .Grow(), Clay_Sizing(rem(1), rem(1)))) {
+								layer#visible = !layer#visible;
+							}
+						};
+					};
+				}
+			};
+
+			$VERT_GROW({
+				.id = layer_container_id,
+				.layout = {
+					.sizing = .Grow(),
+				},
+				.clip = {
+					.vertical = true,
+					.horizontal = true,
+					.childOffset = {
+						.x = -view_range_slider.range.start * time_to_width_pixels,
+						.y = y_scroll
+					},
+				},
+				.backgroundColor = theme.panel,
+			}) {
+				for (int i = layers.size - 1; i >= 0; i--) { // TODO: culling based on vertical view range!
+					EditLayer^ layer = layers[i];
+					let layer_theme = theme.elem_ui_pink; // TODO:
+
+					Clay_ElementId layer_id = .(t"{layer}");
+
+					if (Clay.VisuallyHovered(layer_id)) { // NOTE: (question) ... is this accurate? even when scissored?
+						hovered_layer = layer;
+					}
+
+					bool has_top_border = (i != layers.size - 1);
+					if (has_top_border) {
+						$HORIZ_FIXED(1, { .backgroundColor = theme.panel_border });
+					}
+					$HORIZ({
+						.id = layer_id,
+						.backgroundColor = layer#visible ? Colors.Transparent | theme.panel_disabled,
+						.layout = {
+							.sizing = .(visual_view_range_max_time * time_to_width_pixels, layer_height),
+						},
+					}) {
+						// layer info section
+						float last_time = 0;
+						for (let& elem in layer#elem_iter()) {
+							$clay({ .layout = { .sizing = .(elem.start_time * time_to_width_pixels, 0) } });
+							$clay({
+								.backgroundColor = layer_theme.bg,
+								.layout = {
+									.sizing = { CLAY_SIZING_FIXED(elem.duration * time_to_width_pixels), CLAY_SIZING_GROW() },
+									.layoutDirection = CLAY_TOP_TO_BOTTOM
+								},
+								.border = .(1, layer_theme.border),
+							}) {
+								clay_text(elem.NameUIText(), { .textColor = layer_theme.text, .fontSize = std.mini((layer_height * 0.5) as ushort, rem(1)) });
+							};
+							last_time = elem.end_time();
+						}
+					};
+				}
+
+				// floating things here ------------
+				if (current_time >= view_range_slider.range.start && (current_time) < view_range_slider.range.end) {
+					Clay_ElementId current_caret_id = .("composition-timeline-current-caret");
+					$VERT_FIXED(1, {
+						.id = current_caret_id,
+						.backgroundColor = theme.timeline_current_caret,
+						.floating = {
+							.offset = { (current_time - view_range_slider.range.start) *  time_to_width_pixels, 0 },
+							.attachTo = CLAY_ATTACH_TO_PARENT,
+						}
+					});
+					if (Clay.GetBoundingBox(current_caret_id).PadLeftRight(4).Contains(mouse_pos)) {
+						is_hovering_caret_moving_location = true;
+					}
+				}
+
+				// TODO: selection box & snap lines here!
+				// ---------------------------------
+			};
+
+			vertical_view_range_slider.Update("vertical_view_range_slider", 0, layers.size, 1);
+		};
+		$HORIZ({ .layout = { .sizing = { .width = CLAY_SIZING_GROW() } } }) {
+			view_range_slider.Update("view_range_slider", 0, visual_view_range_max_time, 1);
+			if (!view_range_slider.IsInteracting()) { visual_view_range_max_time = calc_view_range_max_time(); }
+
+			$clay({ .backgroundColor = theme.button, .layout = { .sizing = .(rem(1), rem(1)) }});
+		};
+	};
+
+		// float timeline_view_start = 0;
+		// float timeline_view_duration = max_time;
+		//
+		// int show_layers = std.maxi(layers.size + 1, 3);
+		// float height = composition_timeline_height;
+		// float layer_height = height / show_layers;
+		//
+		// float whole_width = window_width as float - left_panel_width;
+		// Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
+		// Vec2 whole_dimens = v2(whole_width, height);
+		// Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
+		//
+		// float info_width = 32;
+		//
+		// for (int i in 0..show_layers) { // empty skeleton for layers
+		// 	float x = whole_tl.x;
+		// 	float y = whole_rect.b() - (i + 1) as float * layer_height;
+		// 	Rectangle r = .(x, y, info_width, layer_height);
+		//
+		// 	d.RectR(r.Inset(1), theme.button);
+		// 	d.RectR(.(x, y, whole_width, 1), theme.panel_border);
+		//
+		// 	if (layers.size > i) {
+		// 		// layer info ui -------
+		// 		let& layer = layers.get(i);
+		//
+		// 		if (Button(r.tl(), r.dimen(), "")) {
+		// 			layer.visible = !layer.visible;
+		// 		}
+		//
+		// 		d.Text(t"L{i}", x as int + 6, y as int + 6, 12, theme.timeline_layer_info_gray);
+		//
+		// 		if (layer.visible) {
+		// 			d.TextureAtRect(Textures.eye_open_icon, r.Inset(6).FitIntoSelfWithAspectRatio(1, 1));
+		// 		}
+		// 		// ---------------------
+		// 	}
+		// }
+		//
+		// Vec2 tl = whole_tl + v2(info_width, 0);
+		// Vec2 dimens = whole_dimens - v2(info_width, 0);
+		//
+		// bool pressed_inside = mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens);
+		//
+		// float width = dimens.x;
+		//
+		// for (int i in 0..elements.size) {
+		// 	let& elem = elements.get(i);
+		// 	// elem.TimelineUI();
+		// 	float x = tl.x + (elem.start_time - timeline_view_start) / timeline_view_duration * width;
+		// 	float y = whole_rect.b() - (elem.layer + 1) as float * layer_height;
+		//
+		// 	float w = elem.duration / timeline_view_duration * width;
+		//
+		// 	Rectangle r = .(x, y, w, layer_height);
+		//
+		// 	bool has_err = elem.err_msg != NULL;
+		// 	TimelineElementColorSet color_set = (selected_elem_i == i) ? theme.elem_ui_blue | 
+		// 		((has_err) ? theme.elem_ui_yellow | theme.elem_ui_pink);
+		// 		// selected -> blue
+		// 		// warning -> yellow
+		// 		// otherwise -> pink
+		//
+		// 	d.RectR(r, color_set.border);
+		// 	d.RectR(r.Inset(1), color_set.bg);
+		//
+		// 	d.Text(t"{elem.NameUIText()}", x as int + 6, y as int + 6, 12, color_set.text);
+		// 	d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
+		//
+		// 	bool hovering = mouse.GetPos().Between(r.tl(), r.br());
+		// 	if (has_err) {
+		// 		Vec2 warning_dimen = v2(16, 16);
+		// 		d.TextureAtSizeV(Textures.warning_icon, r.br() - warning_dimen - v2(6, 6), warning_dimen);
+		//
+		// 		if (hovering) {
+		// 			Vec2 options_tl = mouse.GetPos() + v2(0, 10);
+		// 			Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
+		// 			d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
+		// 			d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
+		// 		}
+		// 	}
+		//
+		// 	if (timeline.is_dragging_elem_any()) {
+		// 		if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
+		// 			cursor_type = CursorType.ResizeHoriz;
+		// 		} else {
+		// 			cursor_type = CursorType.Pointer;
+		// 		}
+		// 	} else if (hovering) {
+		// 		if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+		// 			cursor_type = CursorType.ResizeHoriz;
+		// 		} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+		// 			cursor_type = CursorType.ResizeHoriz;
+		// 		} else {
+		// 			cursor_type = CursorType.Pointer;
+		// 		}
+		// 	}
+		//
+		//
+		// 	if (hovering && mouse.LeftClickPressed()) {
+		// 		selected_elem_i = i;
+		//
+		// 		if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
+		// 			timeline.dragging_elem_start = true;
+		// 		} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
+		// 			timeline.dragging_elem_end = true;
+		// 		} else {
+		// 			timeline.dragging_elem = true;
+		// 		}
+		// 		timeline.elem_drag_init_mouse_x = mouse.GetPos().x;
+		// 		timeline.elem_drag_init_start = elem.start_time;
+		// 		timeline.elem_drag_init_end = elem.end_time();
+		// 	}
+		// }
+		//
+		// d.Rect(whole_rect.bl(), v2(dimens.x, 1), theme.panel_border); // TODO: change
+		//
+		// d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
+
+		// mouse interactions --------------------
+		// if (pressed_inside && !timeline.is_dragging_elem_any()) {
+		// 	timeline.dragging_caret = true;
+		// }
+		//
+		// if (mouse.LeftClickDown()) {
+		// 	float t_on_timeline_unbounded = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		// 	float t_on_timeline_bounded = std.clamp(t_on_timeline_unbounded, 0, max_time);
+		// 	if (timeline.dragging_caret) {
+		// 		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
+		// 		if (new_time <= 0) { new_time = 0; }
+		// 		if (new_time >= max_time) { new_time = max_time; }
+		// 		SetTime(new_time); // TODO: add snap-to-frame-set-time
+		// 		SetFrame(current_frame);
+		// 	} else if (timeline.dragging_elem) {
+		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+		// 		let& selected_elem = elements.get(selected_elem_i);
+		// 		selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+		// 		selected_elem.start_time = std.max(0, selected_elem.start_time);
+		//
+		// 		selected_elem.layer = (((whole_rect.b() - mouse.GetPos().y) / layer_height) as int);
+		// 		AddLayersTill(selected_elem.layer);
+		// 	} else if (timeline.dragging_elem_start) {
+		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+		// 		let& selected_elem = elements.get(selected_elem_i);
+		// 		selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
+		// 		selected_elem.start_time = std.max(0, selected_elem.start_time);
+		// 		selected_elem.duration = (timeline.elem_drag_init_end - timeline.elem_drag_init_start) - (selected_elem.start_time - timeline.elem_drag_init_start);
+		// 	} else if (timeline.dragging_elem_end) {
+		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
+		// 		let& selected_elem = elements.get(selected_elem_i);
+		// 		selected_elem.duration = SnapToNearestFramesTime((timeline.elem_drag_init_end - timeline.elem_drag_init_start) + (t_on_timeline_unbounded - og_t_on_timeline));
+		// 	}
+		// }
+		//
+		// if (!mouse.LeftClickDown()) {
+		// 	timeline.dragging_caret = false;
+		// 	timeline.dragging_elem = false;
+		// 	timeline.dragging_elem_start = false;
+		// 	timeline.dragging_elem_end = false;
+		//
+		// 	// CullEmptyLayers();
+		// }
+
+
+	float t_at_mouse_x = view_range_slider.range.start + std.clamp((mouse_pos.x - layer_container_bounds.x) / layer_container_bounds.width, 0, 1) * view_range_slider.range.width();
+	float t_delta = t_at_mouse_x - t_at_drag_start;
+	float layer_f_relative = mouse_pos.y / layer_height;
+	// interactions & updates --------------------------
+	if (is_mdragging_view) {
+		float t_mdrag_delta = -(mouse_pos.x - x_at_mdrag_start) / time_to_width_pixels; // invert for 'drag-like' interaction (ie: pulling view backwards to move forwards)
+		float layer_f_delta = layer_f_relative - layer_f_at_mdrag_start_relative_marker;
+
+		float allowable_t_mdrag_delta = std.clamp(t_mdrag_delta, -view_range_at_mdrag_start.start, visual_view_range_max_time - view_range_at_mdrag_start.end);
+		float allowable_layer_f_mdrag_delta = std.clamp(layer_f_delta, -vertical_view_range_at_mdrag_start.start, layers.size as float - vertical_view_range_at_mdrag_start.end);
+
+		view_range_slider.range = {
+			.start = view_range_at_mdrag_start.start + allowable_t_mdrag_delta,
+			.end = view_range_at_mdrag_start.end + allowable_t_mdrag_delta,
+		};
+
+		vertical_view_range_slider.range = {
+			.start = vertical_view_range_at_mdrag_start.start + allowable_layer_f_mdrag_delta,
+			.end = vertical_view_range_at_mdrag_start.end + allowable_layer_f_mdrag_delta,
+		};
+
+		// TODO: use vertical component too!
+	}
+
+	if (is_dragging_caret) {
+		current_time = t_at_mouse_x;
+	} else if (is_dragging_element) {
+		// SetSelection();
+	} else if (is_dragging_selection) {
+		// SetSelection();
+		// TODO: nextnext
+	}
+
+	if (is_ldragging_any() && mouse.LeftClickReleased()) {
+		stop_ldragging_any();
+	}
+
+	if (is_mdragging_any() && mouse.MiddleClickReleased()) {
+		stop_mdragging_any();
+	}
+
+	if (!is_ldragging_any() && mouse.LeftClickPressed() && layer_container_bounds.Contains(mouse_pos)) {
+		t_at_drag_start = t_at_mouse_x;
+
+		if (is_hovering_caret_moving_location) {
+			is_dragging_caret = true;
+			current_caret_time_at_drag_start = current_time;
+		} else {
+			// TODO:
+			is_dragging_selection = true;
+		}
+	}
+
+	if (!is_mdragging_any() && mouse.MiddleClickPressed() && layer_container_bounds.Contains(mouse_pos)) {
+		x_at_mdrag_start = mouse_pos.x;
+		layer_f_at_mdrag_start_relative_marker = layer_f_relative;
+		view_range_at_mdrag_start = view_range_slider.range;
+		vertical_view_range_at_mdrag_start = vertical_view_range_slider.range;
+
+		is_mdragging_view = true;
+	}
+
+	if (!mouse.LeftClickDown()) {
+		AddExtraEmptyLayerIfNone();
+	}
+}
+
+void BottomPanel() {
+	$Panel(composition_timeline_panel_expander) {
+		$HORIZ_GROW() {
+			$Panel(asset_manager_panel_expander) {
+				AssetManagerUI();
+			};
+			CompositionTimelineUI_Clay();
+		};
+	};
 }
 
 void LayoutUI() {
@@ -1490,83 +2147,97 @@ void LayoutUI() {
 		OnFileDropped();
 	}
 
-    #clay({
+    $clay({
 		.id = CLAY_ID("main"),
 		.layout = {
-			.sizing = .(window_width, window_height as float - composition_timeline_height),
+			.sizing = .(window_width, window_height),
 			// .padding = { .left = left_panel_width as int }
+			.layoutDirection = CLAY_TOP_TO_BOTTOM,
 		}, 
 		.backgroundColor = Colors.Transparent,
 	}) {
-		SidePanel();
-
-		#clay({
-			.id = CLAY_ID("video-area-wrapper"),
+		$clay({
 			.layout = {
-				.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
-				.padding = .(16), 
-				.childGap = 16,
-				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
-			}, 
-			.backgroundColor = Colors.Black,
-		}) {
-			// NOTE: wrong on first render (render twice for first frame to avoid)
-			let parent_bounds = Clay.GetElementData(CLAY_ID("video-area-wrapper")).boundingBox;
-			parent_bounds.width -= 32; // 16 padding on each side!
-			parent_bounds.height -= 32;
-
-			// manually fit this element, since aspect-ratio image scaling causes it to overflow on GROW mode... :/
-			Rectangle fitted = parent_bounds.FitIntoSelfWithAspectRatio(canvas.width(), canvas.height());
-
-			#clay({
-				.id = CLAY_ID("video"),
-				.floating = {
-					.attachTo = CLAY_ATTACH_TO_PARENT,
-					.attachPoints = {
-						.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-						.parent = CLAY_ATTACH_POINT_CENTER_CENTER,
-					}
-				},
-				.layout = {
-					.sizing = .(fitted.width, fitted.height),
-				}, 
-				.image = .(canvas.texture),
-			}) {
-				canvas_rect = Clay.GetElementData(CLAY_ID("video")).boundingBox;
+				.sizing = .Grow(),
 			}
-		}
+		}) {
+			SidePanel();
+
+			$clay({
+				.id = CLAY_ID("video-area-wrapper"),
+				.layout = {
+					.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
+					.padding = .(16), 
+					.childGap = 16,
+					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
+				}, 
+				.backgroundColor = Colors.Black,
+			}) {
+				// NOTE: wrong on first render (render twice for first frame to avoid)
+				let parent_bounds = Clay.GetElementData(CLAY_ID("video-area-wrapper")).boundingBox;
+				parent_bounds.width -= 32; // 16 padding on each side!
+				parent_bounds.height -= 32;
+
+				// manually fit this element, since aspect-ratio image scaling causes it to overflow on GROW mode... :/
+				Rectangle fitted = parent_bounds.FitIntoSelfWithAspectRatio(canvas.width(), canvas.height());
+
+				$clay({
+					.id = CLAY_ID("video"),
+					.floating = {
+						.attachTo = CLAY_ATTACH_TO_PARENT,
+						.attachPoints = {
+							.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+							.parent = CLAY_ATTACH_POINT_CENTER_CENTER,
+						}
+					},
+					.layout = {
+						.sizing = .(fitted.width, fitted.height),
+					}, 
+					.image = .(canvas.texture),
+				}) {
+					canvas_rect = Clay.GetElementData(CLAY_ID("video")).boundingBox;
+				};
+			};
+		};
+		BottomPanel();
 
 		DisplayModals();
-	}
+		warning_log.Update();
+	};
 }
 
-// void El(int i) {
-// 	#clay({
-// 		.id = CLAY_IDI("El", i),
-// 		.layout = { 
-// 			.sizing = {
-// 				.width = CLAY_SIZING_FIT(),
-// 				.height = CLAY_SIZING_FIT(),
-// 			}
-// 		},
-// 		.backgroundColor = Colors.Green
-// 	}) {
-// 		#clay({
-// 			.id = CLAY_IDI_LOCAL("img", i), // TODO: ???
-// 			.layout = { 
-// 				.sizing = {
-// 					.width = CLAY_SIZING_FIXED(64),
-// 					.height = CLAY_SIZING_FIXED(64),
-// 				}
-// 			},
-// 			.image = .(warning_icon),
-// 		}) {}
-//
-// 		CLAY_TEXT(.(t"hi {i}"), CLAY_TEXT_CONFIG({
-// 			.fontSize = 64
-// 		}));
-// 	}
-// }
+// Custom logging function
+bool rl_info_logging_disabled = false;
+c:`typedef const char* const_char_star;`;
+void CustomLog(int msgType, c:const_char_star text, c:va_list args) {
+	if (msgType == rl.LogLevel.INFO && rl_info_logging_disabled) { return; }
+
+	ColorPrint colourer;
+
+    c:`
+    char timeStr[64] = { 0 };
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
+	`;
+	char^ sort_name = match (msgType) {
+		rl.LogLevel.INFO -> "INFO",
+		rl.LogLevel.ERROR -> "ERROR",
+		rl.LogLevel.WARNING -> "WARN",
+		rl.LogLevel.DEBUG -> "DEBUG",
+		else -> "OTHER",
+	};
+	printf("%s ",
+		(msgType == rl.LogLevel.INFO)
+		? colourer.yellow(t"[{sort_name}] ({c:timeStr as char^}): ")
+		| colourer.red(t"[{sort_name}] ({c:timeStr as char^}): ")
+	);
+
+    c:vprintf(text, args);
+    printf("\n");
+}
+
 
 int main(int argc, char^^ argv) {
 	CommandLineArgs args = .(argc, argv);
@@ -1574,14 +2245,17 @@ int main(int argc, char^^ argv) {
 	Env.DebugPrint();
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
-	rl.SetTraceLogLevel(rl.LogLevel.ERROR); // During startup, we generally only care to see errors
-	EditClayApp.Init(window_width, window_height, f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}");
+	rl_info_logging_disabled = true;
+	rl.SetTraceLogCallback(CustomLog as c:TraceLogCallback);
+	let window_name = f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}"; // TODO: free?
+	EditClayApp.Init(window_width, window_height, window_name);
+
 	defer EditClayApp.Deinit();
 
 	// NOTE: (rae-TODO): FIX weirdness when GetScreenHeight >= actual-screen-height
 	// println(t"aa: {rl.GetScreenWidth()} {rl.GetRenderWidth()}");
 	// println(t"aa: {rl.GetScreenHeight()} {rl.GetRenderHeight()}");
-	println(t"h: {rl.GetMonitorHeight(0)=} {rl.GetMonitorWidth(0)=}");
+	// println(t"h: {rl.GetMonitorHeight(0)=} {rl.GetMonitorWidth(0)=}");
 	// if ()
 
 	defer GlobalSettings.SaveUpdates();
@@ -1592,7 +2266,11 @@ int main(int argc, char^^ argv) {
 
 	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
+	//  ASSETS LOADING -------------------------
 	KeyframeAssets.LoadAssets();
+	TexturesLib.LoadAssets();
+	ColorPicker.LoadAssets();
+	// /ASSETS LOADING -------------------------
 
 	// Audio init and close
 	c:InitAudioDevice();
@@ -1608,21 +2286,16 @@ int main(int argc, char^^ argv) {
 	canvas_temp = RenderTexture(1200, 900);
 	canvas = RenderTexture(1200, 900);
 
-	eye_open_icon = rl.LoadTexture(t"assets/eye_open.png");
-	eye_closed_icon = rl.LoadTexture(t"assets/eye_closed.png");
-	warning_icon = rl.LoadTexture(t"assets/warning_dark.png");
-	image_icon = rl.LoadTexture(t"assets/image.png");
+	// project-related
+	projects.add(Project.new());
+	selected_project_index = 0;
 
-	play_icon = rl.LoadTexture(t"assets/play.png");
-	pause_icon = rl.LoadTexture(t"assets/pause.png");
-	muted_icon = rl.LoadTexture(t"assets/muted.png");
-	unmuted_icon = rl.LoadTexture(t"assets/unmuted.png");
+	// composition-related
+	Proj().comps.add(Composition.new(^Proj(), 300, 200));
+	Proj().selected_comp_index = 0;
 
-	images.reserve(max_frames);
-
-	AddNewElementAt(Element(RectElement.Make(), "Rect", 0, 1, -1, v2(0, 0), v2(200, 150)) with { color = Colors.Blue });
-
-	selected_elem_i = 0;
+	// element-related
+	AddNewSelectedElementAt(Element(RectElement.Make(), "Rect", 0, 2, NULL, v2(0, 0), v2(200, 150)) with { .color = Colors.Blue });
 
 	if (args.open_project != NULL) {
 		println(t"opening: saves/{args.open_project}");
@@ -1645,8 +2318,7 @@ int main(int argc, char^^ argv) {
 			ProjectSave.Create(p, project_name);
 		}
 	}
-
-	// rl.SetTraceLogLevel(rl.LogLevel.DEBUG); // now that the program is running, we may care more about ongoing loads/raylib-IO calls
+	rl_info_logging_disabled = false;
 
 	EditClayApp.MainLoop(GameTick, RenderAfter);
 
@@ -1666,3 +2338,58 @@ int ReadEditVersion() {
 c:c:`
 #pragma GCC diagnostic pop
 `;
+
+
+// actions & undo/redo-capability --------------------------------------
+// ----------------------------------------------------------------------
+struct CreateNewElementAction : ActionImpl {
+	Element element;
+	EditLayer^ layer; // TODO: make serializable!!!
+
+	ActionInfo Info() -> {
+		.name = "Create New Element"
+	};
+	Action into() -> Action(Box<Self>.Make(this));
+
+	void Apply(using ActionArgs& args) {
+		let& elem = Comp().elements.Add(element);
+		let handle = elem.handle();
+		layer#AddElement(elem.handle());
+		elem.layer = layer;
+		elem.LinkDefaultLayers();
+	}
+	void delete(ActionDeleteArgs& args) {}
+}
+
+struct DeleteElementAction : ActionImpl {
+	ElementHandle handle;
+
+	ActionInfo Info() -> {
+		.name = "Delete Element"
+	};
+	Action into() -> Action(Box<Self>.Make(this));
+
+	void Apply(using ActionArgs& args) {
+		comp._DeleteElement(handle);
+	}
+	void delete(ActionDeleteArgs& args) {}
+}
+
+struct SetSelectionAction : ActionImpl {
+	ElementHandle[] selection; // list memory held by action!!!
+
+	ActionInfo Info() -> {
+		.name = "Set Selection"
+	};
+	Action into() -> Action(Box<Self>.Make(this));
+
+	void Apply(using ActionArgs& args) {
+		comp.selection.clear();
+		for (let handle in selection) {
+			comp.selection.add(handle);
+		}
+	}
+	void delete(ActionDeleteArgs& args) {
+		selection.delete();
+	}
+}

@@ -38,7 +38,7 @@ Image FloodFill(Image guide, Point start, Color color) {
 		Point p = queue.pop_back();
 		fill_img.set(p, color);
 
-		for (int i = 0; i != 4; i++;) {
+		for (int i = 0; i != 4; i++) {
 			Point np = p + cardinal_direction_points.get(i);
 
 			if (np.x >= 0 && np.x < guide.width && np.y >= 0 && np.y < guide.height

@@ -147,7 +147,7 @@ void PathGrad(FxArgs& args, using PathGradArgs& margs) {
 
 @fx_args
 struct PointSwarmArgs {
-	List<Vec2> points = .();
+	Vec2[] points = .();
 	float dot_size = 10;
 }
 
@@ -396,7 +396,7 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 	List<Vec2> points = .();
 	points.add(center);
 
-	for (int i = 0; i <= segments; i++;) {
+	for (int i = 0; i <= segments; i++) {
 		float angle = startAngle + (i as float) * angleStep;
 		points.add(Vec2{
 			.x = center.x + radius * c:cos(angle * c:DEG2RAD),
@@ -405,8 +405,8 @@ void DrawCustomTriangleFan(Vec2 center, float radius, float startAngle, float en
 	}
 
 	// Draw the triangle fan with anti-aliasing
-	for (int i = 1; i < segments + 1; i++;) {
-		// for (int j = 4; j > 0; j = j - 2;) {
+	for (int i = 1; i < segments + 1; i++) {
+		// for (int j = 4; j > 0; j = j - 2) {
 		// 	d.Triangle(points.get(0), points.get(i + 1), points.get(i), ColorAlpha(color, 0.2 * (8 - j) / 8.0)); // Outer triangles for anti-aliasing
 		// }
 		d.Triangle(points.get(0), points.get(i + 1), points.get(i), color); // Main triangle
@@ -755,7 +755,7 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
 
 		// Draw antialiased line
-		for (int j = 4; j > 0; j = j - 2;) {
+		for (int j = 4; j > 0; j = j - 2) {
 			d.Line(prev_point, curr_point, j * 2, ColorAlpha(args.color, 0.2 * (8 - j) / 8.0)); // Outer lines for antialiasing
 		}
 		d.Line(prev_point, curr_point, 2, ColorAlpha(args.color, 0.5)); // Main line
@@ -770,7 +770,7 @@ void line_graph(FxArgs& args, using BarChartArgs& margs) {
 		Vec2 curr_point = .(args.pos.x + padding_left + (i as float / (half_data_count - 1) as float) * (args.scale.x - padding_left - padding_right), args.pos.y + args.scale.y - padding_bottom - (value / max_value * (args.scale.y - padding_top - padding_bottom)));
 
 		// Draw antialiased line
-		for (int j = 4; j > 0; j = j - 2;) {
+		for (int j = 4; j > 0; j = j - 2) {
 			d.Line(prev_point, curr_point, j * 2, ColorAlpha(Colors.Blue, 0.2 * (8 - j) / 8.0)); // Outer lines for antialiasing
 		}
 		d.Line(prev_point, curr_point, 2, ColorAlpha(Colors.Blue, 0.5)); // Main line

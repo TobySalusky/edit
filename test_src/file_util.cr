@@ -72,6 +72,7 @@ struct TextureCache {
 	static StrMap<Texture> textures = .();
 	static Texture& Get(char^ path) {
 		if (!io.file_exists(path)) {
+			println(t"[WARNING]: Texture.Get: requested path '{path}' was not found!!! [... returning pixel texture]");
 			return pixel; // NOTE: FILE DNE (log?)
 		}
 		if (!textures.has(path)) {

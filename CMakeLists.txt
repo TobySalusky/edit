@@ -1,6 +1,26 @@
 cmake_minimum_required(VERSION 3.15)
 project(edit LANGUAGES C)
 
+# ---- bundling stuff ------
+# if (APPLE)
+# 	# Set the icon file path
+# 	# set(ICON_FILE "${CMAKE_SOURCE_DIR}/EditIcon.icns")
+# 	# message("${CMAKE_SOURCE_DIR}/EditIcon.icns yoyoyo")
+#
+# 	# Create a .app bundle
+# 	set_target_properties(edit PROPERTIES MACOSX_BUNDLE TRUE)
+#
+# 	# Set the icon for the bundle
+# 	# set_target_properties(edit PROPERTIES MACOSX_BUNDLE_ICON_FILE "${ICON_FILE}")
+# 	set_target_properties(edit PROPERTIES MACOSX_BUNDLE_ICON_FILE "EditIcon.icns")
+#
+# 	# Set the location of the icon within the app bundle
+# 	# set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+# 	set_source_files_properties(EditIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+#
+# endif()
+
+
 # Dependencies ---------------------------------------------
 set(BUILD_SHARED_LIBS ON CACHE BOOL ON) # build raylib as shared lib (dll/dylib/so)
 
@@ -40,7 +60,22 @@ endif()
 # Our Project
 
 if (APPLE)
-	add_executable(edit "out/__unity__.c")
+	set(ICON_NAME "icon.icns")
+	message("check out: ${PROJECT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}")
+	set(ICON_PATH ${PROJECT_SOURCE_DIR}/assets/${ICON_NAME})
+	set_source_files_properties(${ICON_NAME} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+	file(COPY ${ICON_PATH} DESTINATION "edit.app/Contents/Resources")
+
+	add_executable(edit MACOSX_BUNDLE ${ICON_PATH} "out/__unity__.c")
+
+	set_target_properties(edit PROPERTIES
+			BUNDLE True
+			MACOSX_BUNDLE_GUI_IDENTIFIER my.domain.style.identifier.edit
+			MACOSX_BUNDLE_BUNDLE_NAME edit
+			MACOSX_BUNDLE_BUNDLE_VERSION "0.1"
+			MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+			MACOSX_BUNDLE_ICON_FILE "icon"
+			)
 else()
 	# NOTE: this windows build does not -include-c-file:tinyfiledialogs.c --- because that causes issues with the inclusion of windows.h
 	add_executable(edit "out/__unity__.c" "include/tinyfiledialogs.c")
@@ -80,5 +115,3 @@ if (APPLE)
     target_link_libraries(script "-framework Cocoa")
     target_link_libraries(script "-framework OpenGL")
 endif()
-
-

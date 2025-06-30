@@ -1,4 +1,3 @@
-include path("../std");
 include path("../raylib");
 include path("../common");
 

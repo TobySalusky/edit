@@ -35,9 +35,6 @@ enum CursorType {
 	// 	assert(this as int < cursor_textures.size, "cursor not loaded");
 	// 	return cursor_textures.get(this as int);
 	// }
-
-	bool operator:==(Self other) -> this as int == other as int;
-	bool operator:!=(Self other) -> this as int != other as int;
 }
 
 CursorType cursor_type = .Default;

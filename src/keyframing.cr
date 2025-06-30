@@ -105,9 +105,6 @@ enum KeyframeInterpolationMode {
 	Linear,
 	Ease,
 	;
-
-	bool operator:==(Self other) -> this as int == other as int;
-	bool operator:!=(Self other) -> this as int != other as int;
 }
 
 struct Keyframe<T> {
@@ -253,7 +250,7 @@ struct KeyframeLayer<T> {
 	}
 
 	void Insert(Keyframe<T> frame) {
-		for (int i = 0; i != keyframes.size; i++;) {
+		for (int i = 0; i != keyframes.size; i++) {
 			if (frame.time == keyframes.get(i).time) {
 				keyframes.get(i).delete();
 				keyframes.get(i) = frame;
@@ -262,7 +259,7 @@ struct KeyframeLayer<T> {
 		}
 
 		int best = keyframes.size;
-		for (int i = 0; i != keyframes.size; i++;) {
+		for (int i = 0; i != keyframes.size; i++) {
 			if (frame.time < keyframes.get(i).time) {
 				best = i;
 				break;
@@ -312,7 +309,7 @@ struct KeyframeLayer<T> {
 	}
 
 	void RemoveAtTime(float t) {
-		for (int i = keyframes.size - 1; i >= 0; i--;) {
+		for (int i = keyframes.size - 1; i >= 0; i--) {
 			if (keyframes.get(i).time == t) {
 				keyframes.get(i).delete();
 				keyframes.remove_at(i); 
@@ -321,37 +318,38 @@ struct KeyframeLayer<T> {
 	}
 
 	void ControlButtons(T^ value, CustomLayerUIParams& params) {
+		Keyframe<T>^ prev = PrevKeyframeBeforeTime(params.curr_local_time);
+		Keyframe<T>^ next = NextKeyframeAfterTime(params.curr_local_time);
+
 		clay_x_grow_spacer();
-		if (ClayButton("<", Clay_ElementId(t"{^this}-prev-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
-			Keyframe<T>^ prev = PrevKeyframeBeforeTime(params.curr_local_time);
-			if (prev != NULL) {
-				params.global_time = params.element.start_time + prev#time;
-			}
+		// if (ClayButton("<", Clay_ElementId(t"{^this}-prev-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+		if (ClayIconDisableButton(Textures.keyframe_left_arrow_icon, prev == NULL, rem(1))) {
+			params.global_time = params.element.start_time + prev#time;
 		}
-		if (ClayButton("O", Clay_ElementId(t"{^this}-toggle-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
-			if (HasKeyframeAtTime(params.curr_local_time)) {
+		// if (ClayButton("O", Clay_ElementId(t"{^this}-toggle-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+		bool has_keyframe_at_current_time = HasKeyframeAtTime(params.curr_local_time);
+		if (ClayIconButton(has_keyframe_at_current_time ? Textures.keyframe_remove_icon | Textures.keyframe_add_icon, .(rem(1), rem(1)))) {
+			if (has_keyframe_at_current_time) {
 				RemoveAtTime(params.curr_local_time);
 			} else {
 				InsertValue(params.curr_local_time, *value);
 			}
 		}
-		if (ClayButton(">", Clay_ElementId(t"{^this}-next-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
-			Keyframe<T>^ next = NextKeyframeAfterTime(params.curr_local_time);
-			if (next != NULL) {
-				params.global_time = params.element.start_time + next#time;
-			}
+		// if (ClayButton(">", Clay_ElementId(t"{^this}-next-keyframe"), Clay_Sizing(rem(1), rem(1)))) {
+		if (ClayIconDisableButton(Textures.keyframe_right_arrow_icon, next == NULL, rem(1))) {
+			params.global_time = params.element.start_time + next#time;
 		}
 	}
 
 	void UI(Rectangle rect, CustomLayerUIParams& params) {
 		let dimens = rect.dimen();
 
-		#clay({ // TODO: good lsp-support/checking in templates!
+		$clay({ // TODO: good lsp-support/checking in templates!
 			.layout = {
-				.sizing = Clay_Sizing.Grow()
+				.sizing = .Grow()
 			},
 		}) {
-			for (int i = 0; i != keyframes.size; i++;) {
+			for (int i = 0; i != keyframes.size; i++) {
 				let& keyframe = keyframes.get(i);
 				float t = keyframe.time / params.max_elem_time;
 
@@ -360,7 +358,7 @@ struct KeyframeLayer<T> {
 				let& assets = keyframe.assets();
 				Clay_Sizing sizing = .(rem(1), rem(1));
 				bool keyframe_hovered = false;
-				#clay({
+				$clay({
 					.layout = {
 						:sizing
 					},
@@ -377,19 +375,19 @@ struct KeyframeLayer<T> {
 				}) {
 					keyframe_hovered = Clay.Hovered();
 					
-					#clay({
+					$clay({
 						.layout = { .sizing = .(0, 0) },
 					}) {
-						#clay({
+						$clay({
 							.layout = { :sizing },
 							.backgroundColor = Colors.Gray,
 							.image = .(assets.front)
-						}) {}
-					}
+						}) {};
+					};
 
 					bool highlight = keyframe_hovered; // TODO: selection highlighting (diff colour, etc)
 					if (highlight) {
-						#clay({
+						$clay({
 							.layout = { :sizing },
 							.floating = {
 								.attachTo = CLAY_ATTACH_TO_PARENT,
@@ -398,10 +396,10 @@ struct KeyframeLayer<T> {
 							},
 							.image = .(assets.highlight),
 							.backgroundColor = theme.keyframe_hover_highlight,
-						}) {}
+						}) {};
 					}
-				}
+				};
 			}
-		}
+		};
 	}
 }

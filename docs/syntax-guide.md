@@ -88,7 +88,7 @@ int main() {
     list.add(2);
     list.add(5);
 
-    for (int i = 0; i < list.size; i++;) { // note semicolon before end-of-for header! (will get rid of eventually...)
+    for (int i = 0; i < list.size; i++) {
         println(t"{i}: {list.get(i)}");
     }
     // 0: 1

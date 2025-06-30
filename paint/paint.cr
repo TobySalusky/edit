@@ -633,7 +633,7 @@ void LeftPanelUI() {
 	d.Rect(v2(0, 0), v2(left_panel_width, window_height), theme.panel);
 	d.Rect(v2(left_panel_width, 0), v2(1, window_height), theme.panel_border);
 
-	for (int i = 0; i != layers.size; i++;) {
+	for (int i = 0; i != layers.size; i++) {
 		DrawLayerWidget(layers.get(i), i, 10, window_height - 10 - 60 - ((60 + 5) * i));
 	}
 

@@ -47,7 +47,9 @@ struct IndexRangeIter {
 }
 
 // memory ------------------
-@extern void free(c:void^ ptr);
+@extern void memcpy(void^ dst, void^ src, int n_bytes);
+@extern void memset(void^ ptr, char c, int n_bytes);
+@extern void free(c:void^ ptr); // TODO: just void^ instead?
 @extern c:void^ malloc(int n_bytes);
 
 // string ------------------
@@ -56,7 +58,7 @@ struct string {
 
 	static bool is_whitespace_char(char c) -> c == '\t' || c == '\n' || c == ' ';
 	static bool is_whitespace_str(char^ str) {
-		for (int i = 0; i != strlen(str); i++;) {
+		for (int i = 0; i != strlen(str); i++) {
 			if (!string.is_whitespace_char(str[i])) { return false; }
 		}
 		return true;
@@ -99,9 +101,9 @@ struct string {
 		int length = len();
 		int search_length = strlen(searched_str);
 
-		for (int i = length - search_length; i >= 0; i--;) {
+		for (int i = length - search_length; i >= 0; i--) {
 			bool is_match = true;
-			for (int j = 0; search_length > j; j++;) {
+			for (int j = 0; search_length > j; j++) {
 				if (searched_str[j] != str[i + j]) {
 					is_match = false;
 					break;
@@ -118,7 +120,7 @@ struct string {
 			panic(t"string substr i+length={start_i}+{length}={start_i + length} exceeds length={this.len()}");
 		}
 		char^ substr_str = malloc(sizeof<char> * (length + 1));
-		for (int i = 0; i != length; i++;) {
+		for (int i = 0; i != length; i++) {
 			substr_str[i] = str[start_i + i];
 		}
 		substr_str[length] = '\0';
@@ -134,8 +136,8 @@ struct string {
 		int s_len = this.len();
 		char^ out = malloc((s_len * n + 1) * sizeof<char>);
 
-		for (int iter = 0; iter != n; iter++;) {
-			for (int i = 0; i != s_len; i++;) {
+		for (int iter = 0; iter != n; iter++) {
+			for (int i = 0; i != s_len; i++) {
 				out[iter * s_len + i] = str[i];
 			}
 		}
@@ -213,7 +215,7 @@ char^ trim(char^ str) {
 	int len = strlen(str);
 
 	int first_non_whitespace = -1;
-	for (int i = len - 1; i >= 0; i--;) {
+	for (int i = len - 1; i >= 0; i--) {
 		if (!string.is_whitespace_char(str[i])) {
 			first_non_whitespace = i;
 			break;
@@ -228,7 +230,7 @@ Strings split(char^ str, char^ delim) {
 
 	char^ tmp = str;
 	int n_delim = 0;
-	for (int i = 0; i < strlen(str); i++;) {
+	for (int i = 0; i < strlen(str); i++) {
 		if (strn_eq(^str[i], delim, delim_len)) { n_delim++; }
 	}
 
@@ -261,7 +263,7 @@ Strings trim_split(char^ str, char^ delim) {
 
 	char^ tmp = str;
 	int n_delim = 0;
-	for (int i = 0; i < strlen(str); i++;) {
+	for (int i = 0; i < strlen(str); i++) {
 		if (strn_eq(^str[i], delim, delim_len)) { n_delim++; }
 	}
 
@@ -296,7 +298,7 @@ struct ProgramOpts {
 	char^^ argv;
 
 	bool has(char^ opt) {
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(opt, argv[i])) {
 				return true;
 			}
@@ -306,7 +308,7 @@ struct ProgramOpts {
 
 	// eg: opt = "-b", returns -> "/<some>/<given>/<path>"
 	char^ get(char^ opt) {
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(opt, argv[i]) && i + 1 < argc) {
 				return argv[i + 1];
 			}
@@ -318,7 +320,7 @@ struct ProgramOpts {
 		char^ full = f"--{full_opt_name}";
 		defer free(full);
 
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(full, argv[i]) && i + 1 < argc) {
 				return argv[i + 1];
 			}
@@ -332,7 +334,7 @@ struct ProgramOpts {
 		defer free(full_opt);
 		defer free(short_opt);
 
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if ((str_eq(full_opt, argv[i]) || str_eq(short_opt, argv[i])) && i + 1 < argc) {
 				return argv[i + 1];
 			}
@@ -344,7 +346,7 @@ struct ProgramOpts {
 		char^ full = f"--{full_opt_name}";
 		defer free(full);
 
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(full, argv[i])) {
 				return true;
 			}
@@ -358,7 +360,7 @@ struct ProgramOpts {
 		defer free(full_opt);
 		defer free(short_opt);
 
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(full_opt, argv[i]) || str_eq(short_opt, argv[i])) {
 				return true;
 			}
@@ -367,7 +369,7 @@ struct ProgramOpts {
 	}
 
 	int index_of(char^ opt) { // TODO: should we start indices at 0?
-		for (int i = 1; i < argc; i++;) {
+		for (int i = 1; i < argc; i++) {
 			if (str_eq(opt, argv[i])) {
 				return i;
 			}
@@ -428,7 +430,7 @@ ProgramOpts make_opts(int argc, char^^ argv) -> { :argc, :argv };
 		char^^ l = c:malloc(sizeof<char^> * n_lines);
 
 		char^ line = c:NULL;
-		for (int i = 0; i < n_lines; i++;) {
+		for (int i = 0; i < n_lines; i++) {
 			c:size_t n = 0;
 			if (c:getline(^line, ^n, ^this) == -1) {
 				panic("getline failed");
@@ -450,7 +452,7 @@ struct Strings {
 	char^^ strs;
 
 	void delete() {
-		for (int i = 0; i < n; i++;) {
+		for (int i = 0; i < n; i++) {
 			c:free(strs[i]);
 		}
 		c:free(strs);
@@ -605,14 +607,14 @@ void WalkFileTreeBasic(char^ dir_path, FileTreeWalker^ visitor) {
 
 
 
-
-
 struct None {}
 choice Opt<T> {
-	 T as Some, None;
+	 T as Some,
+	 None;
 
 	 static Opt<T> Some(T val) -> val;
 }
+@no_hr
 None none = {};
 
 choice Result<TRes, TErr> {
@@ -678,7 +680,7 @@ struct IO_lib {
 	// false on failure
 	// DOES NOT APPEND \n
 	bool write_file_text(char^ file_path, char^ contents) {
-		FILE^ f = io.open(file_path, "w"); // TODO: errors... don't?
+		FILE^ f = io.fopen_opt(file_path, "w").! else return false;
 		defer f#close();
 
 		if (c:fprintf(f, "%s", contents) < 0) {
@@ -690,7 +692,7 @@ struct IO_lib {
 
 	// DOES NOT APPEND \n
 	bool append_file_text(char^ file_path, char^ contents) {
-		FILE^ f = io.open(file_path, "a"); // TODO: errors... don't?
+		FILE^ f = io.fopen_opt(file_path, "a").! else return false;
 		defer f#close();
 
 		if (c:fprintf(f, "%s", contents) < 0) {
@@ -701,10 +703,10 @@ struct IO_lib {
 	}
 
 	bool write_file_lines(char^ file_path, Strings lines) {
-		FILE^ f = io.open(file_path, "w");
+		FILE^ f = io.fopen(file_path, "w");
 		defer f#close();
 
-		for (int i = 0; i < lines.n; i++;) {
+		for (int i = 0; i < lines.n; i++) {
 			// TODO: check that they fprintf's succeed...
 			c:fprintf(f, "%s", lines.at(i));
 			c:fprintf(f, "\n");
@@ -714,10 +716,10 @@ struct IO_lib {
 	}
 
 	bool append_file_lines(char^ file_path, Strings lines) {
-		FILE^ f = io.open(file_path, "a");
+		FILE^ f = io.fopen(file_path, "a");
 		defer f#close();
 
-		for (int i = 0; i < lines.n; i++;) {
+		for (int i = 0; i < lines.n; i++) {
 			c:fprintf(f, "%s", lines.at(i));
 			c:fprintf(f, "\n");
 		}
@@ -789,17 +791,26 @@ struct IO_lib {
 		if (nftw_res != 0) { panic(f"rm_dir's nftw failed with code {nftw_res}"); }
 	}
 
-	FILE^ open(char^ file_path, char^ mode) {
+	FILE^ fopen(char^ file_path, char^ mode) {
 		FILE^ it = c:fopen(file_path, mode); 
 		if (it == NULL) {
 			panic(f"failed to open {file_path} with mode {mode}");
 		}
 		return it;
 	}
+
+	FILE^? fopen_opt(char^ file_path, char^ mode) {
+		FILE^ it = c:fopen(file_path, mode); 
+		if (it == NULL) {
+			return none;
+		}
+		return it;
+	}
+
 	void close(FILE^ f) { c:fclose(f); }
 
 	Strings lines(char^ file_path) {
-		FILE^ f = this.open(file_path, "r");
+		FILE^ f = this.fopen(file_path, "r");
 		defer this.close(f);
 
 		return {
@@ -809,7 +820,7 @@ struct IO_lib {
 	}
 
 	Strings? lines_opt(char^ file_path) {
-		FILE^ f = this.open(file_path, "r");
+		FILE^ f = this.fopen_opt(file_path, "r").! else return none;
 		defer this.close(f);
 
 		return Strings{
@@ -839,6 +850,15 @@ struct Box<T> {
 }
 
 struct std {
+	static void^ cloned_bytes(void^ src, int n_bytes) {
+		void^ cloned = malloc(n_bytes);
+		memcpy(cloned, src, n_bytes);
+		return cloned;
+	}
+
+	// static int floor(float f) -> f as int;
+	static int ceil(float f) -> c:ceil(f) as int;
+
 	static float max(float a, float b) -> c:fmax(a, b);
 	static float min(float a, float b) -> c:fmin(a, b);
 	static int maxi(int a, int b) -> a > b ? a | b;
@@ -862,6 +882,9 @@ struct Math {
 
 	static float cos(float rads) -> c:cos(rads); 
 	static float sin(float rads) -> c:sin(rads); 
+
+	static float radians(float degs) -> degs / 180.0 * PI;
+	static float degrees(float rads) -> rads / PI * 180.0;
 }
 
 

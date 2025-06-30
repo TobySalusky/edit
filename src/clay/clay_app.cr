@@ -1,5 +1,4 @@
 // main loop -- using clay!
-
 import std;
 import rl;
 import hotkey;
@@ -13,11 +12,12 @@ bool reinitializeClay = false;
 
 struct ScrollbarData
 {
-    Vec2 clickOrigin = {};
+    Vec2 clickOrigin = {}; // TODO: re-work
     Vec2 positionOrigin = {};
     bool mouseDown = false;
 }
 
+@no_hr
 ScrollbarData scrollbarData = {};
 
 void HandleClayErrors(Clay_ErrorData errorData) {
@@ -146,6 +146,7 @@ struct EditClayApp {
 		// RENDERING ---------------------------------
 		currentTime = rl.GetTime();
 		rl.BeginDrawing();
+		// rl.ClearBackground(Colors.Purple);
 		rl.ClearBackground(Colors.Black);
 		Clay.Raylib_Render(renderCommands, fonts.data);
 

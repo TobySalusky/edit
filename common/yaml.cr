@@ -71,17 +71,17 @@ struct yaml_object {
 	}
 
 	void serialize_to(Path p) {
-		FILE^ f = io.open(p, "w");
+		FILE^ f = io.fopen(p, "w");
 		defer f#close();
 
 		this.fpretty_print(f);
 	}
 
 	void pretty_print_internal(int tab) {
-		for (int i = 0; i != dict.size; i++;) {
+		for (int i = 0; i != dict.size; i++) {
 			dict.values[i].pretty_print_internal(dict.keys[i], tab);
 		}
-		for (int i = 0; i != list.size; i++;) {
+		for (int i = 0; i != list.size; i++) {
 			list.get(i).pretty_print_internal(NULL, tab);
 		}
 	}
@@ -91,10 +91,10 @@ struct yaml_object {
 	}
 
 	void fpretty_print_internal(FILE^ f, int tab) {
-		for (int i = 0; i != dict.size; i++;) {
+		for (int i = 0; i != dict.size; i++) {
 			dict.values[i].fpretty_print_internal(f, dict.keys[i], tab);
 		}
-		for (int i = 0; i != list.size; i++;) {
+		for (int i = 0; i != list.size; i++) {
 			list.get(i).fpretty_print_internal(f, NULL, tab);
 		}
 	}
@@ -371,7 +371,7 @@ struct yaml_parser {
 
 	int count_tabs_at_start(char^ line) {
 		int count = 0;
-		for (int i = 0; i != strlen(line); i++;) {
+		for (int i = 0; i != strlen(line); i++) {
 			if (line[i] == ' ') { count++; }
 		}
 		return count / 2;

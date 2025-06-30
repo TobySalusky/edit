@@ -1,8 +1,11 @@
+include path("../../raylib");
+
 import std;
 import rl;
+import globals;
 
 c:import <"float.h">;
-c:import "claydev.h";
+c:import "clay.h";
 
 c:`
 extern void Clay_Raylib_Initialize(int width, int height, const char *title, unsigned int flags);
@@ -13,7 +16,7 @@ extern void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fon
 
 c:c:`
 #define CLAY_IMPLEMENTATION
-#include "claydev.h" // clay implementation, should be in ONE C FILE ONLY
+#include "clay.h" // clay implementation, should be in ONE C FILE ONLY
 // #include "clay_renderer_raylib.c" // clay renderer implementation, should be in ONE C FILE ONLY
 `;
 
@@ -121,6 +124,8 @@ c:c:`
 		.width = CLAY_SIZING_GROW(),
 		.height = CLAY_SIZING_GROW(),
 	};
+
+	Self FlipIf(bool cond) -> (cond) ? { .width = height, .height = width } | this;
 }
 @extern struct Clay_Padding {
     ushort left = 0; // uint16_t's
@@ -131,6 +136,10 @@ c:c:`
 	construct (ushort padding_all_sides) -> {
 		padding_all_sides, padding_all_sides, padding_all_sides, padding_all_sides
 	};
+
+	Self FlipIf(bool cond) -> (cond)
+		? { .left = top, .right = bottom, .top = left, .bottom = right}
+		| this;
 }
 
 @extern struct Clay_LayoutAlignmentX { }
@@ -153,9 +162,22 @@ c:c:`
 @extern struct Clay_ChildAlignment {
 	Clay_LayoutAlignmentX x = CLAY_ALIGN_X_LEFT; // Controls alignment of children along the x axis.
     Clay_LayoutAlignmentY y = CLAY_ALIGN_Y_TOP; // Controls alignment of children along the y axis.
+
+	static Self Center() -> { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER };
 }
 
-@extern struct Clay_LayoutDirection {}
+@extern struct Clay_LayoutDirection {
+	Self FlipIf(bool cond) -> (cond)
+		? (
+			(this == CLAY_LEFT_TO_RIGHT)
+			? CLAY_TOP_TO_BOTTOM
+			| CLAY_LEFT_TO_RIGHT
+		)
+		| this;
+
+	bool operator:==(Self other) -> this as c:int == other as c:int;
+	bool operator:!=(Self other) -> this as c:int != other as c:int;
+}
 // (Default) Lays out child elements from left to right with increasing x.
 @extern Clay_LayoutDirection CLAY_LEFT_TO_RIGHT;
 // Lays out child elements from top to bottom with increasing y.
@@ -183,14 +205,9 @@ c:c:`
 
 @extern struct Clay_ImageElementConfig {
     void^ imageData = NULL; // A transparent pointer used to pass image data through to the renderer.
-    Clay_Dimensions sourceDimensions = {}; // The original dimensions of the source image, used to control aspect ratio.
 
 	construct(Texture& texture_that_must_stay_alive_for_frame) -> {
 		.imageData = ^texture_that_must_stay_alive_for_frame,
-		.sourceDimensions = {
-			.width = texture_that_must_stay_alive_for_frame.width,
-			.height = texture_that_must_stay_alive_for_frame.height,
-		},
 	};
 }
 
@@ -257,9 +274,10 @@ c:c:`
     // Generates CUSTOM render commands.
     void^ customData;
 }
-@extern struct Clay_ScrollElementConfig {
+@extern struct Clay_ClipElementConfig {
     bool horizontal = false; // Clip overflowing elements on the X axis and allow scrolling left and right.
     bool vertical = false; // Clip overflowing elements on the YU axis and allow scrolling up and down.
+    Vec2 childOffset = {}; // Offsets the x,y positions of all child elements. Used primarily for scrolling containers.
 }
 
 @extern struct Clay_TextElementConfigWrapMode {} // enum...
@@ -331,6 +349,19 @@ c:c:`
 		.width = .(all_sides)
 	};
 
+	static Self Right(ushort width, Color color) -> {
+		:color,
+		.width = {
+			.right = width,
+		}
+	};
+	static Self Left(ushort width, Color color) -> {
+		:color,
+		.width = {
+			.left = width,
+		}
+	};
+
 	static Self Vert(ushort vert_width, Color color) -> {
 		:color,
 		.width = {
@@ -344,6 +375,13 @@ c:c:`
 		.width = {
 			.top = vert_width,
 			.bottom = vert_width,
+			.betweenChildren = vert_width,
+		}
+	};
+
+	static Self Between(ushort vert_width, Color color) -> {
+		:color,
+		.width = {
 			.betweenChildren = vert_width,
 		}
 	};
@@ -370,7 +408,7 @@ struct Clay_ElementDeclaration {
     // Used to create CUSTOM render commands, usually to render element types not supported by Clay.
     Clay_CustomElementConfig custom = { .customData = NULL };
     // Controls whether an element should clip its contents and allow scrolling rather than expanding to contain them.
-    Clay_ScrollElementConfig scroll = {};
+    Clay_ClipElementConfig clip = {};
     // Controls settings related to element borders, and will generate BORDER render commands.
     Clay_BorderElementConfig border = {};
     // A pointer that will be transparently passed through to resulting render commands.
@@ -417,7 +455,7 @@ struct Clay_ElementDeclaration {
     // The outer dimensions of the inner scroll container content, including the padding of the parent scroll container.
     Clay_Dimensions contentDimensions;
     // The config that was originally passed to the scroll element.
-    Clay_ScrollElementConfig config;
+    Clay_ClipElementConfig config;
     // Indicates whether an actual scroll container matched the provided ID or if the default struct was returned.
     bool found;
 }
@@ -556,6 +594,9 @@ struct Clay {
 	// TODO: fn-ptr: Clay_Vector2 (*queryScrollOffsetFunction)(uint32_t elementId, void *userData)
 	/// TODO: c:any
 	static void SetQueryScrollOffsetFunction(c:void^ queryScrollOffsetFunction, void^ userData) -> c:Clay_SetQueryScrollOffsetFunction(queryScrollOffsetFunction, userData);
+
+	// NOTE: EXTRA ===================================
+	static bool VisuallyHovered(Clay_ElementId id) -> Clay.GetBoundingBox(id).Contains(mouse_pos);
 }
 
 // -----------------------------------------
@@ -627,25 +668,89 @@ void clay_text(char^ str_that_must_exist_til_next_frame, Clay_TextElementConfig 
 
 // -----------------------------------------------------------------
 void clay_x_grow_spacer() {
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				.width = CLAY_SIZING_GROW(),
 				.height = CLAY_SIZING_FIXED(0),
 			} 
 		}
-	}) {}
+	}) {
+		// inside begin/end
+	};
 }
 
 
 void clay_y_grow_spacer() {
-	#clay({
+	$clay({
 		.layout = {
 			.sizing = {
 				.width = CLAY_SIZING_FIXED(0),
 				.height = CLAY_SIZING_GROW(),
 			} 
 		}
-	}) {}
+	}) {};
 }
 
+
+
+// ----------
+void Clay__OpenConfiguredElement(Clay_ElementDeclaration decl) {
+	c:Clay__OpenElement();
+	c:Clay__ConfigureOpenElement(decl);
+}
+@extern void Clay__CloseElement();
+
+bool clay__begin(Clay_ElementDeclaration decl) {
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void clay__end(bool _) {
+	Clay__CloseElement();
+}
+
+bool HORIZ__begin(Clay_ElementDeclaration decl = {}) {
+	decl.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void HORIZ__end(bool _) -> Clay__CloseElement();
+
+bool HORIZ_FIXED__begin(float fixed_amount, Clay_ElementDeclaration decl = {}) {
+	decl.layout.sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_FIXED(fixed_amount), };
+	decl.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void HORIZ_FIXED__end(bool _) -> Clay__CloseElement();
+
+bool HORIZ_GROW__begin(Clay_ElementDeclaration decl = {}) {
+	decl.layout.sizing = .Grow();
+	decl.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void HORIZ_GROW__end(bool _) -> Clay__CloseElement();
+
+bool VERT__begin(Clay_ElementDeclaration decl = {}) {
+	decl.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void VERT__end(bool _) -> Clay__CloseElement();
+
+bool VERT_FIXED__begin(float fixed_amount, Clay_ElementDeclaration decl = {}) {
+	decl.layout.sizing = { CLAY_SIZING_FIXED(fixed_amount), CLAY_SIZING_GROW(), };
+	decl.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void VERT_FIXED__end(bool _) -> Clay__CloseElement();
+
+bool VERT_GROW__begin(Clay_ElementDeclaration decl = {}) {
+	decl.layout.sizing = .Grow();
+	decl.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
+	Clay__OpenConfiguredElement(decl);
+	return true;
+}
+void VERT_GROW__end(bool _) -> Clay__CloseElement();

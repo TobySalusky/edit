@@ -17,7 +17,7 @@ struct MultiUndo : Undo {
 	List<Undo^> undos;
 
 	void Apply(UndoTarget info) {
-		for (int i = 0; i != undos.size; i++;) {
+		for (int i = 0; i != undos.size; i++) {
 			undos.get(i)#Apply(info);
 		}
 	}

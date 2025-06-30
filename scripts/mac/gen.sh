@@ -1,1 +1,1 @@
-crust build src -out-dir:out -build-type:cgen -log-timings -cpp-compat -unity-build -include-c-file:include/tinyfiledialogs.c -include-h-file:include/claydev.h -include-c-file:include/clay_renderer_raylib.c
+crust build src -out-dir:out -build-type:cgen -log-timings -cpp-compat -unity-build -include-c-file:include/tinyfiledialogs.c -include-h-file:include/clay.h -include-c-file:include/clay_renderer_raylib.c -hot-reload-heapify-globals

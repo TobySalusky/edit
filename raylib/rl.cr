@@ -1,3 +1,5 @@
+include path("../std");
+
 import std;
 
 c:import "raylib.h";
@@ -21,10 +23,42 @@ typedef Vector3 Vec3;
 typedef Vector4 Vec4;
 `;
 
+@extern struct AudioStream {
+	// ...
+}
+@extern struct Music {
+    AudioStream stream;         // Audio stream
+    uint frameCount;            // Total number of frames (considering channels)
+    bool looping;               // Music looping enable
+
+    int ctxType;                // Type of music context (audio filetype)
+    void^ ctxData;              // Audio context data, depends on type
+
+	static Self LoadFromFile(char^ fileName) -> c:LoadMusicStream(fileName); // Load music stream from file
+	static Self LoadFromMemory(char^ fileType, uchar^ data, int dataSize) -> c:LoadMusicStreamFromMemory(fileType, data, dataSize); // Load music stream from data
+
+	void Unload() -> c:UnloadMusicStream(this);                            // Unload music stream
+
+	// Music management functions ----------------------
+	bool IsValid() -> c:IsMusicValid(this);                                 // Checks if a music stream is valid (context and buffers initialized)
+	void Play() -> c:PlayMusicStream(this);                              // Start music playing
+	bool IsPlaying() -> c:IsMusicStreamPlaying(this);                         // Check if music is playing
+	void Update() -> c:UpdateMusicStream(this);                            // Updates buffers for music streaming
+	void Stop() -> c:StopMusicStream(this);                              // Stop music playing
+	void Pause() -> c:PauseMusicStream(this);                             // Pause music playing
+	void Resume() -> c:ResumeMusicStream(this);                            // Resume playing paused music
+	void Seek(float position_in_seconds) -> c:SeekMusicStream(this, position_in_seconds);              // Seek music to a position (in seconds)
+	void SetVolume(float volume_0_to_1) -> c:SetMusicVolume(this, volume_0_to_1);                 // Set volume for music (1.0 is max level)
+	void SetPitch(float pitch) -> c:SetMusicPitch(this, pitch);                   // Set pitch for a music (1.0 is base level)
+	void SetPan(float pan) -> c:SetMusicPan(this, pan);                       // Set pan for a music (0.5 is center)
+	float GetTimeLength() -> c:GetMusicTimeLength(this);                          // Get music time length (in seconds)
+	float GetTimePlayed() -> c:GetMusicTimePlayed(this);                          // Get current music time played (in seconds)
+}
+
 @extern struct Camera2D {}
 @extern struct VrStereoConfig {}
 @extern struct VrDeviceInfo {}
-@extern struct TraceLogCallback {}
+@extern struct TraceLogCallback {} // TODO: alias to fn_ptr(...)
 @extern struct LoadFileDataCallback {}
 @extern struct SaveFileDataCallback {}
 @extern struct LoadFileTextCallback {}
@@ -332,7 +366,7 @@ struct Raylib {
 	Image GenImageColor(int width, int height, Color color) -> c:GenImageColor(width, height, color);                                           // Generate image: plain color
 }
 
-Raylib rl;
+Raylib rl = {};
 
 Vec2 Vec2_one = v2(1, 1);
 Vec2 Vec2_zero = v2(0, 0);
@@ -344,6 +378,9 @@ Vec2 Vec2_right = v2(1, 0);
 	float y = 0;
 
 	construct(float x, float y) -> { :x, :y };
+
+	Self FlipIf(bool cond) -> (cond) ? { .x = y, .y = x } | this;
+	float AxisMag(bool vertical) -> (vertical) ? y | x;
 
 	// TODO: static
 	// Vector2 Vector2Zero(void);
@@ -772,6 +809,8 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		:x, :y, :width, :height
 	};
 
+	float AxisSize(bool vertical) -> (vertical) ? height | width;
+
 	static Rectangle FromV(Vec2 tl, Vec2 dims) {
 		return {
 			.x = tl.x,
@@ -820,6 +859,13 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		.y = y - amount,
 		.width = width + amount*2,
 		.height = height + amount*2,
+	};
+
+	Rectangle PadLeftRight(float amount) -> {
+		.x = x - amount,
+		:y,
+		.width = width + amount*2,
+		:height,
 	};
 
 	// 16:9 (x_component = 16, y_component = 9)
@@ -888,10 +934,11 @@ struct Point { // not a real raylib type, but is convenient
 	construct (int width, int height) -> c:LoadRenderTexture(width, height);
 	Texture texture;
 
-	Texture into() -> texture;
+	Texture& into() -> texture;
 
 	int width() -> texture.width;
 	int height() -> texture.height;
+	Vec2 dimens() -> { texture.width, texture.height };
 
 	void Begin() -> c:BeginTextureMode(this);
 	void End() -> c:EndTextureMode();
@@ -917,6 +964,14 @@ struct Mouse {
 	bool LeftClickPressed() -> c:IsMouseButtonPressed(c:MOUSE_BUTTON_LEFT);
 	bool LeftClickReleased() -> c:IsMouseButtonReleased(c:MOUSE_BUTTON_LEFT);
 	bool LeftClickDown() -> c:IsMouseButtonDown(c:MOUSE_BUTTON_LEFT);
+
+	bool MiddleClickPressed() -> c:IsMouseButtonPressed(c:MOUSE_BUTTON_MIDDLE);
+	bool MiddleClickReleased() -> c:IsMouseButtonReleased(c:MOUSE_BUTTON_MIDDLE);
+	bool MiddleClickDown() -> c:IsMouseButtonDown(c:MOUSE_BUTTON_MIDDLE);
+
+	bool RightClickPressed() -> c:IsMouseButtonPressed(c:MOUSE_BUTTON_RIGHT);
+	bool RightClickReleased() -> c:IsMouseButtonReleased(c:MOUSE_BUTTON_RIGHT);
+	bool RightClickDown() -> c:IsMouseButtonDown(c:MOUSE_BUTTON_RIGHT);
 }
 
 struct Keys {
@@ -929,6 +984,12 @@ struct Keys {
 	int ESCAPE;
 	int BACKSPACE;
 	int SEMICOLON;
+	int LEFT_SUPER;
+	int RIGHT_SUPER;
+	int LEFT_CONTROL;
+	int RIGHT_CONTROL;
+	int LEFT_ALT;
+	int RIGHT_ALT;
 	// TODO: other special keys - see: https://github.com/raysan5/raylib/blob/master/src/raylib.h
 }
 Keys make_keys() -> {
@@ -941,6 +1002,12 @@ Keys make_keys() -> {
 	.ESCAPE = c:KEY_ESCAPE,
 	.BACKSPACE = c:KEY_BACKSPACE,
 	.SEMICOLON = c:KEY_SEMICOLON,
+	.LEFT_SUPER = c:KEY_LEFT_SUPER,
+	.RIGHT_SUPER = c:KEY_RIGHT_SUPER,
+	.LEFT_CONTROL = c:KEY_LEFT_CONTROL,
+	.RIGHT_CONTROL = c:KEY_RIGHT_CONTROL,
+	.LEFT_ALT = c:KEY_LEFT_ALT,
+	.RIGHT_ALT = c:KEY_RIGHT_ALT,
 };
 
 struct Keyboard {
@@ -948,6 +1015,13 @@ struct Keyboard {
 	bool IsReleased(int keycode) -> c:IsKeyReleased(keycode);
 	bool IsDown(int keycode) -> c:IsKeyDown(keycode);
 	bool IsUp(int keycode) -> !c:IsKeyDown(keycode);
+
+	// control
+	bool ControlIsDown() -> IsDown(KEY.LEFT_CONTROL) || IsDown(KEY.RIGHT_CONTROL);
+	// command | windows | 'super'
+	bool SuperIsDown() -> IsDown(KEY.LEFT_SUPER) || IsDown(KEY.RIGHT_SUPER);
+	// option | alt
+	bool AltIsDown() -> IsDown(KEY.LEFT_ALT) || IsDown(KEY.RIGHT_ALT);
 }
 
 @extern
@@ -1056,9 +1130,3 @@ Keys KEY = make_keys();
 c:c:`
 #pragma GCC diagnostic pop
 `;
-
-
-// PROGRAM GLOBALS (CONVENIENT, WELL-INCLUDED LOCATION...) ------------------
-// these are not raylib things, they are for edit!!!!! but because of non-cyclic file includes, it's easiest to put here!
-// NOTE: these should not remain in rl.cr for external use!!!
-Vec2 mp_world_space; // mouse-pos-world-space

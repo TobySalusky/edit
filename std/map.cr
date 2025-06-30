@@ -11,7 +11,7 @@ struct StrMap<T> {
 	construct() -> { .size = 0, .capacity = 0, .keys = NULL, .values = NULL };
 
 	bool has(char^ key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if (str_eq(key, keys[i])) {
 				return true;
 			}
@@ -21,7 +21,7 @@ struct StrMap<T> {
 
 	// TODO: operator:[]
 	T& get(char^ key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if (str_eq(key, keys[i])) {
 				return values[i];
 			}
@@ -31,7 +31,7 @@ struct StrMap<T> {
 	}
 
 	int index_of(char^ key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if (str_eq(key, keys[i])) {
 				return i;
 			}
@@ -70,7 +70,7 @@ struct StrMap<T> {
 			keys = malloc(sizeof<char^> * new_capacity);
 			values = malloc(sizeof<T> * new_capacity);
 
-			for (int i = 0; i != size; i++;) {
+			for (int i = 0; i != size; i++) {
 				keys[i] = old_keys[i];
 				values[i] = old_data[i];
 			}
@@ -85,7 +85,7 @@ struct StrMap<T> {
 
 	void delete() {
 		if (capacity > 0) {
-			for (int i = 0; i != size; i++;) {
+			for (int i = 0; i != size; i++) {
 				free(keys[i]); // keys are owned, so must be freed!
 			}
 			free(keys);
@@ -127,7 +127,7 @@ struct EqMap<K, V> {
 	construct() -> { .size = 0, .capacity = 0, .keys = NULL, .values = NULL };
 
 	bool has(K key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if ((key == keys[i])) {
 				return true;
 			}
@@ -137,7 +137,7 @@ struct EqMap<K, V> {
 
 	// TODO: operator:[]
 	V& get(K key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if ((key == keys[i])) {
 				return values[i];
 			}
@@ -148,7 +148,7 @@ struct EqMap<K, V> {
 	}
 
 	int index_of(K key) {
-		for (int i = 0; i != size; i++;) {
+		for (int i = 0; i != size; i++) {
 			if ((key == keys[i])) {
 				return i;
 			}
@@ -188,7 +188,7 @@ struct EqMap<K, V> {
 			keys = malloc(sizeof<K> * new_capacity);
 			values = malloc(sizeof<V> * new_capacity);
 
-			for (int i = 0; i != size; i++;) {
+			for (int i = 0; i != size; i++) {
 				keys[i] = old_keys[i];
 				values[i] = old_data[i];
 			}
@@ -204,7 +204,7 @@ struct EqMap<K, V> {
 	void delete() {
 		if (capacity > 0) {
 			// TODO: delete children if needed?
-			// for (int i = 0; i != size; i++;) {
+			// for (int i = 0; i != size; i++) {
 			// 	// free(keys[i]); // keys are owned, so must be freed!
 			// }
 			free(keys);

@@ -11,6 +11,17 @@ import yaml;
 import clay_lib;
 import ui_elements;
 import encode_decode;
+import globals;
+import textures;
+import cursor;
+import warn;
+
+//  global ui stuff ---------------------------------------------
+ColorPicker global_color_picker = {};
+CustomLayerColor^ getting_color_picked = NULL;
+bool global_color_picker_pinned_open = GlobalSettings.get_bool("global_color_picker_pinned_open", false);
+// /global ui stuff ---------------------------------------------
+
 
 enum ElementKind {
 	RECT,
@@ -20,7 +31,6 @@ enum ElementKind {
 	VIDEO,
 	FACE,
 	;
-	bool operator:==(Self other) -> this as int == other as int;
 }
 interface ElementImpl {
 	void Draw(Element^ e, float current_time);
@@ -265,7 +275,7 @@ struct CustomLayerList {
 	void^ list_ptr;
 	bool immutable = false; // constant # of elements!
 
-	bool open = true; // non-serialized
+	bool is_open = true; // non-serialized
 
 	void AddLayer() {
 		switch (type) {
@@ -457,9 +467,9 @@ struct CustomLayerUIParams {
 }
 
 
-float custom_layer_timeline_width = GlobalSettings.get_float("custom_layer_timeline_width", 100);
-
-PanelExpander custom_layer_timeline_expander = { ^custom_layer_timeline_width, "custom_layer_timeline_width", .min = 100, .reverse = true };
+float element_variables_width = GlobalSettings.get_float("element_variables_width", 100);
+float element_timeline_width = 1; // TODO: get set per frame... do better?
+PanelExpander element_variables_expander = { ^element_variables_width, "element_variables_width", .min = 100 };
 
 struct CustomLayer {
 	char^ name;
@@ -524,7 +534,7 @@ struct CustomLayer {
 	static Clay_ChildAlignment align_y_center = { .y = CLAY_ALIGN_Y_CENTER };
 	void UI(using CustomLayerUIParams& params) {
 		Color bg = kind is CustomLayerList ? (kind as CustomLayerList.immutable ? theme.button | Colors.Transparent) | Colors.Transparent;
-		#clay({
+		$clay({
 			.layout = {
 				.sizing = row_sizing,
 				.childAlignment = align_y_center,
@@ -533,7 +543,7 @@ struct CustomLayer {
 		}) {
 			if (kind is CustomLayerList) {
 				let& list = kind as CustomLayerList;
-				#clay({ .layout = { .sizing = .(4, 0) }}) {}
+				$clay({ .layout = { .sizing = .(4, 0) }}) {};
 				clay_text(name, {
 					.fontSize = rem(1),
 					.textColor = Colors.White,
@@ -546,11 +556,11 @@ struct CustomLayer {
 					}
 				}
 
-				if (ClayButton(list.open ? "^" | "v", .(t"{^list.open}"), .(rem(1), rem(1)))) {
-					list.open = !list.open;
+				if (ClayButton(list.is_open ? "^" | "v", .(t"{^list.is_open}"), .(rem(1), rem(1)))) {
+					list.is_open = !list.is_open;
 				}
 			} else {
-				#clay({
+				$clay({
 					.layout = {
 						.sizing = {
 							.width = CLAY_SIZING_FIXED(100),
@@ -558,22 +568,22 @@ struct CustomLayer {
 						},
 						.childAlignment = align_y_center,
 					},
-					.scroll = { .horizontal = true }
+					// .scroll = { .horizontal = true }
 				}) {
 					clay_text(name, {
 						.fontSize = rem(1),
 						.textColor = Colors.White,
 					});
-				}
+				};
 
 				Clay_ElementId content_id = .(t"{^this}-content");
-				#clay({
+				$clay({
 					.id = content_id,
 					.layout = {
-						.sizing = Clay_Sizing.Grow(),
+						.sizing = .Grow(),
 						.childAlignment = align_y_center,
 					},
-					.scroll = { .horizontal = true },
+					// .scroll = { .horizontal = true },
 				}) {
 					// CONTENT PART
 					switch (kind) {
@@ -606,7 +616,7 @@ struct CustomLayer {
 							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerVec2 it -> {
-							#clay({
+							$clay({
 								.layout = {
 									.sizing = {
 										.width = CLAY_SIZING_FIXED(60),
@@ -622,9 +632,9 @@ struct CustomLayer {
 									it.kl_value.InsertValue(curr_local_time, v2(changed as Some, it.value#y));
 									it.kl_value.Set(it.value, curr_local_time);
 								}
-							}
+							};
 
-							#clay({
+							$clay({
 								.layout = {
 									.sizing = {
 										.width = CLAY_SIZING_FIXED(60),
@@ -640,104 +650,77 @@ struct CustomLayer {
 									it.kl_value.InsertValue(curr_local_time, v2(it.value#x, changed as Some));
 									it.kl_value.Set(it.value, curr_local_time);
 								}
-							}
+							};
 
 							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerColor it -> {
-							#clay({
-								.layout = {
-									.sizing = {
-										.width = CLAY_SIZING_FIXED(60),
-										.height = CLAY_SIZING_GROW(),
-									},
-									.childAlignment = {
-										.y = CLAY_ALIGN_Y_CENTER
-									}
-								}
-							}) {
-								let changed = SlidingUCharTextBox(.(t"{it.value}-r"), ^it.value#r, { .min = 0, .max = 255 });
-								if (changed is Some) {
-									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-										r = changed as Some
-									});
-									it.kl_value.Set(it.value, curr_local_time);
-								}
-							}
-
-							#clay({
-								.layout = {
-									.sizing = {
-										.width = CLAY_SIZING_FIXED(60),
-										.height = CLAY_SIZING_GROW(),
-									},
-									.childAlignment = {
-										.y = CLAY_ALIGN_Y_CENTER
-									}
-								}
-							}) {
-								let changed = SlidingUCharTextBox(.(t"{it.value}-g"), ^it.value#g, { .min = 0, .max = 255 });
-								if (changed is Some) {
-									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-										g = changed as Some
-									});
-									it.kl_value.Set(it.value, curr_local_time);
-								}
-							}
-
-							#clay({
-								.layout = {
-									.sizing = {
-										.width = CLAY_SIZING_FIXED(60),
-										.height = CLAY_SIZING_GROW(),
-									},
-									.childAlignment = {
-										.y = CLAY_ALIGN_Y_CENTER
-									}
-								}
-							}) {
-								let changed = SlidingUCharTextBox(.(t"{it.value}-b"), ^it.value#b, { .min = 0, .max = 255 });
-								if (changed is Some) {
-									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-										b = changed as Some
-									});
-									it.kl_value.Set(it.value, curr_local_time);
-								}
-							}
-
-							#clay({
-								.layout = {
-									.sizing = {
-										.width = CLAY_SIZING_FIXED(60),
-										.height = CLAY_SIZING_GROW(),
-									},
-									.childAlignment = {
-										.y = CLAY_ALIGN_Y_CENTER
-									}
-								}
-							}) {
-								let changed = SlidingUCharTextBox(.(t"{it.value}-a"), ^it.value#a, { .min = 0, .max = 255 });
-								if (changed is Some) {
-									it.kl_value.InsertValue(curr_local_time, (*it.value) with {
-										a = changed as Some
-									});
-									it.kl_value.Set(it.value, curr_local_time);
-								}
-							}
-
-							#clay({
+							Clay_ElementId color_tile_id = .(t"{it.value}-color-tile");
+							bool visual_hovered = Clay.VisuallyHovered(color_tile_id);
+							$clay({
+								.id = color_tile_id,
 								.layout = {
 									.sizing = .(rem(1), rem(1)),
 								},
 								.backgroundColor = *it.value,
-								.border = .(1, theme.panel_border), // TODO: better color
-							}) {}
+								.border = .(1, (visual_hovered) ? theme.panel_border_highlight | theme.panel_border), // TODO: better color
+							}) {
+								bool tile_hovered = Clay.Hovered();
+								if (tile_hovered) {
+									cursor_type = .Pointer;
+
+									if (mouse.LeftClickPressed()) {
+										getting_color_picked = (getting_color_picked == ^it) ? NULL | ^it;
+									}
+								}
+
+								if (^it == getting_color_picked) {
+									// TODO: wrap into pop-up
+									Clay_ElementId color_popup_id = .(t"{it.value}-color-tile-popup");
+									$VERT({
+										.id = color_popup_id,
+										.backgroundColor = theme.panel,
+										.border = .(1, theme.panel_border),
+										.floating = {
+											.attachTo = CLAY_ATTACH_TO_PARENT,
+											.attachPoints = { //TODO: based on fitting on screen (under/over)... (popup)
+												.element = CLAY_ATTACH_POINT_LEFT_TOP,
+												.parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
+											}
+										}
+									}) {
+										$HORIZ_GROW() {
+											if (ClayIconButton(Textures.pin_icon)) {
+												global_color_picker_pinned_open = GlobalSettings.set_bool("global_color_picker_pinned_open", !global_color_picker_pinned_open);
+											}
+											clay_x_grow_spacer();
+											if (ClayIconButton(Textures.close_icon)) {
+												getting_color_picked = NULL;
+											}
+										};
+
+										$clay({
+											.layout = { .sizing = .(200, 200), },
+										}) {
+											let color_res = global_color_picker.Update("global-color-picker", rem(0.5));
+											if (color_res is Some) { // changed!
+												it.kl_value.InsertValue(curr_local_time, color_res.!);
+												it.kl_value.Set(it.value, curr_local_time);
+											}
+										};
+									};
+
+									if (!global_color_picker_pinned_open && mouse.LeftClickPressed() && !Clay.GetBoundingBox(color_popup_id).Contains(mouse_pos) && !tile_hovered) {
+										getting_color_picked = NULL;
+									}
+								}
+							};
 
 							it.kl_value.ControlButtons(it.value, params);
 						},
 						CustomLayerStr it -> {
 							Rectangle rect = Clay.GetBoundingBox(content_id);
-							char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, Clay_Sizing.Grow(), rem(1));
+							char^ change_text = TextBox(UiElementID.ID(it.value, 0), .(t"{^this}-text"), *it.value, .Grow(), rem(1));
 
 							if (change_text != NULL) {
 								it.kl_value.InsertValue(curr_local_time, strdup(change_text)); // NOTE: keyframes MUST delete str as it is owned!!!
@@ -750,17 +733,17 @@ struct CustomLayer {
 						// NOTE: never called
 						}
 					}
-				}
+				};
 			}
-		}
+		};
 
 		// lists (children) ----------
 		if (kind is CustomLayerList) {
 			let& list = kind as CustomLayerList;
 
-			if (list.open) {
+			if (list.is_open) {
 
-				#clay({
+				$clay({
 					.layout = {
 						.layoutDirection = CLAY_TOP_TO_BOTTOM,
 						.padding = { 12, 0, 0, 0},
@@ -772,7 +755,7 @@ struct CustomLayer {
 					for (let& child in list.layers) {
 						child.UI(params);
 					}
-				}
+				};
 			}
 		}
 	}
@@ -780,7 +763,7 @@ struct CustomLayer {
 	void TimelineUI(using CustomLayerUIParams& params) {
 		// TIMELINE PART
 		Clay_ElementId timeline_id = .(t"{^this}-timeline");
-		#clay({
+		$clay({
 			.id = timeline_id,
 			.layout = {
 				.sizing = row_sizing,
@@ -811,13 +794,13 @@ struct CustomLayer {
 					// ... list itself has no timeline
 				},
 			}
-		}
+		};
 
 		// lists (children) ----------
 		if (kind is CustomLayerList) {
 			let& list = kind as CustomLayerList;
 
-			if (list.open) {
+			if (list.is_open) {
 				for (let& child in list.layers) {
 					child.TimelineUI(params);
 				}
@@ -975,7 +958,7 @@ struct CustomPureFnElement : ElementImpl {
 											}
 											
 											if (!found) {
-												layers.add(old_layer with { deleted_member = true });
+												layers.add(old_layer with { .deleted_member = true });
 											} else if (found_but_bad) {
 												println("[TODO]: found_but_bad case (data transfer on-deserialize)");
 												// layers.add(old_);
@@ -998,7 +981,7 @@ struct CustomPureFnElement : ElementImpl {
 										.immutable = true,
 									}
 								};
-								println("[TODO]: transfer old custom layer values!");
+								println("[TODO]: transfer old custom layer values! (if struct was modified... we currently assume it wasn't)");
 								custom_args_handle = the_struct_handle;
 							},
 							char^ err -> {
@@ -1049,19 +1032,97 @@ struct CustomPureFnElement : ElementImpl {
 	});
 
 	CustomLayer^ CustomLayersList() -> ^custom_layer_list;
-
 }
 
 // layer metadata
 // (elements are stored separately)
-struct Layer {
-	bool visible;
+struct EditLayer {
+	Composition^ comp;
+	bool is_audio_layer = false;
+
+	ElementHandle[] element_handles = {}; // must be kept sorted!!
+	bool visible = true;
+	bool has_been_configured = false; // any settings have ever been changed (meaning this layer should not be destroyed all willy nilly by UI)
+
+	ElementIterable elem_iter() -> {
+		:comp,
+		.handles = element_handles,
+	};
+
+	static Self^ new(Composition^ comp) -> Box<Self>.Make({
+		:comp,
+	});
+
+	int get_index_in_comp() {
+		// warn(ProgramWarningKind.MISSING_COMPOSITION, "");
+		return 0;
+	}
+
+	void AddElement(ElementHandle eh) {
+		element_handles.insert_ordered_by_user_data(eh, (ElementHandle& a, ElementHandle& b, void^ user_data):int -> {
+			Composition^ comp = user_data;
+			let ap = comp#elements.Get(a);
+			let bp = comp#elements.Get(b);
+			if (ap == NULL || bp == NULL) { return 0; }
+
+			if (ap#start_time > bp#start_time) { return 1; }
+			if (ap#start_time == bp#start_time) { return 0; }
+			return -1;
+		}, comp);
+		// TODO: keep sorted??
+	}
+
+	void DeleteElement(ElementHandle eh) {
+		for (int i = element_handles.size - 1; i >= 0; i--) {
+			if (eh == element_handles[i]) {
+				element_handles.remove_at(i);
+			}
+		}
+	}
+}
+
+struct ElementIterable {
+	Composition^ comp;
+	ElementHandle[]& handles;
+
+	ElementIter iter() -> {
+		:comp,
+		:handles,
+		.i = 0,
+	};
+}
+struct ElementIter {
+	Composition^ comp;
+	ElementHandle[]& handles;
+	int i = 0;
+	
+	bool has_next() -> (i) < handles.size && comp#elements.Has(handles[i]);
+	Element& next() -> comp#elements.GetRef(handles[i++]);
+}
+
+struct ElementHandle {
+	int id;
+	int last_index = -1;
+
+	construct(int id) -> { :id };
+
+	bool operator:==(Self other) -> id == other.id; // NOTE: don't care abt last_index, since that is caching-only
+
+	// Element^ Get() -> active_elements.!#Get(this);
+	// bool Exists() -> active_elements.!#Has(this);
+	//
+	// Element& GetRef() -> active_elements.!#GetRef(this);
 }
 
 struct Element {
+	static int next_element_id = 0;
+
 	// TODO: load up from project-save
 	static int num_elements_created = 0; // TODO: make per-project!
 	static char^ NextElementName() -> f"Elem {Self.num_elements_created++}";
+	int id;
+	ElementHandle handle() -> .(id);
+	ElementHandle into() -> .(id);
 
 	ElementImpl^ content_impl;
 
@@ -1073,7 +1134,9 @@ struct Element {
 	// ^ TODO: maybe use `int` as frame-counts for these..?
 
 	// layer
-	int layer;
+	EditLayer^ layer;
+
+	ElementHandle? linked_to = none; // TODO: can maybe add start_time_offset..?
 	
 	CustomLayer default_layers; // CustomLayerList
 	bool ready = false; // NOTE: never use an Element (specifically their layers) when not ready
@@ -1107,6 +1170,17 @@ struct Element {
 	ElementKind Kind() -> content_impl#Kind();
 	bool IsVideo() -> Kind() == .VIDEO;
 
+	char^ NameUIText() {
+		if (IsVideo()) {
+			Element& elem = this;
+			VideoElement^ vid = (c:elem#content_impl.ptr);
+			if (vid#loading) {
+				return t"{name} (loading{LoadingDotDotDotStr()})"; 
+			}
+		}
+		return name;
+	}
+
 	Color TintColor() {
 		Color tint = color;
 		tint.a = (tint.a as float * (opacity / 100.0)) as..;
@@ -1118,53 +1192,53 @@ struct Element {
 	CustomLayerList^ DefaultLayersListAsList() -> ^(default_layers.kind as CustomLayerList);
 	CustomLayerList^ CustomLayersListAsList() -> content_impl#CustomLayersList() == NULL ? NULL | ^(content_impl#CustomLayersList()#kind as CustomLayerList);
 
-	void Serialize(Path p, bool is_load) {
-		yaml_serializer s = yaml_serializer.IO(p, is_load);
-		defer s.finish();
-
-		s.str_default(name, "name", "UNTITLED");
-		s.float_default(start_time, "start_time", 0);
-		s.float_default(duration, "end_time", 0);
-		s.int_default(layer, "layer", 0);
-
-		if (is_load) {
-			let default_layers_s = s.into_obj("default_layers");
-			default_layers = CustomLayer.Deserialize(default_layers_s);
-		} else {
-			s.obj.put_obj("default_layers", default_layers.Serialize());
-		}
-
-		// serialize.float_default(pos.x, "pos.x", 0);
-		// serialize.float_default(pos.y, "pos.y", 0);
-		// // serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - uniform_scale
-		// serialize.float_default(scale.x, "scale.x", 100);
-		// serialize.float_default(scale.y, "scale.y", 100);
-		// serialize.float_default(rotation, "rotation", 0);
-		// serialize.float_default(opacity, "opacity", 0);
-
-		//	 TODO: important!!! toby!! not working on windows!!
-		// serialize.uchar_default(color.r, "color.r", 0);
-		// serialize.uchar_default(color.g, "color.g", 0);
-		// serialize.uchar_default(color.b, "color.b", 0);
-		// serialize.uchar_default(color.a, "color.a", 0);
-
-		// serialize.int_default(color.r, "color.r", 0);
-		// serialize.int_default(color.g, "color.g", 0);
-		// serialize.int_default(color.b, "color.b", 0);
-		// serialize.int_default(color.a, "color.a", 0);
-		// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
-		// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
-
-		// impl
-		if (is_load) {
-			content_impl = ElementImplFromYaml(s.obj.get_int("kind") as ElementKind, s.obj.get_obj("impl"));
-		} else {
-			s.obj.put_int("kind", Kind() as int);
-			s.obj.put_object("impl", ElementImplToYaml(content_impl));
-		}
-
-		// keyframe layers!!!
-	}
+	// void Serialize(Path p, bool is_load) {
+	// 	yaml_serializer s = yaml_serializer.IO(p, is_load);
+	// 	defer s.finish();
+	//
+	// 	s.str_default(name, "name", "UNTITLED");
+	// 	s.float_default(start_time, "start_time", 0);
+	// 	s.float_default(duration, "end_time", 0);
+	// 	s.int_default(layer, "layer", 0);
+	//
+	// 	if (is_load) {
+	// 		let default_layers_s = s.into_obj("default_layers");
+	// 		default_layers = CustomLayer.Deserialize(default_layers_s);
+	// 	} else {
+	// 		s.obj.put_obj("default_layers", default_layers.Serialize());
+	// 	}
+	//
+	// 	// serialize.float_default(pos.x, "pos.x", 0);
+	// 	// serialize.float_default(pos.y, "pos.y", 0);
+	// 	// // serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - uniform_scale
+	// 	// serialize.float_default(scale.x, "scale.x", 100);
+	// 	// serialize.float_default(scale.y, "scale.y", 100);
+	// 	// serialize.float_default(rotation, "rotation", 0);
+	// 	// serialize.float_default(opacity, "opacity", 0);
+	//
+	// 	//	 TODO: important!!! toby!! not working on windows!!
+	// 	// serialize.uchar_default(color.r, "color.r", 0);
+	// 	// serialize.uchar_default(color.g, "color.g", 0);
+	// 	// serialize.uchar_default(color.b, "color.b", 0);
+	// 	// serialize.uchar_default(color.a, "color.a", 0);
+	//
+	// 	// serialize.int_default(color.r, "color.r", 0);
+	// 	// serialize.int_default(color.g, "color.g", 0);
+	// 	// serialize.int_default(color.b, "color.b", 0);
+	// 	// serialize.int_default(color.a, "color.a", 0);
+	// 	// serialize.int_default(pos.y, "pos.y", 0); // TODO: bool - visible
+	// 	// serialize.int_default(pos.y, "pos.y", 0); // TODO: char^ - err_msg???
+	//
+	// 	// impl
+	// 	if (is_load) {
+	// 		content_impl = ElementImplFromYaml(s.obj.get_int("kind") as ElementKind, s.obj.get_obj("impl"));
+	// 	} else {
+	// 		s.obj.put_int("kind", Kind() as int);
+	// 		s.obj.put_object("impl", ElementImplToYaml(content_impl));
+	// 	}
+	//
+	// 	// keyframe layers!!!
+	// }
 
 	CustomLayerFloat& _GetFloatLayer(int i) {
 		return ((default_layers.kind as CustomLayerList).layers.get(i)).kind as CustomLayerFloat;
@@ -1244,7 +1318,8 @@ struct Element {
 	}
 
 	// name: pass NULL for auto-generated name
-	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, int layer, Vec2 pos, Vec2 scale) -> {
+	construct(ElementImpl^ content_impl, char^ name, float start_time, float duration, EditLayer^ layer, Vec2 pos, Vec2 scale) -> {
+		.id = next_element_id++,
 		:content_impl,
 		.name = (name != NULL) ? name | Element.NextElementName(),
 		:pos,
@@ -1274,7 +1349,7 @@ struct Element {
 
 	bool Hovered() {
 		// TODO:(worldspace)
-		return mp_world_space.Between(pos, pos + scale);
+		return ws_mouse_pos.Between(pos, pos + scale);
 	}
 
 	void DrawGizmos() {
@@ -1292,9 +1367,9 @@ struct Element {
 	static float row_height = rem(1.5);
 	static Clay_Sizing row_sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_FIXED(row_height) };
 	void TimelineLines(CustomLayerUIParams& params) {
-		for (float second = 0.1; second < params.max_elem_time; second += 0.1;) {
-			float line_x = custom_layer_timeline_width * (second / params.max_elem_time);
-			#clay({
+		for (float second = 0.1; second < params.max_elem_time; second += 0.1) {
+			float line_x = element_timeline_width * (second / params.max_elem_time);
+			$clay({
 				.layout = {
 					.sizing = {
 						.width = CLAY_SIZING_FIXED(1),
@@ -1303,12 +1378,12 @@ struct Element {
 				},
 				.floating = Clay.FloatingPassthru({ line_x, 0 }),
 				.backgroundColor = theme.timeline_tenth_second_line,
-			}) {}
+			}) {};
 		}
 
-		for (float second = 1; second < params.max_elem_time; second++;) {
-			float line_x = custom_layer_timeline_width * (second / params.max_elem_time);
-			#clay({
+		for (float second = 1; second < params.max_elem_time; second++) {
+			float line_x = element_timeline_width * (second / params.max_elem_time);
+			$clay({
 				.layout = {
 					.sizing = {
 						.width = CLAY_SIZING_FIXED(1),
@@ -1317,11 +1392,11 @@ struct Element {
 				},
 				.floating = Clay.FloatingPassthru({ line_x, 0 }),
 				.backgroundColor = theme.timeline_second_line,
-			}) {}
+			}) {};
 		}
 
-		float line_x = custom_layer_timeline_width * (params.curr_local_time / params.max_elem_time);
-		#clay({
+		float line_x = element_timeline_width * (params.curr_local_time / params.max_elem_time);
+		$clay({
 			.layout = {
 				.sizing = {
 					.width = CLAY_SIZING_FIXED(1),
@@ -1330,43 +1405,34 @@ struct Element {
 			},
 			.floating = Clay.FloatingPassthru({ line_x, 0 }),
 			.backgroundColor = Colors.Orange,
-		}) {}
+		}) {};
 	}
 
 	static bool timeline_dragging = false;
+	@html
 	void UI(CustomLayerUIParams& params) {
-		#clay({
+		$clay({
 			.layout = {
-				.sizing = Clay_Sizing.Grow(),
+				.sizing = .Grow(),
 			},
 			// .scroll = { // TODO: only scroll when too many layers!!
 			// 	.vertical = true,
 			// }
 		}) {
-			#clay({
-				.layout = {
-					.sizing = Clay_Sizing.Grow(),
-					.layoutDirection = CLAY_TOP_TO_BOTTOM,
-				},
-				.border = Clay_BorderElementConfig.Vert(1, theme.panel_border)
-			}) {
+			$Panel(element_variables_expander) {
 				default_layers.UI(params);
 				content_impl#UI(params);
-			}
+			};
 
-			custom_layer_timeline_expander.Update();
-
-			#clay({
+			$clay({
 				.layout = {
-					.sizing = {
-						.width = CLAY_SIZING_FIXED(custom_layer_timeline_width),
-						.height = CLAY_SIZING_GROW()
-					},
+					.sizing = .Grow(),
 					.layoutDirection = CLAY_TOP_TO_BOTTOM,
 				},
 				.id = CLAY_ID("keyframe-timeline")
 			}) {
 				Rectangle rect = Clay.GetElementData(CLAY_ID("keyframe-timeline")).boundingBox;
+				element_timeline_width = rect.width;
 
 				if (mouse.LeftClickReleased()) {
 					timeline_dragging = false;
@@ -1375,13 +1441,14 @@ struct Element {
 					timeline_dragging = true;
 				}
 				if (timeline_dragging) {
-					params.global_time = start_time + rect.Amount01(mouse.GetPos()).x * params.max_elem_time;
+					// TODO: use time_per_frame
+					params.global_time = std.clamp(start_time + rect.Amount01(mouse.GetPos()).x * params.max_elem_time, params.element.start_time, params.element.end_time() - (1.0 / 60));
 				}
 				TimelineLines(params);
 				default_layers.TimelineUI(params);
 				content_impl#TimelineUI(params);
-			}
-		}
+			};
+		};
 	}
 
 	void UpdateState(float t) {
@@ -1425,13 +1492,13 @@ struct Element {
 					StrMap<int> layer_map = .();
 	
 					// Create a map of layer names to layer indices
-					for (let i = 0; i < layer_list.layers.size; i++;) {
+					for (let i = 0; i < layer_list.layers.size; i++) {
 						let layer_name = layer_list.layers.get(i).name;
 						layer_map.put(layer_name, i);
 					}
 	
 					// Insert keyframes into the appropriate layer
-					for (let i = 0; i < data.data.size; i++;) {
+					for (let i = 0; i < data.data.size; i++) {
 						let row = data.data.get(i);
 						let layer_name = row.get(t"Name");
 	
@@ -1545,7 +1612,7 @@ struct Element {
 
 // KeyframeLayer make_interesting_layer_x() {
 // 	KeyframeLayer layer = .();
-// 	for (int i = 0; i != 6 * 4; i++;) {
+// 	for (int i = 0; i != 6 * 4; i++) {
 // 		layer.keyframes.add({
 // 			.time = i as float / 4,
 // 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
@@ -1556,7 +1623,7 @@ struct Element {
 //
 // KeyframeLayer make_interesting_layer_y() {
 // 	KeyframeLayer layer = .();
-// 	for (int i = 0; i != 36; i++;) {
+// 	for (int i = 0; i != 36; i++) {
 // 		layer.keyframes.add({
 // 			.time = i as float / 6,
 // 			.value = Sin01(0.5 * i) * 600
@@ -1580,7 +1647,7 @@ struct Element {
 //
 // KeyframeLayer make_cool_layer_x() {
 // 	KeyframeLayer layer = .();
-// 	for (int i = 0; i != 3 * 4; i++;) {
+// 	for (int i = 0; i != 3 * 4; i++) {
 // 		layer.keyframes.add({
 // 			.time = i as float / 4 * 2.0,
 // 			.value = 600 + ((i % 2 == 0) ? 1 | -1) * 200
@@ -1591,7 +1658,7 @@ struct Element {
 //
 // KeyframeLayer make_cool_layer_y() {
 // 	KeyframeLayer layer = .();
-// 	for (int i = 0; i != 18; i++;) {
+// 	for (int i = 0; i != 18; i++) {
 // 		layer.keyframes.add({
 // 			.time = i as float / 3,
 // 			.value = Sin01(0.5 * i) * 600
@@ -1722,3 +1789,322 @@ struct Element {
 // 	.visible = true,
 // 	.err_msg = NULL
 // };
+
+struct StableArena<T> {
+	int block_size_in_elements;
+
+	List<char^> memory_blocks = {};
+	int capacity = 0;
+	int size = 0;
+
+	void add(T val) {
+		if (size >= capacity) {
+			memory_blocks.add(malloc(sizeof<T> * block_size_in_elements));
+			capacity += block_size_in_elements;
+		}
+		size++;
+		this[size - 1] = val;
+	}
+
+	void delete() {
+		for (let& block in memory_blocks) {
+			free(block);
+		}
+	}
+
+	T& operator:[](int i) {
+		if ((i) < 0 || i >= size) {
+			panic(f"StableArena[{i=}] OOB for {size=}");
+		}
+		let block_as_elem_t_ptr = memory_blocks[i / block_size_in_elements] as T^;
+		return block_as_elem_t_ptr [i % block_size_in_elements];
+	}
+
+	StableArenaIterator<T> iter() -> { .ptr = ^this };
+}
+
+struct StableArenaIterator<T> {
+	int i = 0;
+	StableArena<T>^ ptr;
+
+	bool has_next() -> (i) < ptr#size;
+	T& next() -> (*ptr)[i++];
+}
+
+struct ElementStorage {
+	StableArena<Element> impl = {
+		.block_size_in_elements = 256,
+	};
+
+	StableArenaIterator<Element> iter() -> impl.iter();
+
+	Element^ Get(ElementHandle& id) {
+		if (id.last_index == -1 || impl[id.last_index].id != id.id) {
+			for (int i = 0; (i) < impl.size; i++) {
+				let& elem = impl[i];
+				if (elem.id == id.id) {
+					id.last_index = i;
+					return ^elem;
+				}
+			}
+			return NULL;
+		}
+		return ^impl[id.last_index];
+	}
+	bool Has(ElementHandle& id) -> Get(id) != NULL;
+
+	Element? GetOptConcrete(ElementHandle& id) {
+		let em = Get(id);
+		if (em == NULL) { return none; }
+		return *em;
+	}
+
+	Element& GetRef(ElementHandle& id) {
+		let em = Get(id);
+		if (em == NULL) { panic(t"GetForSure({id.id=}) failed"); }
+		return *em;
+	}
+
+	Element& Add(Element element) {
+		impl.add(element);
+		let handle = ElementHandle{
+			.id = element.id,
+			.last_index = impl.size - 1,
+		};
+		return GetRef(handle); // TODO: do less safely b/c we're all good :)
+	}
+}
+// ElementStorage^? active_elements = none;
+
+// -------------------------------------
+struct Project {
+	char^ name;
+	bool is_untitled;
+
+	Composition^[] comps;
+	int? selected_comp_index;
+
+	static Self^ new() -> Box<Project>.Make({
+		.name = "Untitled", // untitled
+		.is_untitled = true,
+		.comps = {},
+		.selected_comp_index = none,
+	});
+}
+
+struct Composition {
+	Project^ proj;
+
+	int width;
+	int height;
+
+	ElementStorage elements;
+	EditLayer^[] layers;
+	EditLayer^[] audio_layers;
+
+	ElementHandle[] selection;
+
+	ViewRangeSlider vertical_view_range_slider;
+	ViewRangeSlider view_range_slider;
+
+	int frame_rate;
+	float time_per_frame;
+
+	int current_frame;
+	float current_time;
+
+	float effective_max_time() {
+		float max_time = 0;
+		for (let& layer in layers) {
+			if (!layer#element_handles.is_empty() && elements.Has(layer#element_handles.back())) {
+				max_time = std.max(max_time, elements.GetRef(layer#element_handles.back()).end_time());
+			}
+		}
+		return max_time;
+	}
+	int effective_max_frames() -> (effective_max_time() * frame_rate) as int;
+	// ------------------------------------
+
+	static Self^ new(Project^ proj, int width, int height) {
+		Self^ self = malloc(sizeof<Self>);
+
+		int frame_rate = 60;
+		float time_per_frame = 1.0 / frame_rate;
+
+		int current_frame = 0;
+		float current_time = 0;
+
+		float max_time = GlobalSettings.get_float("default_max_time", 5); // 5 second default, can be changed in saves/globalsettings.yaml
+		int max_frames = (max_time * frame_rate) as int;
+
+		ViewRangeSlider view_range_slider = {
+			.range = {
+				.start = 0,
+				.end = max_time,
+			}
+		};
+
+		ViewRangeSlider vertical_view_range_slider = {
+			.range = {
+				.start = 0,
+				.end = 3, // since we start w/ 3 layers!
+			},
+			.vertical = true,
+			.reverse = true,
+		};
+
+		*self = {
+			:proj,
+			:width, :height,
+			.elements = {},
+			.selection = {},
+			.layers = {},
+			.audio_layers = {},
+			:frame_rate,
+			:time_per_frame,
+			:current_frame,
+			:current_time,
+			:view_range_slider,
+			:vertical_view_range_slider,
+		};
+
+		self#AddVisualLayer();
+		self#AddVisualLayer();
+		self#AddVisualLayer();
+
+		self#AddAudioLayer();
+		self#AddAudioLayer();
+
+		return self;
+	}
+
+	void AddVisualLayer() {
+		layers.add(EditLayer.new(^this));
+	}
+
+	void AddAudioLayer() {
+		let layer = EditLayer.new(^this);
+		layer#is_audio_layer = true;
+		audio_layers.add(layer);
+	}
+
+	// void SetSelection(ElementHandle eh) {
+	// 	selection.clear();
+	// 	selection.add(eh);
+	// }
+
+	// void AddToSelection(ElementHandle eh) {
+	// 	for (let handle in selection) {
+	// 		if (handle.id == eh.id) { return; }
+	// 	}
+	// 	selection.add(eh);
+	// }
+
+	void _DeleteElement(ElementHandle eh) {
+		// let& el = elements.Get(eh).! else return;
+		if (!elements.Has(eh)) { return; }
+		elements.GetRef(eh).layer#DeleteElement(eh);
+		// TODO: mark element as deleted
+	}
+
+	void COMMIT_ACTION(Action action, Action undo_action) {
+		ActionArgs args = { .comp = this };
+		action.impl#Apply(args);
+	}
+
+	void NOTE_ACTION(Action action, Action undo_action) {
+		
+	}
+
+	void PUSH_ACTION() {
+
+	}
+
+	void POP_ACTION() {
+
+	}
+}
+
+
+
+// -------------------------------------
+
+interface ActionImpl {
+	ActionInfo Info();
+	void Apply(ActionArgs& args);
+	void delete(ActionDeleteArgs& args);
+}
+struct Action {
+	static int next_id = 0;
+
+	int id;
+	ActionImpl^ impl;
+
+	construct(ActionImpl^ impl) -> { .id = next_id++, :impl };
+
+	ActionInfo Info() -> impl#Info();
+	void Apply(ActionArgs& args) -> impl#Apply(args);
+}
+
+struct ActionInfo {
+	char^ name;
+}
+struct ActionArgs {
+	Composition& comp;
+}
+struct ActionDeleteArgs {
+	Composition& comp;
+}
+
+struct UndoRedoAction {
+	Action redo;
+	Action undo;
+}
+
+// current state is reached by always deepest traversal always visiting last (newest-added) child first
+struct UndoNode {
+	UndoRedoAction action;
+	UndoNode^ parent = NULL;
+	UndoNode[] children = {};
+
+	void AddChild(UndoNode node) {
+		children.add(node);
+		for (let& child in children) { // list may have been realloc-ed elsewhere!
+			child.parent = ^this;
+		}
+	}
+}
+
+struct UndoTree {
+	UndoNode dummy_root; // pls never access its `action`!
+	UndoNode^ curr;
+
+	Self^ new() {
+		Self^ self = malloc(sizeof<Self>);
+		self#dummy_root.children = {};
+		self#dummy_root.parent = NULL;
+		// NOTE: action is left uninit..... :/
+
+		self#curr = ^self#dummy_root;
+
+		return self;
+	}
+
+	void AddUndo(UndoNode undo) {
+		curr#AddChild(undo);
+		curr = ^curr#children.back();
+	}
+
+	void Undo(ActionArgs args) {
+		if (curr#parent == NULL) { return; } // we are the 'dummy_root' (meaning there's nothing to undo!)
+
+		curr#action.undo.Apply(args);
+		curr = curr#parent;
+	}
+	void Redo(ActionArgs args) {
+		if (curr#children.is_empty()) { return; } // no level below (i.e: nothing to redo!)
+
+		curr = ^curr#children.back();
+		curr#action.redo.Apply(args);
+	}
+}

@@ -37,7 +37,8 @@ void main() {
 
 	float y = abs((fragTexCoord.y - 0.5) * zoom + offset * -1.5);
 	int fy = int(floor(y));
-	y -= fy;
+	// y -= fy / 1; // NOTE: less cool :(
+	y -= fy / 2; // NOTE: more cool :)
 	if (fy % 2 == 1) {
 		y = 1-y;
 	}

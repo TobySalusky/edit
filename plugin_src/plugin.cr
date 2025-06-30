@@ -115,15 +115,8 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 		let type_str = string(decl.type_str);
 		if (simple_t is Some) {
 			member_contents = t"{member_contents} members.add({'{'} .name = f\"{decl.name}\", .ptr = ^(ptr#{decl.name}), .t = {simple_t as Some}{'{'}{'}'} {'}'});";
-		} else if (type_str.starts_with("List<")) {
-			int open_caret = type_str.index_of("<");
-			int close_caret = type_str.last_index_of(">");
-			if (open_caret == -1 || close_caret == -1) {
-				// NOTE: shouldn't happen
-				err.code = f"int err = ERR_REASON_IOOB;"; 
-				return err;
-			}
-			string list_elem_type_str = type_str.substr(open_caret + 1, close_caret - open_caret - 1);
+		} else if (type_str.ends_with("[]")) {
+			string list_elem_type_str = type_str.substr_til(type_str.last_index_of("[]"));
 			defer list_elem_type_str.delete();
 
 			let simple_elem_t = simple_typestr_to_custom_t(list_elem_type_str);

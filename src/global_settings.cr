@@ -6,6 +6,13 @@ struct GlobalSettings {
 	static yaml_object obj = _InitObj();
 
 	static yaml_object _InitObj() {
+		// TODO:  very dirty!!!!!
+		if (c:chdir("/Users/toby/dev/edit") == -1) {
+			panic("setting cwd to /Users/toby/dev/edit failed... exiting!");
+		}
+
+		// TODO: /very dirty!!!!!
+
 		if (io.file_exists(settings_path)) {
 			println(f"successfully loaded existing GlobalSettings from {settings_path.str}");
 			return yaml_parser{}.parse_file(settings_path);

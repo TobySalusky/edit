@@ -21,17 +21,18 @@ struct List<T> {
 
 	IndexSlice<T> pairs() -> { :data, :size };
 
-	// TODO: operator:[]
-	T& get(int i) {
+	T& operator:[](int i) {
 		if (0 > i || i >= size) {
 			panic(t"index {i} OOB!");
 		}
 		return data[i];
 	}
 
+	T& get(int i) -> this[i];
+
 	void add(T elem) {
 		if (size == capacity) {
-			this.set_capacity((capacity == 0) ? 1 | capacity * 2);
+			set_capacity((capacity == 0) ? 1 | capacity * 2);
 		}
 		
 		data[size] = elem;
@@ -45,7 +46,7 @@ struct List<T> {
 		}
 		T elem = data[at_index];
 
-		for (int i = at_index; size > i; i++;) {
+		for (int i = at_index; size > i; i++) {
 			data[i] = data[i + 1];
 		}
 
@@ -56,10 +57,10 @@ struct List<T> {
 
 	void add_at(T elem, int at_index) {
 		if (size == capacity) {
-			this.set_capacity((capacity == 0) ? 1 | capacity * 2);
+			set_capacity((capacity == 0) ? 1 | capacity * 2);
 		}
 
-		for (int i = size; i > at_index; i--;) {
+		for (int i = size; i > at_index; i--) {
 			data[i] = data[i - 1];
 		}
 		
@@ -68,58 +69,94 @@ struct List<T> {
 		size++;
 	}
 
+	Self copy() -> {
+		:size,
+		.capacity = size,
+		.data = std.cloned_bytes(data, size * sizeof<T>),
+	};
+
 	void set_capacity(int new_capacity) {
 		T^ old_data = data;
 		if (new_capacity != 0) {
-			data = c:malloc(sizeof<T> * new_capacity);
+			data = malloc(sizeof<T> * new_capacity);
 
-			for (int i = 0; i != size; i++;) {
+			for (int i = 0; i != size; i++) {
 				data[i] = old_data[i];
 			}
 		}
 
 		if (capacity != 0) {
-			c:free(old_data);
+			free(old_data);
 		}
 		capacity = new_capacity;
 	}
 
-	void reserve(int capacity) {
-		if (capacity <= this.capacity) {
+	void reserve(int new_capacity) {
+		if (new_capacity <= capacity) {
 			return;
 		}
-		this.set_capacity(capacity);
+		set_capacity(new_capacity);
+	}
+
+	void zeroed_increase_size_to(int new_size) {
+		reserve(new_size);
+		memset(^data[size] as void^, 0, (new_size - size) * sizeof<T>);
+		size = new_size;
 	}
 
 	void delete() {
 		if (capacity > 0) {
-			c:free(data);
+			free(data);
 		}
+	}
+
+	void clear() {
+		size = 0;
 	}
 
 	bool is_empty() -> size == 0;
 
-	T& front() {
-		return this.get(0);
-	}
+	T& front() -> this[0];
 
 	T pop_front() {
-		T res = this.get(0);
+		T res = get(0);
 		remove_at(0);
 
 		return res;
 	}
 
-	T& back() {
-		return this.get(size - 1);
-	}
+	T& back() -> this[size - 1];
 
 	T pop_back() {
 		defer size--;
-		return this.back();
+		return back();
 	}
 
 	List_iter<T> iter() -> { .i = 0, .list = ^this, .valid_for = data };
+
+	// sorts -------------------------
+
+	// TODO: use binary search for insertion!
+	void insert_ordered_by(T val, fn_ptr<int(T&, T&)> comparator) { // presumes list is sorted!
+		int desired_i = 0;
+		for (int i = 0; (i) < size; i++) {
+			if (comparator(val, this[i]) < 0) { break; }
+			desired_i++;
+		}
+		add_at(val, desired_i);
+	}
+
+	void insert_ordered_by_user_data(T val, fn_ptr<int(T&, T&, void^)> comparator, void^ user_data) { // presumes list is sorted!
+		int desired_i = 0;
+		for (int i = 0; (i) < size; i++) {
+			if (comparator(val, this[i], user_data) < 0) { break; }
+			desired_i++;
+		}
+		add_at(val, desired_i);
+	}
+	// void insertion_sort_by(fn_ptr<int(T&, T&)> comparator) {
+	// 	
+	// }
 }
 
 // TODO: add generics!
@@ -129,12 +166,12 @@ struct List_iter<T> {
 	T^ valid_for;
 
 	bool has_next() {
-		this.check_valid();
+		check_valid();
 		return list#size > i;
 	}
 
 	T& next() {
-		this.check_valid();
+		check_valid();
 		return list#get(i++);
 	}
 

@@ -28,7 +28,7 @@ Layer make_layer(int width, int height) -> Layer{
 };
 
 Layer& get_by_id(List<Layer>& layer_list, int id) {
-	for (int i = 0; i != layer_list.size; i++;) {
+	for (int i = 0; i != layer_list.size; i++) {
 		if (layer_list.data[i].id == id) {
 			return layer_list.data[i];
 		}

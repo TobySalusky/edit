@@ -56,11 +56,14 @@ struct Theme {
 	Color bg = hex("222222");
 	Color canvas_bg = hex("CCCCCC");
 	Color panel = hex("4f4f4f");
+	Color panel_disabled = hex("3f3f3f");
 	Color panel_border = hex("6b6b6b");
+	Color panel_border_highlight = hex("8a8a8a");
 	Color button = hex("333333");
 	Color button_hover = hex("222222");
 	Color button_err = hex("765941");
 	Color active = hex("FFAA00AA");
+	Color timeline_current_caret = Colors.Orange;
 
 	NumberInputTheme number_input = {
 		.text = hex("3bddff"),
@@ -94,6 +97,8 @@ struct Theme {
 
 	Color timeline_second_line = hex("6b6b6bDD");
 	Color timeline_tenth_second_line = hex("6b6b6b55");
+
+	Color warning_bg = hex("00000088");
 }
 
 Theme theme = {};

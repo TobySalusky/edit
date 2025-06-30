@@ -36,6 +36,8 @@ struct FromEditToEncodeDecode {
 	int STREAM_FRAME_RATE;
 	float STREAM_DURATION;
 }
+
+@no_hr
 FromEditToEncodeDecode from_edit; // NOTE: must set before calling anything here in edit.cr
 
 struct ExportState {

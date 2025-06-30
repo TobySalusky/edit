@@ -12,7 +12,7 @@ struct Bezier {
 		List<Vec2> ps = List<Vec2>();
 
 		float fn = n;
-		for (int i = 0; i < n; i++;) {
+		for (int i = 0; i < n; i++) {
 			float fi = i;
 			float t = fi / (fn - 1);
 
