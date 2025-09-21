@@ -61,17 +61,18 @@ endif()
 
 if (APPLE)
 	set(ICON_NAME "icon.icns")
-	message("check out: ${PROJECT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}")
 	set(ICON_PATH ${PROJECT_SOURCE_DIR}/assets/${ICON_NAME})
 	set_source_files_properties(${ICON_NAME} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-	file(COPY ${ICON_PATH} DESTINATION "edit.app/Contents/Resources")
+	file(COPY ${ICON_PATH} DESTINATION "edit_app.app/Contents/Resources")
 
-	add_executable(edit MACOSX_BUNDLE ${ICON_PATH} "out/__unity__.c")
+	add_library(edit SHARED "out/__unity__.c")
 
-	set_target_properties(edit PROPERTIES
+	add_executable(edit_app MACOSX_BUNDLE ${ICON_PATH} "wrapper_out/__unity__.c")
+
+	set_target_properties(edit_app PROPERTIES
 			BUNDLE True
-			MACOSX_BUNDLE_GUI_IDENTIFIER my.domain.style.identifier.edit
-			MACOSX_BUNDLE_BUNDLE_NAME edit
+			MACOSX_BUNDLE_GUI_IDENTIFIER my.domain.style.identifier.edit_app
+			MACOSX_BUNDLE_BUNDLE_NAME edit_app
 			MACOSX_BUNDLE_BUNDLE_VERSION "0.1"
 			MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
 			MACOSX_BUNDLE_ICON_FILE "icon"
@@ -84,9 +85,11 @@ target_include_directories(edit PUBLIC include)
 target_include_directories(edit PUBLIC "${FFMPEG_DIR}/include") # NOTE: should this be public?
 
 target_link_libraries(edit raylib)
+target_link_libraries(edit ${CMAKE_SOURCE_DIR}/tcc/libtcc.a)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(edit Threads::Threads)
+# target_link_libraries(edit raylib)
 
 if (APPLE)
 	find_library(AVCODEC NAMES avcodec)
@@ -105,8 +108,19 @@ add_library(script SHARED "test_out/__unity__.c")
 target_link_libraries(script raylib)
 target_include_directories(script PUBLIC include) # might not need all that..
 
+target_link_libraries(edit_app raylib)
+target_include_directories(edit_app PUBLIC include) # might not need all that..
+
+# add_library(min SHARED "min_out/__unity__.c")
+# target_link_libraries(min raylib)
+# target_include_directories(min PUBLIC include) # might not need all that..
+
 # Checks if OSX and links appropriate frameworks (Only required on MacOS)
 if (APPLE)
+    target_link_libraries(edit_app "-framework IOKit")
+    target_link_libraries(edit_app "-framework Cocoa")
+    target_link_libraries(edit_app "-framework OpenGL")
+
     target_link_libraries(edit "-framework IOKit")
     target_link_libraries(edit "-framework Cocoa")
     target_link_libraries(edit "-framework OpenGL")

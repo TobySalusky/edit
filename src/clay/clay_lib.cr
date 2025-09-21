@@ -2,7 +2,6 @@ include path("../../raylib");
 
 import std;
 import rl;
-import globals;
 
 c:import <"float.h">;
 c:import "clay.h";
@@ -103,6 +102,11 @@ c:c:`
 
 @extern struct Clay__SizingType {} // extern enum?
 @extern struct Clay_SizingAxis {
+	static Self fixed(float size) -> CLAY_SIZING_FIXED(size);
+	static Self fit(float min, float max = c:FLT_MAX) -> CLAY_SIZING_FIT(min, max);
+	static Self grow(float min = 0, float max = c:FLT_MAX) -> CLAY_SIZING_GROW(min, max);
+	static Self portion(float portion_01) -> CLAY_SIZING_PERCENT(portion_01);
+	static Self Zero = .portion(0);
 // union {
 //        Clay_SizingMinMax minMax; // Controls the minimum and maximum size in pixels that this element is allowed to grow or shrink to, overriding sizing types such as FIT or GROW.
 //        float percent; // Expects 0-1 range. Clamps the axis size to a percent of the parent container's axis size minus padding and child gaps.
@@ -113,8 +117,8 @@ c:c:`
 	// TODO: ^
 }
 @extern struct Clay_Sizing {
-    Clay_SizingAxis width = {}; // Controls the width sizing of the element, along the x axis.
-    Clay_SizingAxis height = {};  // Controls the height sizing of the element, along the y axis.
+	Clay_SizingAxis width = {}; // Controls the width sizing of the element, along the x axis.
+	Clay_SizingAxis height = {};  // Controls the height sizing of the element, along the y axis.
 	construct(float fixed_width, float fixed_height) -> {
 		.width = CLAY_SIZING_FIXED(fixed_width),
 		.height = CLAY_SIZING_FIXED(fixed_height),
@@ -123,6 +127,11 @@ c:c:`
 	static Self Grow() -> {
 		.width = CLAY_SIZING_GROW(),
 		.height = CLAY_SIZING_GROW(),
+	};
+
+	static Self Zero = {
+		.width = .portion(0),
+		.height = .portion(0),
 	};
 
 	Self FlipIf(bool cond) -> (cond) ? { .width = height, .height = width } | this;
@@ -135,6 +144,10 @@ c:c:`
 
 	construct (ushort padding_all_sides) -> {
 		padding_all_sides, padding_all_sides, padding_all_sides, padding_all_sides
+	};
+
+	static Self XY(ushort horiz, ushort vert) -> {
+		horiz, horiz, vert, vert
 	};
 
 	Self FlipIf(bool cond) -> (cond)
@@ -164,6 +177,8 @@ c:c:`
     Clay_LayoutAlignmentY y = CLAY_ALIGN_Y_TOP; // Controls alignment of children along the y axis.
 
 	static Self Center() -> { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER };
+	static Self CenterX() -> { .x = CLAY_ALIGN_X_CENTER };
+	static Self CenterY() -> { .y = CLAY_ALIGN_Y_CENTER };
 }
 
 @extern struct Clay_LayoutDirection {
@@ -184,6 +199,7 @@ c:c:`
 @extern Clay_LayoutDirection CLAY_TOP_TO_BOTTOM;
 
 @extern struct Clay_LayoutConfig {
+		// NOTE: for real 0-sizing use .portion, instead of .fixed (since .fixed(0) is the zero value, which defaults to growing to fit children)
     Clay_Sizing sizing = {}; // Controls the sizing of this element inside it's parent container, including FIT, GROW, PERCENT and FIXED sizing.
     Clay_Padding padding = {}; // Controls "padding" in pixels, which is a gap between the bounding box of this element and where its children will be placed.
 
@@ -361,6 +377,18 @@ c:c:`
 			.left = width,
 		}
 	};
+	static Self Top(ushort width, Color color) -> {
+		:color,
+		.width = {
+			.top = width,
+		}
+	};
+	static Self Bottom(ushort width, Color color) -> {
+		:color,
+		.width = {
+			.bottom = width,
+		}
+	};
 
 	static Self Vert(ushort vert_width, Color color) -> {
 		:color,
@@ -468,10 +496,22 @@ struct Clay_ElementDeclaration {
     bool found;
 }
 
+struct Clay_FrameGlobalData {
+	Vec2 mouse_pos;
+}
+
 // -----------------------------------------
 // Clay_XXX functions ----------------------
 // -----------------------------------------
 struct Clay {
+	static Clay_FrameGlobalData? frame_global_data = none;
+
+	static void SetFrameGlobalData(Clay_FrameGlobalData new_frame_global_data) {
+		frame_global_data = new_frame_global_data;
+	}
+
+	static Clay_FrameGlobalData& GetFrameGlobalData() -> frame_global_data.! else panic("GetFrameGlobalData-Error: SetFrameGlobalData not called!");
+
 	static Clay_FloatingElementConfig FloatingPassthru(Vec2 offset) -> {
 		.attachTo = CLAY_ATTACH_TO_PARENT,
 		:offset,
@@ -529,6 +569,8 @@ struct Clay {
 	// Returns true if the pointer position provided by Clay_SetPointerState is within the current element's bounding box.
 	// Works during element declaration, e.g. CLAY({ .backgroundColor = Clay_Hovered() ? BLUE : RED });
 	static bool Hovered() -> c:Clay_Hovered();
+
+	static bool Pressed() -> c:Clay_Hovered() && mouse.LeftClickPressed();
 
 	// // Bind a callback that will be called when the pointer position provided by Clay_SetPointerState is within the current element's bounding box.
 	// // - onHoverFunction is a function pointer to a user defined function.
@@ -596,7 +638,7 @@ struct Clay {
 	static void SetQueryScrollOffsetFunction(c:void^ queryScrollOffsetFunction, void^ userData) -> c:Clay_SetQueryScrollOffsetFunction(queryScrollOffsetFunction, userData);
 
 	// NOTE: EXTRA ===================================
-	static bool VisuallyHovered(Clay_ElementId id) -> Clay.GetBoundingBox(id).Contains(mouse_pos);
+	static bool VisuallyHovered(Clay_ElementId id) -> Clay.GetBoundingBox(id).Contains(GetFrameGlobalData().mouse_pos);
 }
 
 // -----------------------------------------
@@ -680,6 +722,18 @@ void clay_x_grow_spacer() {
 	};
 }
 
+void clay_x_spacer(float amt) {
+	$clay({
+		.layout = {
+			.sizing = {
+				.width = CLAY_SIZING_FIXED(amt),
+				.height = CLAY_SIZING_FIXED(0),
+			} 
+		}
+	}) {
+		// inside begin/end
+	};
+}
 
 void clay_y_grow_spacer() {
 	$clay({
@@ -690,6 +744,17 @@ void clay_y_grow_spacer() {
 			} 
 		}
 	}) {};
+}
+
+void clay_y_spacer(float amt) {
+	$clay({
+		.layout = {
+			.sizing = {
+				.width = CLAY_SIZING_FIXED(0),
+				.height = CLAY_SIZING_FIXED(amt),
+			} 
+		}
+	});
 }
 
 

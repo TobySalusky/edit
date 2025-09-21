@@ -11,6 +11,7 @@ plugin_src/external/
 
 out/
 test_out/
+wrapper_out/
 plugin_out/
 
 test_resource/

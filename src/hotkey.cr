@@ -3,6 +3,17 @@ import rl;
 
 struct Env {
 	static bool is_dvorak = c:getenv("SILLY_DVORAK_USER") != NULL;
+	static Path edit_global_dir = &{
+		char^ res = c:getenv("EDIT_GLOBAL_DIR");
+		if (res == NULL) {
+			panic("EDIT_GLOBAL_DIR is null, please supply via env!");
+		}
+		if (!io.dir_exists(res)) {
+			panic(f"EDIT_GLOBAL_DIR: '{res}' does not exist! please create it!");
+		}
+		return .(res);
+	};
+	static Path edit_temp_projects = edit_global_dir/"temp_projects";
 
 	static void DebugPrint() {
 		if (is_dvorak) { println("Setting keyboard to Dvorak (via env var)"); }
@@ -16,9 +27,18 @@ extern bool NoTextInputFocused(void);
 
 struct HotKey {
 	int key_code;
+	bool shift = false;
+	bool cmd = false; // TODO: what about for windows?
+	bool ctrl = false;
+	bool alt = false;
 	// TODO: modifiers
 
-	bool IsPressed() -> (c:NoTextInputFocused() as bool) && key.IsPressed(key_code);
+	bool IsPressed() -> (c:NoTextInputFocused() as bool) && key.IsPressed(key_code)
+		&& (!shift || key.ShiftIsDown())
+		&& (!cmd || key.SuperIsDown())
+		&& (!ctrl || key.ControlIsDown())
+		&& (!alt || key.AltIsDown())
+	;
 
 	static Self DvoKey(int keycode_qwerty, int keycode_dvorak) -> {
 		.key_code = Env.is_dvorak ? keycode_dvorak | keycode_qwerty 
@@ -55,11 +75,12 @@ struct HotKeys {
 
 	static HotKey ESCAPE = HotKey.Key(KEY.ESCAPE); // just to be able to re-bind escape as a user, basically
 
+	static HotKey HotReloadProgram = HotKey.DvoKey(KEY.R, KEY.O) with { .shift = true, .cmd = true }; // TODO: make this do something else -- since we reload?
+
 	// :hotkey:temp
 	static HotKey Temp_AddFaceElem = HotKey.DvoKey(KEY.F, KEY.Y);
 
 	static HotKey Temp_ClearTimeline = HotKey.DvoKey(KEY.C, KEY.I);
-	static HotKey Temp_ReloadCode = HotKey.DvoKey(KEY.R, KEY.O); // TODO: make this do something else -- since we reload?
 
 	// static HotKey Temp_AddElementCircle = HotKey.DvoKey(KEY.O, KEY.S);
 

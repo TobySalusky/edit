@@ -652,12 +652,11 @@ void Panel__end(PanelExpander& panel_expander) {
 	Clay__CloseElement(); // outer
 }
 
-c:`typedef void(*void_takes_ModalState_ref_fn_ptr_t)(ModalState*);`;
 struct ModalState {
 	bool just_opened = false;
 	// void^ user_data = NULL;
-	c:void_takes_ModalState_ref_fn_ptr_t fn_ptr;
-	c:void_takes_ModalState_ref_fn_ptr_t on_close_fn_ptr;
+	fn_ptr<void(ModalState&)> fn_ptr;
+	fn_ptr<void(ModalState&)> on_close_fn_ptr;
 
 	char^ errmsg = NULL;
 
@@ -668,7 +667,7 @@ struct ModalState {
 
 	void close() {
 		if (on_close_fn_ptr != NULL) {
-			on_close_fn_ptr(^this);
+			on_close_fn_ptr(this);
 		}
 
 		set_errmsg(NULL);
@@ -710,7 +709,7 @@ void ModalUI(using ModalState& state) {
 					.layoutDirection = CLAY_TOP_TO_BOTTOM,
 				},
 			}) {
-				fn_ptr(^state);
+				fn_ptr(state);
 			};
 
 		};
@@ -724,15 +723,17 @@ void ModalUI(using ModalState& state) {
 void OpenModal(ModalState state) {
 	_open_modal_states_add_next_frame.add(state);
 }
-void OpenModalFn(c:void_takes_ModalState_ref_fn_ptr_t fn_ptr, c:void_takes_ModalState_ref_fn_ptr_t on_close_fn_ptr = NULL) {
+void OpenModalFn(fn_ptr<void(ModalState&)> fn_ptr, fn_ptr<void(ModalState&)> on_close_fn_ptr = NULL) {
 	OpenModal({ :fn_ptr, :on_close_fn_ptr  });
 }
 void CloseModal() { // closes top (current-most) modal!
 	if (!open_modal_states.is_empty()) {
-		println("[WARNING]: CloseModal called while open_modal_states was empty");
 		open_modal_states.back().close();
 		open_modal_states.pop_back();
+	} else {
+		println("[WARNING]: CloseModal called while open_modal_states was empty");
 	}
+
 	UnFocusUIElements(); // TODO: do better?
 }
 

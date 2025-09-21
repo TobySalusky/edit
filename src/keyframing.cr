@@ -87,12 +87,32 @@ struct KeyframeInterpolator=<int> {
 struct KeyframeInterpolator=<Color> {
 	static Color Interpolate(Keyframe<Color>& from, Keyframe<Color>& to, float t) {
 		float pt = InterpolationFns.InterpolateModed(t, from.out_interpolation_mode, to.in_interpolation_mode);
-		return {
-			.r = from.value.r + (((to.value.r - from.value.r) as float) * pt) as int,
-			.g = from.value.g + (((to.value.g - from.value.g) as float) * pt) as int,
-			.b = from.value.b + (((to.value.b - from.value.b) as float) * pt) as int,
-			.a = from.value.a + (((to.value.a - from.value.a) as float) * pt) as int,
-		};
+		Vec3 from_hsv = c:ColorToHSV(from.value);
+		Vec3 to_hsv = c:ColorToHSV(to.value);
+
+		// return { // NOTE: direct RGB interpolation (looks bad)
+		// 	.r = from.value.r + (((to.value.r - from.value.r) as float) * pt) as int,
+		// 	.g = from.value.g + (((to.value.g - from.value.g) as float) * pt) as int,
+		// 	.b = from.value.b + (((to.value.b - from.value.b) as float) * pt) as int,
+		// 	.a = from.value.a + (((to.value.a - from.value.a) as float) * pt) as int,
+		// };
+
+		{ // wrap-around cases
+			float low_to = to_hsv.x - 360.0;
+			float low_from = from_hsv.x - 360.0;
+			
+			float regular_dist = std.abs(to_hsv.x - from_hsv.x);
+			if (std.abs(low_to - from_hsv.x) < regular_dist) {
+				to_hsv.x = low_to;
+			} else if (std.abs(to_hsv.x - low_from) < regular_dist) {
+				from_hsv.x = low_from;
+			}
+		}
+
+		// TODO: :optimize pls!
+		Vec3 hsv = (from_hsv.scale(1.0 - t) + to_hsv.scale(t)); // TODO: wrap-around hue 360
+
+		return c:ColorFromHSV(hsv.x, hsv.y, hsv.z);
 	}
 	static Color DefaultValue() -> { .r = 0, .g = 0, .b = 0, .a = 255 };
 	static void SerializeValue(Keyframe<Color>& keyframe, yaml_serializer& s) {

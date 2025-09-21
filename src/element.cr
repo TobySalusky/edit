@@ -15,6 +15,7 @@ import globals;
 import textures;
 import cursor;
 import warn;
+import resources;
 
 //  global ui stuff ---------------------------------------------
 ColorPicker global_color_picker = {};
@@ -27,6 +28,7 @@ enum ElementKind {
 	RECT,
 	CIRCLE,
 	IMAGE,
+	IMAGE_SEQUENCE,
 	FX_FN,
 	VIDEO,
 	FACE,
@@ -123,21 +125,67 @@ struct CircleElement : ElementImpl {
 }
 
 struct ImageCache {
-	static StrMap<Texture> cache;
+	static HashMap<char^, Texture^> cache = .();
+	static StableArena<Texture> texture_storage = { .block_size_in_elements = 512 };
 
-	static Texture Get(char^ file_path) {
+	static Texture& Get(char^ file_path) {
 		if (cache.has(file_path)) {
-			return cache.get(file_path);
+			return *cache.get(file_path);
 		}
 		Texture tex = rl.LoadTexture(file_path);
-		cache.put(file_path, tex);
-		return tex;
+		let ptr = texture_storage.push_get_ptr(tex);
+		cache.insert(file_path, ptr);
+		return *ptr;
 	}
 	
 	static void Unload() {
 		for (let pair in cache) {
-			pair.value.delete();
+			pair.value#delete();
 		}
+		cache.delete();
+	}
+}
+
+struct ImageSequenceElement : ElementImpl {
+	float time_per_frame;
+	int resource_id;
+	Texture[]^ textures = NULL;
+	
+	// ----------------------------
+	void UI(CustomLayerUIParams& params) {
+		// $HORIZ_FIXED(rem(1)) {
+		// 	if (ClayButton("Reload Frames", .(t"{^this}-reload"), {})) {
+		// 		ReloadFrames();
+		// 	}
+		// };
+	}
+	void TimelineUI(CustomLayerUIParams& params) {
+		// $HORIZ_FIXED(rem(1));
+	}
+	void UpdateState(float lt) {}
+	void Draw(Element^ e, float current_time) {
+		if (textures == NULL) {
+			return; 
+		}
+		if (textures#is_empty()) { return; }
+
+		int i = (((current_time - e#start_time) / time_per_frame) as int) % textures#size;
+		let& texture = (*textures)[i];
+
+		d.TextureRotCenter(texture, e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
+	}
+
+	ElementKind Kind() -> .IMAGE_SEQUENCE;
+	void _FillYaml(yaml_object& yo) {
+		// yo.put_literal("file_path", file_path);
+		todo("ImageSequence - serialize!");
+	}
+
+	char^ ImplTypeStr() -> "img-seq";
+	CustomLayer^ CustomLayersList() -> NULL;
+
+	static Self^ Make(float time_per_frame, int resource_id) {
+		return Box<Self>.Make({ :time_per_frame, :resource_id }); 
 	}
 }
 
@@ -148,6 +196,7 @@ struct ImageElement : ElementImpl {
 	void TimelineUI(CustomLayerUIParams& params) {}
 	void UpdateState(float lt) {}
 	void Draw(Element^ e, float current_time) {
+		// d.RectRot(e#pos, e#scale, e#rotation, Colors.Red);
 		d.TextureRotCenter(ImageCache.Get(file_path), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
 	}
 
@@ -210,9 +259,6 @@ struct VideoElement : ElementImpl {
 		});
 	}
 }
-
-c:`typedef void (*CustomPureFnWithoutCustomParams)(FxArgs*);`;
-c:`typedef void (*CustomPureFnWithCustomParams)(FxArgs*, void*);`;
 
 struct CustomLayerBool {
 	bool^ value;
@@ -474,6 +520,10 @@ PanelExpander element_variables_expander = { ^element_variables_width, "element_
 struct CustomLayer {
 	char^ name;
 	CustomLayerKind kind;
+
+	char^ value_fn_expr_str = NULL;
+	void^ value_fn = NULL;
+
 	// TODO: bool keyed = false; ?
 
 	// non-serialized
@@ -484,6 +534,8 @@ struct CustomLayer {
 		return {
 			.name = s.obj.get_str("name"),
 			.kind = CustomLayerKind.Deserialize(kind_s),
+			.value_fn_expr_str = "", // TODO:
+			.value_fn = NULL,
 		};
 	}
 
@@ -729,8 +781,24 @@ struct CustomLayer {
 
 							it.kl_value.ControlButtons(it.value, params);
 						},
-						CustomLayerList it -> { // it is NOT ref!!??
-						// NOTE: never called
+						CustomLayerList it -> {
+							unreachable();
+						}
+					}
+
+					// value_fn
+					{
+						char^ change_text = TextBox(UiElementID.ID(^this, 0), .(t"{^this}-vfnstr"), value_fn_expr_str, .Grow(), rem(1));
+						if (change_text != NULL) {
+							if (value_fn_expr_str != NULL) { free(value_fn_expr_str); }
+							value_fn_expr_str = strdup(change_text);
+
+							// TRY TO COMPILE CODE
+							char^ code_prelude = "";
+							char^ ret_t_str = "float";
+							char^ code = t"{code_prelude}\n{ret_t_str} THE_VALUE_FN() -> {value_fn_expr_str};";
+
+							// let maybe_fn = AttemptCompileCrustSnippet(code, "THE_VALUE_FN");
 						}
 					}
 				};
@@ -758,6 +826,45 @@ struct CustomLayer {
 				};
 			}
 		}
+	}
+
+	void AttemptCompileCrustSnippet(char^ code, char^ name_of_desired_fn) {
+		{ // crust compilation
+			io.rmrf_if_existent("tcc_temp");
+			io.mkdir("tcc_temp");
+
+			let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
+			io.write_file_text("tcc_temp/temp.cr", code);
+
+			system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
+		}
+
+		TCCState& tcc = *.new().! else return Err{};
+		defer tcc.delete();
+
+		tcc.set_options("-g");
+		tcc.set_output_type(TCC_OUTPUT_MEMORY);
+		// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
+		tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
+			println(t"backtrace from: {file as char^}");
+			// panic("bad news bears");
+
+			return 0;
+		});
+
+		{
+			tcc.add_include_path("tcc_tout");
+			tcc.add_file("tcc_tout/__unity__.c");
+		}
+		tcc.relocate().! else return Err{};
+
+		fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
+
+		for i in 0..10 {
+			println(t"{fn(i)=}");
+		}
+		
+		return Unit{};
 	}
 
 	void TimelineUI(using CustomLayerUIParams& params) {
@@ -1053,9 +1160,15 @@ struct EditLayer {
 		:comp,
 	});
 
-	int get_index_in_comp() {
-		// warn(ProgramWarningKind.MISSING_COMPOSITION, "");
-		return 0;
+	// warns on failure... maybe shouldn't?
+	int? get_index_in_comp(Composition& comp) {
+		for layer, i in comp.layers {
+			if (layer == ^this) {
+				return i;
+			}
+		}
+		warn(.MISSING_LAYER_IN_COMPOSITION);
+		return none;
 	}
 
 	void AddElement(ElementHandle eh) {
@@ -1148,6 +1261,7 @@ struct Element {
 	bool uniform_scale; // TODO:
 
 	float rotation;
+	Vec2 CoM = { 0.5, 0.5 }; // center of rotation/scaling: [0, 1] -> on image; outside [0, 1]: not currently supported... (TODO:?)
 
 	float opacity;
 
@@ -1263,8 +1377,9 @@ struct Element {
 		_GetVec2Layer(0).value  = ^pos;
 		_GetVec2Layer(1).value  = ^scale;
 		_GetFloatLayer(2).value = ^rotation;
-		_GetFloatLayer(3).value = ^opacity;
-		_GetColorLayer(4).value = ^color;
+		_GetVec2Layer(3).value = ^CoM;
+		_GetFloatLayer(4).value = ^opacity;
+		_GetColorLayer(5).value = ^color;
 		ready = true;
 	}
 
@@ -1287,6 +1402,13 @@ struct Element {
 		layers.add({
 			.name = "rotation",
 			.kind = CustomLayerFloat{
+				.value = NULL,
+				.kl_value = .()
+			}
+		});
+		layers.add({
+			.name = "CoM",
+			.kind = CustomLayerVec2{
 				.value = NULL,
 				.kl_value = .()
 			}
@@ -1429,9 +1551,9 @@ struct Element {
 					.sizing = .Grow(),
 					.layoutDirection = CLAY_TOP_TO_BOTTOM,
 				},
-				.id = CLAY_ID("keyframe-timeline")
+				.id = CLAY_ID(c"keyframe-timeline")
 			}) {
-				Rectangle rect = Clay.GetElementData(CLAY_ID("keyframe-timeline")).boundingBox;
+				Rectangle rect = Clay.GetElementData(CLAY_ID(c"keyframe-timeline")).boundingBox;
 				element_timeline_width = rect.width;
 
 				if (mouse.LeftClickReleased()) {
@@ -1806,6 +1928,11 @@ struct StableArena<T> {
 		this[size - 1] = val;
 	}
 
+	T^ push_get_ptr(T val) {
+		add(val);
+		return ^this[size - 1];
+	}
+
 	void delete() {
 		for (let& block in memory_blocks) {
 			free(block);
@@ -1884,12 +2011,34 @@ struct Project {
 	Composition^[] comps;
 	int? selected_comp_index;
 
-	static Self^ new() -> Box<Project>.Make({
-		.name = "Untitled", // untitled
-		.is_untitled = true,
-		.comps = {},
-		.selected_comp_index = none,
-	});
+	Path project_dir;
+	Path resource_dir;
+
+	Resources resources;
+
+	static Self^ new() {
+		Project^ res = malloc(sizeof(Project));
+
+		*res =
+			with let project_dir = Env.edit_temp_projects/f"{res}" in
+		{
+			.name = "Untitled", // untitled
+			.is_untitled = true,
+			.comps = {},
+			.selected_comp_index = none,
+			:project_dir,
+			.resource_dir = project_dir/"resources", // TODO
+			.resources = {
+				.project = *res,
+				.gifs = .(),
+			}
+		};
+
+		io.mkdir_if_nonexistent(res#project_dir);
+		io.mkdir_if_nonexistent(res#resource_dir);
+
+		return res;
+	}
 }
 
 struct Composition {
@@ -1903,6 +2052,8 @@ struct Composition {
 	EditLayer^[] audio_layers;
 
 	ElementHandle[] selection;
+	ElementHandle? primary_selection = none;
+	ElementHandle[] effective_selection;
 
 	ViewRangeSlider vertical_view_range_slider;
 	ViewRangeSlider view_range_slider;
@@ -1924,6 +2075,15 @@ struct Composition {
 	}
 	int effective_max_frames() -> (effective_max_time() * frame_rate) as int;
 	// ------------------------------------
+	ElementIterable selection_iter() -> {
+		.comp = ^this,
+		.handles = selection,
+	};
+
+	ElementIterable effective_selection_iter() -> {
+		.comp = ^this,
+		.handles = effective_selection,
+	};
 
 	static Self^ new(Project^ proj, int width, int height) {
 		Self^ self = malloc(sizeof<Self>);
@@ -1958,6 +2118,7 @@ struct Composition {
 			:width, :height,
 			.elements = {},
 			.selection = {},
+			.effective_selection = {},
 			.layers = {},
 			.audio_layers = {},
 			:frame_rate,
@@ -1976,6 +2137,13 @@ struct Composition {
 		self#AddAudioLayer();
 
 		return self;
+	}
+
+	bool IsSelected(ElementHandle handle) {
+		for (let! selected in selection) {
+			if (selected == handle) { return true; }
+		}
+		return false;
 	}
 
 	void AddVisualLayer() {

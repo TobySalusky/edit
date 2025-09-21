@@ -1,14 +1,6 @@
 include path("../common");
 include path("../../crust/packs/color_print");
-
-c:c:`
-#pragma GCC diagnostic push
-#ifdef _WIN32
-	// #pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
-#else
-	#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
-#endif
-`;
+include path("../tcc");
 
 // TODO: on ColorPicker & other temporary mini-windows... bottom-right corner three-diag-lines (expand/shrink)
 
@@ -45,14 +37,20 @@ import clay_app;
 import color_print;
 import std;
 import hr_std;
+import loaders;
+
+@weak import ui;
+import recordings;
+
+import tcc;
 
 c:import "tinyfiledialogs.h";
 
 // Canvas and window
 
 // TODO: implement this
-int edit_version = ReadEditVersion(); // NOTE: initialized
-int oldest_supported_edit_version = 1;
+// int edit_version = ReadEditVersion(); // NOTE: initialized
+// int oldest_supported_edit_version = 1;
 
 int window_width = GlobalSettings.get_int("window_width", 1200); // loaded from GlobalSettings
 int window_height = GlobalSettings.get_int("window_height", 900);
@@ -206,7 +204,7 @@ struct RepeatingTimer {
 
 	construct(float max_t) -> { .max = max_t, .t = max_t };
 	bool DidRepeatWhileUpdating() {
-		t = t - rl.GetFrameTime(); // TODO: deltaTime?
+		t = t - delta_time; // TODO: deltaTime?
 		defer {
 			if (t <= 0) { t = max; }
 		}
@@ -217,6 +215,7 @@ struct RepeatingTimer {
 
 RepeatingTimer check_code_timer = .(0.25);
 
+@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
 char^ OpenImageFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 3);
 	filters[0] = "*.png";
@@ -237,6 +236,7 @@ char^ OpenImageFileDialog(char^ title) {
     return (filePath != NULL) ? filePath | "";
 }
 
+@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
 char^ OpenDataFileDialog(char^ title) {
 	char^^ filters = malloc(sizeof<char^> * 1);
 	filters[0] = "*.csv";
@@ -751,7 +751,7 @@ bool keyframe_timeline_dragging = false;
 // TODO: move over!
 
 float SnapToNearestFramesTime(float time) ->
-	let& comp = Comp() in
+	with let& comp = Comp() in
 		((time / comp.time_per_frame) as int) as float / comp.frame_rate;
 
 void SetFrame(int frame) {
@@ -769,7 +769,7 @@ void SetTime(float new_time) {
 }
 
 bool ElementIsVisibleNow(Element& elem) ->
-	let& comp = Comp() in
+	with let& comp = Comp() in
 		elem.visible && elem.ActiveAtTime(comp.current_time) && elem.layer#visible;
 
 void UpdateState() {
@@ -791,6 +791,18 @@ void UpdateState() {
 
 				vid#loaded = true;
 				vid#loading = false;
+			}
+		}
+
+		if (elem.Kind() == .IMAGE_SEQUENCE) {
+			ImageSequenceElement^ gif_elem = (c:elem#content_impl.ptr);
+			if (gif_elem#textures == NULL) {
+				gif_elem#textures = ^comp.proj#resources.Gif(gif_elem#resource_id)#textures;
+
+				if (gif_elem#textures != NULL) {
+					elem.duration = gif_elem#textures#size as float * gif_elem#time_per_frame;
+				}
+// ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 squid_cry.gif
 			}
 		}
 	}
@@ -1297,7 +1309,15 @@ void ImportMovieModal(using ModalState& state) {
 
 bool first_frame = true;
 // TODO: don't update comp inside method b/c of `comp`... or use Comp()
+float delta_time = 1.0 / 60;
 void GameTick() {
+	{
+		delta_time = 
+			(hr_once)
+				? 1.0 / 60
+				| rl.GetFrameTime();
+	}
+
 	let& comp = Comp();
 	cursor_type = .Default;
 
@@ -1311,6 +1331,10 @@ void GameTick() {
 	mouse_pos = mouse.GetPos();
 	last_ws_mouse_pos = ws_mouse_pos;
 	ws_mouse_pos = GetMousePosWorldSpace();
+
+	Clay.SetFrameGlobalData({
+		:mouse_pos
+	});
 
 	if (check_code_timer.DidRepeatWhileUpdating()) {
 		code_man.CheckModifiedTimeAndReloadIfNecessary();
@@ -1377,7 +1401,7 @@ void GameTick() {
 
 	if (is_running()) {
 		if (has_comp()) {
-			float new_time = comp.current_time + rl.GetFrameTime();
+			float new_time = comp.current_time + delta_time;
 			if (new_time > comp.effective_max_time()) { new_time = 0; }
 			SetTime(new_time);
 		}
@@ -1477,6 +1501,26 @@ void GameTick() {
 		LayoutUI();
 		first_frame = false;
 	}
+
+	loader_result_queue_mutex.lock();
+	{
+		while (!loader_result_queue.is_empty()) {
+			LoaderResult res = loader_result_queue.pop_front();
+
+			switch (res.payload) {
+				LoaderResult_Gif it -> {
+					
+				},
+				LoaderResult_Failure it -> {
+					warn(it.kind, it.msg);
+					// TODO: free it.msg or no...
+				},
+			}
+		}
+	}
+	loader_result_queue_mutex.unlock();
+
+	hr_once = false;
 }
 
 void RenderAfter() {
@@ -1542,24 +1586,74 @@ void ExportVideo(int framerate, char^ folder_path, char^ output_file_name_no_pat
 	CloseModalByFn(ExportingModal); // TODO: close specific modal? (by fn_ptr?)
 }
 
+// non-recursive
+// void AddImageSequenceFromDir(char^ dir_path, Vec2 pos) {
+// 	char^ name = rl.GetFileName(dir_path);
+// 	let paths = io.list_dir_files(dir_path, false);
+// 	defer paths.delete();
+// 	// TODO: sort alphabetically
+//
+// 	AddImageSequenceFromPaths(name, 0.25, paths, pos);
+// }
+
+// NOTE: `name` strdupped
+// void AddImageSequenceFromPaths(char^ name, float time_per_frame, char^[] file_paths, Vec2 pos) {
+// 	// Handle image file
+// 	Vec2 dimens = v2(100, 100); // bad default val TODO:
+// 	if (!file_paths.is_empty()) {
+// 		Image img = Image.Load(file_paths.front());
+// 		defer img.Unload();
+// 		dimens = v2(img.width, img.height);
+// 	}
+//
+// 	AddNewSelectedElementAt(Element(ImageSequenceElement.Make(time_per_frame, file_paths), strdup(name), Comp().current_time, new_element_default_duration, NULL, pos, dimens));
+// }
+
 void ProcessDroppedFile(char^ file_path_in, bool dropped_via_mouse) {
-	char^ file_path = strdup(file_path_in);
-	char^ file_type = c:GetFileExtension(file_path_in); // static string!! (don't hold)
+	char^ file_path = strdup(file_path_in); // TODO: should free? - :check
+	bool is_dir = rl.DirectoryExists(file_path);
+
+	Vec2 pos = (dropped_via_mouse && canvas_rect.Contains(ws_mouse_pos)) ? ws_mouse_pos | v2(0, 0);
+
+	if (is_dir) {
+		// CURRENTLY WE ASSUME THIS TO BE IMAGE-SEQUENCE
+		// AddImageSequenceFromDir(file_path, pos);
+		return;
+	}
+
+	char^ file_type = rl.GetFileExtension(file_path_in); // static string!! (don't hold)
 	// malloced image (the ImageElement is responsible for freeing)
 	// ^ TODO: make this ownership clearer!
 
-	Vec2 pos = v2(0, 0);
-	if (dropped_via_mouse) {
-		pos = ws_mouse_pos;
-	}
-	println(t"File dropped: {strcmp(file_type, ".png")}");
-	if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".gif") == 0 || strcmp(file_type, ".jpg") == 0) {
+
+	if (strcmp(file_type, ".png") == 0 || strcmp(file_type, ".jpg") == 0) {
 		// Handle image file
 		Image img = Image.Load(file_path);
 		defer img.Unload();
-		char^ img_name = c:GetFileNameWithoutExt(file_path);
+		char^ img_name = rl.GetFileNameWithoutExt(file_path);
 
 		AddNewSelectedElementAt(Element(ImageElement.Make(file_path), strdup(img_name), Comp().current_time, new_element_default_duration, NULL, pos, v2(img.width, img.height)));
+	} else if (strcmp(file_type, ".gif") == 0) {
+		char^ gif_name = rl.GetFileNameWithoutExt(file_path);
+
+		int resource_id = LoaderResult.ProcureID();
+
+		FILE^ fp = io.fopen_opt(file_path, "rb").! else return warn(.MISC, "failed to open gif");
+		defer fp#close();
+
+		ulong GIF_HEADER_LEN = 10;
+		uchar^ header_buf = malloc(sizeof<uchar> * GIF_HEADER_LEN);
+		defer free(header_buf);
+
+		if (fp#read(header_buf, sizeof<uchar>, GIF_HEADER_LEN) != GIF_HEADER_LEN) {
+			return warn(.MISC, "failed to read gif header");
+		}
+
+		int width = header_buf[7] ~| (header_buf[8] << 8);
+		int height = header_buf[9] ~| (header_buf[10] << 8);
+
+		go_with(LoadGif, Box<LoadGifParams>.Make({ .file_path = strdup(file_path), .id = resource_id }) as void^);
+		AddNewSelectedElementAt(Element(ImageSequenceElement.Make(0.1, resource_id), strdup(gif_name), Comp().current_time, new_element_default_duration, NULL, pos, v2(width, height)));
 	} else if (strcmp(file_type, ".csv") == 0) {
 		// // Handle data file
 		// Data data = .(file_path);
@@ -1648,10 +1742,11 @@ void AddExtraEmptyLayerIfNone() {
 }
 
 int prev_last_s = 0;
+float CompositionTimelineSecondTickerUI_height() -> rem(1);
 // returns hovering
 bool CompositionTimelineSecondTickerUI(Composition& comp, float layer_info_width, float time_to_width_pixels) {
 	bool hovering = false;
-	$HORIZ_FIXED(rem(1)) {
+	$HORIZ_FIXED(CompositionTimelineSecondTickerUI_height()) {
 		$clay({ .layout = { .sizing = .(layer_info_width, 0) } }) {
 			// TODO: lil' config/button stuff here?
 		};
@@ -1709,506 +1804,87 @@ bool CompositionTimelineSecondTickerUI(Composition& comp, float layer_info_width
 	return hovering;
 }
 
-struct CompositionTimelineUIState {
-	float t_at_drag_start = 0;
-	float x_at_mdrag_start = 0;
-
-	int layer_i_at_drag_start = 0;
-
-	float layer_f_at_mdrag_start_relative_marker = 0;
-
-	float current_caret_time_at_drag_start = 0;
-
-	bool is_mdragging_view = false; // middle-click-dragging
-
-	ViewRange view_range_at_mdrag_start = { .start = 0, .end = 0 };
-	ViewRange vertical_view_range_at_mdrag_start = { .start = 0, .end = 0 };
-
-	bool is_dragging_caret = false; // left-click-dragging
-
-	bool is_dragging_element_start = false;
-	bool is_dragging_element = false;
-	bool is_dragging_element_end = false;
-
-	bool is_dragging_selection = false;
-
-	bool is_ldragging_any() -> is_dragging_caret || is_dragging_element_start || is_dragging_element || is_dragging_element_end || is_dragging_selection;
-	bool is_mdragging_any() -> is_mdragging_view;
-
-	void stop_ldragging_any() {
-		is_dragging_caret = false;
-		is_dragging_element_start = false;
-		is_dragging_element = false;
-		is_dragging_element_end = false;
-		is_dragging_selection = false;
-	}
-	void stop_mdragging_any() {
-		is_mdragging_view = false; 
-	}
-}
-
-@no_hr
-CompositionTimelineUIState composition_ui_state = {}; // TODO: rework `using xxxx` to work like match (reference extend or reference...), and thus fix the issue of not persisting the hot-reload status of the variable
-void CompositionTimelineUI_Clay() {
-	using composition_ui_state;
-
-	bool hovering_timeline_back = false;
-
-	if (!has_comp()) {
-		$HORIZ_GROW({
-			.backgroundColor = theme.button,
-		}) {
-			clay_text("No Active Composition", { .fontSize = rem(1), .textColor = Colors.White });
-		};
-		return;
-	}
-
-	let& comp = Comp();
-	using comp;
-
-	Clay_ElementId layer_container_id = .("CompositionTimelineUI");
-	Rectangle layer_container_bounds = Clay.GetBoundingBox(layer_container_id);
-	float layer_info_width = 40;
-	float scrollable_timeline_width = layer_container_bounds.width; // space for timeline
-	float layer_height = layer_container_bounds.height / vertical_view_range_slider.range.width();
-	float time_to_width_pixels = scrollable_timeline_width / std.max(0.00001, view_range_slider.range.width()); // TODO: better error-handling!
-	float unit_to_height_pixels = layer_container_bounds.height / std.max(0.00001, vertical_view_range_slider.range.width()); // TODO: better error-handling!
-	float y_scroll = -(layers.size as float - vertical_view_range_slider.range.end) * unit_to_height_pixels;
-
-	EditLayer^ hovered_layer = NULL;
-
-	bool is_hovering_caret_moving_location = false;
-
-	$VERT_GROW({
-		.backgroundColor = theme.button,
-	}) {
-		is_hovering_caret_moving_location = CompositionTimelineSecondTickerUI(comp, layer_info_width, time_to_width_pixels);
-		$HORIZ_GROW({
-			.border = Clay_BorderElementConfig.Between(1, theme.panel_border)
-		}) {
-			$VERT_FIXED(layer_info_width, {
-				.layout = {
-					.sizing = .Grow(),
-				},
-				.clip = {
-					.vertical = true,
-					.childOffset = {
-						.y = y_scroll
-					},
-				},
-				.border = {
-					.color = theme.panel_border,
-					.width = { .betweenChildren = 1, .bottom = 1 },
-				}
-			}) {
-				for (int i = layers.size - 1; i >= 0; i--) { // TODO: culling based on vertical view range!
-					EditLayer^ layer = layers[i];
-					$HORIZ_FIXED(layer_height) {
-						// layer info section
-						$VERT_FIXED(layer_info_width, { .border = Clay_BorderElementConfig.Right(1, theme.panel_border) }) {
-							if (ClayIconButton(layer#visible ? Textures.eye_open_icon | Textures.empty, .Grow(), Clay_Sizing(rem(1), rem(1)))) {
-								layer#visible = !layer#visible;
-							}
-						};
-					};
-				}
-			};
-
-			$VERT_GROW({
-				.id = layer_container_id,
-				.layout = {
-					.sizing = .Grow(),
-				},
-				.clip = {
-					.vertical = true,
-					.horizontal = true,
-					.childOffset = {
-						.x = -view_range_slider.range.start * time_to_width_pixels,
-						.y = y_scroll
-					},
-				},
-				.backgroundColor = theme.panel,
-			}) {
-				for (int i = layers.size - 1; i >= 0; i--) { // TODO: culling based on vertical view range!
-					EditLayer^ layer = layers[i];
-					let layer_theme = theme.elem_ui_pink; // TODO:
-
-					Clay_ElementId layer_id = .(t"{layer}");
-
-					if (Clay.VisuallyHovered(layer_id)) { // NOTE: (question) ... is this accurate? even when scissored?
-						hovered_layer = layer;
-					}
-
-					bool has_top_border = (i != layers.size - 1);
-					if (has_top_border) {
-						$HORIZ_FIXED(1, { .backgroundColor = theme.panel_border });
-					}
-					$HORIZ({
-						.id = layer_id,
-						.backgroundColor = layer#visible ? Colors.Transparent | theme.panel_disabled,
-						.layout = {
-							.sizing = .(visual_view_range_max_time * time_to_width_pixels, layer_height),
-						},
-					}) {
-						// layer info section
-						float last_time = 0;
-						for (let& elem in layer#elem_iter()) {
-							$clay({ .layout = { .sizing = .(elem.start_time * time_to_width_pixels, 0) } });
-							$clay({
-								.backgroundColor = layer_theme.bg,
-								.layout = {
-									.sizing = { CLAY_SIZING_FIXED(elem.duration * time_to_width_pixels), CLAY_SIZING_GROW() },
-									.layoutDirection = CLAY_TOP_TO_BOTTOM
-								},
-								.border = .(1, layer_theme.border),
-							}) {
-								clay_text(elem.NameUIText(), { .textColor = layer_theme.text, .fontSize = std.mini((layer_height * 0.5) as ushort, rem(1)) });
-							};
-							last_time = elem.end_time();
-						}
-					};
-				}
-
-				// floating things here ------------
-				if (current_time >= view_range_slider.range.start && (current_time) < view_range_slider.range.end) {
-					Clay_ElementId current_caret_id = .("composition-timeline-current-caret");
-					$VERT_FIXED(1, {
-						.id = current_caret_id,
-						.backgroundColor = theme.timeline_current_caret,
-						.floating = {
-							.offset = { (current_time - view_range_slider.range.start) *  time_to_width_pixels, 0 },
-							.attachTo = CLAY_ATTACH_TO_PARENT,
-						}
-					});
-					if (Clay.GetBoundingBox(current_caret_id).PadLeftRight(4).Contains(mouse_pos)) {
-						is_hovering_caret_moving_location = true;
-					}
-				}
-
-				// TODO: selection box & snap lines here!
-				// ---------------------------------
-			};
-
-			vertical_view_range_slider.Update("vertical_view_range_slider", 0, layers.size, 1);
-		};
-		$HORIZ({ .layout = { .sizing = { .width = CLAY_SIZING_GROW() } } }) {
-			view_range_slider.Update("view_range_slider", 0, visual_view_range_max_time, 1);
-			if (!view_range_slider.IsInteracting()) { visual_view_range_max_time = calc_view_range_max_time(); }
-
-			$clay({ .backgroundColor = theme.button, .layout = { .sizing = .(rem(1), rem(1)) }});
-		};
-	};
-
-		// float timeline_view_start = 0;
-		// float timeline_view_duration = max_time;
-		//
-		// int show_layers = std.maxi(layers.size + 1, 3);
-		// float height = composition_timeline_height;
-		// float layer_height = height / show_layers;
-		//
-		// float whole_width = window_width as float - left_panel_width;
-		// Vec2 whole_tl = v2(left_panel_width + 1, window_height as float - height);
-		// Vec2 whole_dimens = v2(whole_width, height);
-		// Rectangle whole_rect = Rectangle.FromV(whole_tl, whole_dimens);
-		//
-		// float info_width = 32;
-		//
-		// for (int i in 0..show_layers) { // empty skeleton for layers
-		// 	float x = whole_tl.x;
-		// 	float y = whole_rect.b() - (i + 1) as float * layer_height;
-		// 	Rectangle r = .(x, y, info_width, layer_height);
-		//
-		// 	d.RectR(r.Inset(1), theme.button);
-		// 	d.RectR(.(x, y, whole_width, 1), theme.panel_border);
-		//
-		// 	if (layers.size > i) {
-		// 		// layer info ui -------
-		// 		let& layer = layers.get(i);
-		//
-		// 		if (Button(r.tl(), r.dimen(), "")) {
-		// 			layer.visible = !layer.visible;
-		// 		}
-		//
-		// 		d.Text(t"L{i}", x as int + 6, y as int + 6, 12, theme.timeline_layer_info_gray);
-		//
-		// 		if (layer.visible) {
-		// 			d.TextureAtRect(Textures.eye_open_icon, r.Inset(6).FitIntoSelfWithAspectRatio(1, 1));
-		// 		}
-		// 		// ---------------------
-		// 	}
-		// }
-		//
-		// Vec2 tl = whole_tl + v2(info_width, 0);
-		// Vec2 dimens = whole_dimens - v2(info_width, 0);
-		//
-		// bool pressed_inside = mouse.LeftClickPressed() && mouse.GetPos().InV(tl, dimens);
-		//
-		// float width = dimens.x;
-		//
-		// for (int i in 0..elements.size) {
-		// 	let& elem = elements.get(i);
-		// 	// elem.TimelineUI();
-		// 	float x = tl.x + (elem.start_time - timeline_view_start) / timeline_view_duration * width;
-		// 	float y = whole_rect.b() - (elem.layer + 1) as float * layer_height;
-		//
-		// 	float w = elem.duration / timeline_view_duration * width;
-		//
-		// 	Rectangle r = .(x, y, w, layer_height);
-		//
-		// 	bool has_err = elem.err_msg != NULL;
-		// 	TimelineElementColorSet color_set = (selected_elem_i == i) ? theme.elem_ui_blue | 
-		// 		((has_err) ? theme.elem_ui_yellow | theme.elem_ui_pink);
-		// 		// selected -> blue
-		// 		// warning -> yellow
-		// 		// otherwise -> pink
-		//
-		// 	d.RectR(r, color_set.border);
-		// 	d.RectR(r.Inset(1), color_set.bg);
-		//
-		// 	d.Text(t"{elem.NameUIText()}", x as int + 6, y as int + 6, 12, color_set.text);
-		// 	d.Text(elem.content_impl#ImplTypeStr(), x as int + 6, (y + layer_height) as int - 18, 12, color_set.text);
-		//
-		// 	bool hovering = mouse.GetPos().Between(r.tl(), r.br());
-		// 	if (has_err) {
-		// 		Vec2 warning_dimen = v2(16, 16);
-		// 		d.TextureAtSizeV(Textures.warning_icon, r.br() - warning_dimen - v2(6, 6), warning_dimen);
-		//
-		// 		if (hovering) {
-		// 			Vec2 options_tl = mouse.GetPos() + v2(0, 10);
-		// 			Vec2 options_dims = c:MeasureTextEx(c:GetFontDefault(), elem.err_msg, 16, 1);
-		// 			d.RectR(Rectangle.FromV(options_tl, options_dims).Pad(6), theme.button);
-		// 			d.Text(elem.err_msg, options_tl.x as.., options_tl.y as.., 16, Colors.White);
-		// 		}
-		// 	}
-		//
-		// 	if (timeline.is_dragging_elem_any()) {
-		// 		if (timeline.dragging_elem_start || timeline.dragging_elem_end) {
-		// 			cursor_type = CursorType.ResizeHoriz;
-		// 		} else {
-		// 			cursor_type = CursorType.Pointer;
-		// 		}
-		// 	} else if (hovering) {
-		// 		if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
-		// 			cursor_type = CursorType.ResizeHoriz;
-		// 		} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
-		// 			cursor_type = CursorType.ResizeHoriz;
-		// 		} else {
-		// 			cursor_type = CursorType.Pointer;
-		// 		}
-		// 	}
-		//
-		//
-		// 	if (hovering && mouse.LeftClickPressed()) {
-		// 		selected_elem_i = i;
-		//
-		// 		if (mouse.GetPos().Between(r.tl(), r.tl() + v2(10, layer_height))) {
-		// 			timeline.dragging_elem_start = true;
-		// 		} else if (mouse.GetPos().Between(r.br() - v2(10, layer_height), r.br())) {
-		// 			timeline.dragging_elem_end = true;
-		// 		} else {
-		// 			timeline.dragging_elem = true;
-		// 		}
-		// 		timeline.elem_drag_init_mouse_x = mouse.GetPos().x;
-		// 		timeline.elem_drag_init_start = elem.start_time;
-		// 		timeline.elem_drag_init_end = elem.end_time();
-		// 	}
-		// }
-		//
-		// d.Rect(whole_rect.bl(), v2(dimens.x, 1), theme.panel_border); // TODO: change
-		//
-		// d.Rect(tl + v2(dimens.x * current_time / max_time, 0), v2(1, dimens.y), theme.active);
-
-		// mouse interactions --------------------
-		// if (pressed_inside && !timeline.is_dragging_elem_any()) {
-		// 	timeline.dragging_caret = true;
-		// }
-		//
-		// if (mouse.LeftClickDown()) {
-		// 	float t_on_timeline_unbounded = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
-		// 	float t_on_timeline_bounded = std.clamp(t_on_timeline_unbounded, 0, max_time);
-		// 	if (timeline.dragging_caret) {
-		// 		float new_time = (mouse.GetPos().x - tl.x) / dimens.x * max_time;
-		// 		if (new_time <= 0) { new_time = 0; }
-		// 		if (new_time >= max_time) { new_time = max_time; }
-		// 		SetTime(new_time); // TODO: add snap-to-frame-set-time
-		// 		SetFrame(current_frame);
-		// 	} else if (timeline.dragging_elem) {
-		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-		// 		let& selected_elem = elements.get(selected_elem_i);
-		// 		selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
-		// 		selected_elem.start_time = std.max(0, selected_elem.start_time);
-		//
-		// 		selected_elem.layer = (((whole_rect.b() - mouse.GetPos().y) / layer_height) as int);
-		// 		AddLayersTill(selected_elem.layer);
-		// 	} else if (timeline.dragging_elem_start) {
-		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-		// 		let& selected_elem = elements.get(selected_elem_i);
-		// 		selected_elem.start_time = SnapToNearestFramesTime(timeline.elem_drag_init_start + (t_on_timeline_unbounded - og_t_on_timeline));
-		// 		selected_elem.start_time = std.max(0, selected_elem.start_time);
-		// 		selected_elem.duration = (timeline.elem_drag_init_end - timeline.elem_drag_init_start) - (selected_elem.start_time - timeline.elem_drag_init_start);
-		// 	} else if (timeline.dragging_elem_end) {
-		// 		float og_t_on_timeline = (timeline.elem_drag_init_mouse_x - tl.x) / dimens.x * max_time;
-		// 		let& selected_elem = elements.get(selected_elem_i);
-		// 		selected_elem.duration = SnapToNearestFramesTime((timeline.elem_drag_init_end - timeline.elem_drag_init_start) + (t_on_timeline_unbounded - og_t_on_timeline));
-		// 	}
-		// }
-		//
-		// if (!mouse.LeftClickDown()) {
-		// 	timeline.dragging_caret = false;
-		// 	timeline.dragging_elem = false;
-		// 	timeline.dragging_elem_start = false;
-		// 	timeline.dragging_elem_end = false;
-		//
-		// 	// CullEmptyLayers();
-		// }
-
-
-	float t_at_mouse_x = view_range_slider.range.start + std.clamp((mouse_pos.x - layer_container_bounds.x) / layer_container_bounds.width, 0, 1) * view_range_slider.range.width();
-	float t_delta = t_at_mouse_x - t_at_drag_start;
-	float layer_f_relative = mouse_pos.y / layer_height;
-	// interactions & updates --------------------------
-	if (is_mdragging_view) {
-		float t_mdrag_delta = -(mouse_pos.x - x_at_mdrag_start) / time_to_width_pixels; // invert for 'drag-like' interaction (ie: pulling view backwards to move forwards)
-		float layer_f_delta = layer_f_relative - layer_f_at_mdrag_start_relative_marker;
-
-		float allowable_t_mdrag_delta = std.clamp(t_mdrag_delta, -view_range_at_mdrag_start.start, visual_view_range_max_time - view_range_at_mdrag_start.end);
-		float allowable_layer_f_mdrag_delta = std.clamp(layer_f_delta, -vertical_view_range_at_mdrag_start.start, layers.size as float - vertical_view_range_at_mdrag_start.end);
-
-		view_range_slider.range = {
-			.start = view_range_at_mdrag_start.start + allowable_t_mdrag_delta,
-			.end = view_range_at_mdrag_start.end + allowable_t_mdrag_delta,
-		};
-
-		vertical_view_range_slider.range = {
-			.start = vertical_view_range_at_mdrag_start.start + allowable_layer_f_mdrag_delta,
-			.end = vertical_view_range_at_mdrag_start.end + allowable_layer_f_mdrag_delta,
-		};
-
-		// TODO: use vertical component too!
-	}
-
-	if (is_dragging_caret) {
-		current_time = t_at_mouse_x;
-	} else if (is_dragging_element) {
-		// SetSelection();
-	} else if (is_dragging_selection) {
-		// SetSelection();
-		// TODO: nextnext
-	}
-
-	if (is_ldragging_any() && mouse.LeftClickReleased()) {
-		stop_ldragging_any();
-	}
-
-	if (is_mdragging_any() && mouse.MiddleClickReleased()) {
-		stop_mdragging_any();
-	}
-
-	if (!is_ldragging_any() && mouse.LeftClickPressed() && layer_container_bounds.Contains(mouse_pos)) {
-		t_at_drag_start = t_at_mouse_x;
-
-		if (is_hovering_caret_moving_location) {
-			is_dragging_caret = true;
-			current_caret_time_at_drag_start = current_time;
-		} else {
-			// TODO:
-			is_dragging_selection = true;
+void CloseProject(Project& project) {
+	for (int i in 0..projects.size) {
+		if (^project == projects[i]) {
+			projects.remove_at(i);
+			selected_project_index = 0;
+			warn(.TODO_BETTER_PROJECT_CLOSING);
+			return;
 		}
 	}
 
-	if (!is_mdragging_any() && mouse.MiddleClickPressed() && layer_container_bounds.Contains(mouse_pos)) {
-		x_at_mdrag_start = mouse_pos.x;
-		layer_f_at_mdrag_start_relative_marker = layer_f_relative;
-		view_range_at_mdrag_start = view_range_slider.range;
-		vertical_view_range_at_mdrag_start = vertical_view_range_slider.range;
-
-		is_mdragging_view = true;
-	}
-
-	if (!mouse.LeftClickDown()) {
-		AddExtraEmptyLayerIfNone();
-	}
+	warn(.MISC, "did not find project to close!?");
 }
 
-void BottomPanel() {
-	$Panel(composition_timeline_panel_expander) {
-		$HORIZ_GROW() {
-			$Panel(asset_manager_panel_expander) {
-				AssetManagerUI();
+void ProjectBarUI() {
+	Project^ maybe_proj = has_proj() ? ^Proj() | NULL;
+
+	$HORIZ_FIXED(rem(1.5), { .backgroundColor = theme.button, .border = .Bottom(1, theme.panel), .layout = { .childAlignment = .CenterY() } }) {
+		Project^ do_close_project = NULL;
+		for (int project_i in 0..projects.size) {
+			Project^ project = projects[project_i];
+			Clay_ElementId project_id = .(t"{project}");
+			$clay({
+				.id = project_id,
+				.backgroundColor = (Clay.VisuallyHovered(project_id))
+					? theme.panel_highlight
+					| (maybe_proj == project)
+						? theme.panel
+						| theme.panel_disabled,
+				.layout = {
+					.padding = .XY(4, 2),
+					.sizing = {
+						.width = CLAY_SIZING_FIT(100),
+					},
+					.childAlignment = .CenterY()
+				}
+			}) {
+				if (Clay.Pressed()) {
+					selected_project_index = project_i;
+				}
+
+				clay_text(project#name, { .fontSize = rem(1), .textColor = Colors.White });
+
+				clay_x_grow_spacer();
+
+				if (ClayIconButton(Textures.close_icon)) {
+					do_close_project = project;
+				}
 			};
-			CompositionTimelineUI_Clay();
-		};
-	};
-}
 
-void LayoutUI() {
-	// File drop listener
-	if (rl.IsFileDropped()) {
-		OnFileDropped();
-	}
+			clay_x_spacer(4);
+		}
 
-    $clay({
-		.id = CLAY_ID("main"),
-		.layout = {
-			.sizing = .(window_width, window_height),
-			// .padding = { .left = left_panel_width as int }
-			.layoutDirection = CLAY_TOP_TO_BOTTOM,
-		}, 
-		.backgroundColor = Colors.Transparent,
-	}) {
+		// don't concurrently modify >:0
+		if (do_close_project != NULL) {
+			CloseProject(*do_close_project);
+		}
+
 		$clay({
+			.id = .("new-project-btn"),
+			.backgroundColor = (Clay.VisuallyHovered(.("new-project-btn")))
+				? theme.panel_highlight
+				| theme.panel,
 			.layout = {
-				.sizing = .Grow(),
+				.padding = .XY(4, 2),
+				// .sizing = { .width = CLAY_SIZING_FIT(rem(1) + 4) }
 			}
 		}) {
-			SidePanel();
+			if (Clay.Pressed()) {
+				AddNewSelectedProject();
+			}
 
-			$clay({
-				.id = CLAY_ID("video-area-wrapper"),
-				.layout = {
-					.sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW() },
-					.padding = .(16), 
-					.childGap = 16,
-					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
-				}, 
-				.backgroundColor = Colors.Black,
-			}) {
-				// NOTE: wrong on first render (render twice for first frame to avoid)
-				let parent_bounds = Clay.GetElementData(CLAY_ID("video-area-wrapper")).boundingBox;
-				parent_bounds.width -= 32; // 16 padding on each side!
-				parent_bounds.height -= 32;
-
-				// manually fit this element, since aspect-ratio image scaling causes it to overflow on GROW mode... :/
-				Rectangle fitted = parent_bounds.FitIntoSelfWithAspectRatio(canvas.width(), canvas.height());
-
-				$clay({
-					.id = CLAY_ID("video"),
-					.floating = {
-						.attachTo = CLAY_ATTACH_TO_PARENT,
-						.attachPoints = {
-							.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-							.parent = CLAY_ATTACH_POINT_CENTER_CENTER,
-						}
-					},
-					.layout = {
-						.sizing = .(fitted.width, fitted.height),
-					}, 
-					.image = .(canvas.texture),
-				}) {
-					canvas_rect = Clay.GetElementData(CLAY_ID("video")).boundingBox;
-				};
-			};
+			clay_text("+", { .fontSize = rem(1), .textColor = Colors.White });
 		};
-		BottomPanel();
-
-		DisplayModals();
-		warning_log.Update();
 	};
 }
 
 // Custom logging function
 bool rl_info_logging_disabled = false;
 c:`typedef const char* const_char_star;`;
+
+@[gcc_diagnostic_ignored(.unix = "-Wformat-security", .win32 = "-Wformat-security")]
 void CustomLog(int msgType, c:const_char_star text, c:va_list args) {
 	if (msgType == rl.LogLevel.INFO && rl_info_logging_disabled) { return; }
 
@@ -2238,19 +1914,95 @@ void CustomLog(int msgType, c:const_char_star text, c:va_list args) {
     printf("\n");
 }
 
+// called each frame externally by edit_app
+bool DoHotReload() {
+	bool should_hr = HotKeys.HotReloadProgram.IsPressed();
+	if (io.file_exists("./__crust_do_hr")) {
+		should_hr = true;
+		io.rm("./__crust_do_hr");
+	}
 
-int main(int argc, char^^ argv) {
-	CommandLineArgs args = .(argc, argv);
+	if (should_hr) {
+		PreHotReload();
+		return true;
+	}
+	return false;
+}
 
-	Env.DebugPrint();
+void PreHotReload() {
+	reinitializeClay = true;
+}
+
+bool hr_once = false; // true for the first frame after hr! NOTE: useful for triggering once off actions where-ever in code :)
+
+// this code is what was loaded
+// NOTE: we must reset any callbacks used!
+void PostHotReload() {
+	tfree();
+	rl.SetTraceLogCallback(CustomLog as c:TraceLogCallback);
+	hr_once = true;
+}
+
+void ExternalHotReloadWarn(char^ msg) {
+	warn(ProgramWarningKind.EXTERNAL_HOT_RELOADING, msg);
+}
+
+void AddNewSelectedProject() {
+	// project-related
+	projects.add(Project.new());
+	selected_project_index = projects.size - 1;
+
+	// composition-related
+	Proj().comps.add(Composition.new(^Proj(), 300, 200));
+	Proj().selected_comp_index = 0;
+
+	// element-related
+	AddNewSelectedElementAt(Element(RectElement.Make(), "Rect", 0, 2, NULL, v2(0, 0), v2(200, 150)) with { .color = Colors.Blue });
+}
+
+char^ TODO_tcc_test() {
+	TCCState^ tcc = .new();
+	defer tcc#delete();
+
+	char^ error_msg = NULL;
+
+	tcc#set_output_type(TCC_OUTPUT_MEMORY);
+	tcc#compile_string("#include <tcclib.h>\n void my_fn(void) { printf(\"yo!!!!\\n\"); }").! else return error_msg;
+
+	return "yippee!";
+}
+
+CommandLineArgs cmd_args;
+void Init(int argc, char^^ argv) {
+	{ // TCC TESTING TODO
+		TCC_DOIT_2("13");
+	}
+
+	{
+		int pid = getpid();
+		println(t"---- edit starting ({pid=}) ----");
+	}
+
+	//  mutexes ----------------------------------------
+	loader_result_queue_mutex.init();
+	loader_result_id_counter_mutex.init();
+	// /mutexes ----------------------------------------
+
+	cmd_args = .(argc, argv);
+
+	Env.DebugPrint(); // notes environment settings applied
+
+	{ // manage edit_data (we know that edit_data/ must exist!)
+		io.rmrf_if_existent(Env.edit_temp_projects);
+		io.mkdir(Env.edit_temp_projects);
+	}
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
 	rl_info_logging_disabled = true;
+	rl.SetTraceLogLevel(rl.LogLevel.ALL); // we do filtering ourself!
 	rl.SetTraceLogCallback(CustomLog as c:TraceLogCallback);
-	let window_name = f"CodeComposite{(args.save_to_project != NULL) ? t" - {args.save_to_project}" | ""}"; // TODO: free?
-	EditClayApp.Init(window_width, window_height, window_name);
-
-	defer EditClayApp.Deinit();
+	let window_name = f"CodeComposite{(cmd_args.save_to_project != NULL) ? t" - {cmd_args.save_to_project}" | ""}"; // TODO: free?
+	EditClayApp.Init();
 
 	// NOTE: (rae-TODO): FIX weirdness when GetScreenHeight >= actual-screen-height
 	// println(t"aa: {rl.GetScreenWidth()} {rl.GetRenderWidth()}");
@@ -2258,13 +2010,8 @@ int main(int argc, char^^ argv) {
 	// println(t"h: {rl.GetMonitorHeight(0)=} {rl.GetMonitorWidth(0)=}");
 	// if ()
 
-	defer GlobalSettings.SaveUpdates();
-
 	code_man.PreLoadTakeCareOfPreppedReload();
 	code_man.Load();
-	defer code_man.Unload();
-
-	defer ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
 
 	//  ASSETS LOADING -------------------------
 	KeyframeAssets.LoadAssets();
@@ -2274,9 +2021,7 @@ int main(int argc, char^^ argv) {
 
 	// Audio init and close
 	c:InitAudioDevice();
-	defer c:CloseAudioDevice();
 	fxMP3 = c:LoadSound("assets/history.mp3");
-	defer c:UnloadSound(fxMP3);
 
 	c:SetMasterVolume(master_volume);
 	c:PlaySound(fxMP3);
@@ -2286,58 +2031,151 @@ int main(int argc, char^^ argv) {
 	canvas_temp = RenderTexture(1200, 900);
 	canvas = RenderTexture(1200, 900);
 
-	// project-related
-	projects.add(Project.new());
-	selected_project_index = 0;
+	AddNewSelectedProject();
 
-	// composition-related
-	Proj().comps.add(Composition.new(^Proj(), 300, 200));
-	Proj().selected_comp_index = 0;
-
-	// element-related
-	AddNewSelectedElementAt(Element(RectElement.Make(), "Rect", 0, 2, NULL, v2(0, 0), v2(200, 150)) with { .color = Colors.Blue });
-
-	if (args.open_project != NULL) {
-		println(t"opening: saves/{args.open_project}");
-		ProjectSave.Load(Path("saves")/args.open_project);
+	if (cmd_args.open_project != NULL) {
+		println(t"opening: saves/{cmd_args.open_project}");
+		ProjectSave.Load(Path("saves")/cmd_args.open_project);
 	}
 
-	defer {
-		if (args.save_to_project != NULL) {
-			Path p = Path("saves")/args.save_to_project;
-			string project_name = .(args.save_to_project);
-
-			if (io.dir_exists(p)) {
-				Path new_p = Path("saves")/t"{project_name.str}_old_{rl.GetRandomValue(0, 1000)}";
-				defer free(new_p.str);
-
-				if (!io.mv(p, new_p)) {
-					println(t"moving old save from '{p.str}' to '{new_p.str}' failed... overwriting :(");
-				}
-			}
-			ProjectSave.Create(p, project_name);
-		}
-	}
 	rl_info_logging_disabled = false;
-
-	EditClayApp.MainLoop(GameTick, RenderAfter);
-
-    return 0;
 }
 
-int ReadEditVersion() {
-	let lines = io.lines_opt("version.txt").! else {
-		println("[DEBUG-WARNING]: missing version.txt (using version=1)");
-		return 1;
-	};
-	defer lines.delete();
+void Deinit() {
+	if (cmd_args.save_to_project != NULL) {
+		Path p = Path("saves")/cmd_args.save_to_project;
+		string project_name = .(cmd_args.save_to_project);
 
-	return c:atoi(lines.at(0));
+		if (io.dir_exists(p)) {
+			Path new_p = Path("saves")/t"{project_name.str}_old_{rl.GetRandomValue(0, 1000)}";
+			defer free(new_p.str);
+
+			if (!io.mv(p, new_p)) {
+				println(t"moving old save from '{p.str}' to '{new_p.str}' failed... overwriting :(");
+			}
+		}
+		ProjectSave.Create(p, project_name);
+	}
+	c:UnloadSound(fxMP3);
+	c:CloseAudioDevice();
+	ImageCache.Unload(); // cleanup loaded images (we should also do this when assets are no longer in use? -- TODO: LCS eviction type thing maybe)
+	code_man.Unload();
+	GlobalSettings.SaveUpdates();
+	EditClayApp.Deinit();
 }
 
-c:c:`
-#pragma GCC diagnostic pop
-`;
+@no_hr
+bool ticked = false;
+
+void Tick() {
+	// rl.BeginDrawing();
+	// rl.ClearBackground(Colors.Red);
+	// if (!ticked) {
+	// 	ticked = true;
+	// 	println("./test.txt");
+	// 	let text = rl.LoadFileText("./test.txt");
+	// 	defer rl.UnloadFileText(text);
+	// 	println(text);
+	// }
+	// rl.EndDrawing();
+	EditClayApp.Tick(GameTick, RenderAfter, HotKeys.ClayDebugToggle.IsPressed());
+}
+
+struct Unit{}
+struct Err{}
+Result<Unit, Err> TCC_DOIT(char^ expr) {
+	{ // crust compilation
+		io.rmrf_if_existent("tcc_temp");
+		io.mkdir("tcc_temp");
+
+		let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
+		io.write_file_text("tcc_temp/temp.cr", code);
+
+		system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
+	}
+
+	TCCState& tcc = *.new().! else return Err{};
+	defer tcc.delete();
+
+	tcc.set_options("-g");
+	tcc.set_output_type(TCC_OUTPUT_MEMORY);
+	// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
+	tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
+		println(t"backtrace from: {file as char^}");
+		// panic("bad news bears");
+
+		return 0;
+	});
+
+	{
+		tcc.add_include_path("tcc_tout");
+		tcc.add_file("tcc_tout/__unity__.c");
+	}
+	tcc.relocate().! else return Err{};
+
+	fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
+
+	for i in 0..10 {
+		println(t"{fn(i)=}");
+	}
+	
+	return Unit{};
+}
+
+Result<Unit, Err> TCC_DOIT_2(char^ expr) {
+	// { // crust compilation
+	// 	io.rmrf_if_existent("tcc_temp");
+	// 	io.mkdir("tcc_temp");
+	//
+	// 	let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
+	// 	io.write_file_text("tcc_temp/temp.cr", code);
+	//
+	// 	system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
+	// }
+
+	TCCState& tcc = *.new().! else return Err{};
+	defer tcc.delete();
+
+	tcc.set_options("-g");
+	tcc.set_output_type(TCC_OUTPUT_MEMORY);
+	// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
+	tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
+		println(t"backtrace from: {file as char^}");
+		// panic("bad news bears");
+
+		return 0;
+	});
+
+	{
+		// tcc.add_include_path("tcc_tout");
+		// tcc.add_file("tcc_tout/__unity__.c");
+		tcc.compile_string("int fn(int a) { return 7; }");
+	}
+	tcc.relocate().! else return Err{};
+
+	fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
+
+	for i in 0..10 {
+		println(t"{fn(i)=}");
+	}
+	
+	return Unit{};
+}
+
+int main(int argc, char^^ argv) {
+	panic("Wrong main entry point... use wrapper.cr to wrap for now pls :)");
+	return 0;
+}
+
+// int ReadEditVersion() {
+// 	let lines = io.lines_opt("version.txt").! else {
+// 		println("[DEBUG-WARNING]: missing version.txt (using version=1)");
+// 		return 1;
+// 	};
+// 	defer lines.delete();
+//
+// 	return c:atoi(lines.at(0));
+// }
 
 
 // actions & undo/redo-capability --------------------------------------

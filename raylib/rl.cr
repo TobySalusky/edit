@@ -5,16 +5,6 @@ import std;
 c:import "raylib.h";
 c:import "raymath.h";
 
-c:c:`
-#pragma GCC diagnostic push
-#ifdef _WIN32
-	#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers" // issue w/ do_file_tree_dir_visit
-#else
-	#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers" // issue w/ do_file_tree_dir_visit
-#endif
-#pragma GCC diagnostic ignored "-Wpointer-sign" // TODO: <--- should really fix this
-`;
-
 import list;
 
 c:`
@@ -135,8 +125,11 @@ struct Raylib {
     int GetMonitorRefreshRate(int monitor) -> c:GetMonitorRefreshRate(monitor);                     // Get specified monitor refresh rate
     Vec2 GetWindowPosition() -> c:GetWindowPosition();                            // Get window position XY on monitor
     Vec2 GetWindowScaleDPI() -> c:GetWindowScaleDPI();                            // Get window scale DPI factor
+
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetMonitorName(int monitor) -> c:GetMonitorName(monitor);                    // Get the human-readable, UTF-8 encoded name of the specified monitor
     void SetClipboardText(char^ text) -> c:SetClipboardText(text);                    // Set clipboard text content
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetClipboardText() -> c:GetClipboardText();                         // Get clipboard text content
     void EnableEventWaiting() -> c:EnableEventWaiting();                              // Enable waiting for events on EndDrawing(), no automatic event polling
     void DisableEventWaiting() -> c:DisableEventWaiting();                             // Disable waiting for events on EndDrawing(), automatic events polling
@@ -237,9 +230,13 @@ struct Raylib {
     void SetSaveFileTextCallback(SaveFileTextCallback callback) -> c:SetSaveFileTextCallback(callback); // Set custom file text data saver
 
     // Files management functions
+	@[gcc_diagnostic_ignored(.unix = "-Wpointer-sign", .win32 = "-Wpointer-sign")]
     char^ LoadFileData(char^ fileName, int^ dataSize) -> c:LoadFileData(fileName, dataSize); // Load file data as byte array (read)
+	// TODO: pointer-sign
+	@[gcc_diagnostic_ignored(.unix = "-Wpointer-sign", .win32 = "-Wpointer-sign")]
     void UnloadFileData(char^ data) -> c:UnloadFileData(data);                   // Unload file data allocated by LoadFileData()
     bool SaveFileData(char^ fileName, void^ data, int dataSize) -> c:SaveFileData(fileName, data, dataSize); // Save data to file from byte array (write), returns true on success
+	@[gcc_diagnostic_ignored(.unix = "-Wpointer-sign", .win32 = "-Wpointer-sign")]
     bool ExportDataAsCode(char^ data, int dataSize, char^ fileName) -> c:ExportDataAsCode(data, dataSize, fileName); // Export data to code (.h), returns true on success
     char^ LoadFileText(char^ fileName) -> c:LoadFileText(fileName);                   // Load text data from file (read), returns a '\0' terminated string
     void UnloadFileText(char^ text) -> c:UnloadFileText(text);                            // Unload file text data allocated by LoadFileText()
@@ -251,12 +248,19 @@ struct Raylib {
     bool DirectoryExists(char^ dirPath) -> c:DirectoryExists(dirPath);                  // Check if a directory path exists
     bool IsFileExtension(char^ fileName, char^ ext) -> c:IsFileExtension(fileName, ext); // Check file extension (including point: .png, .wav)
     int GetFileLength(char^ fileName) -> c:GetFileLength(fileName);                    // Get file length in bytes (NOTE: GetFileSize() conflicts with windows.h)
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetFileExtension(char^ fileName) -> c:GetFileExtension(fileName);         // Get pointer to extension for a filename string (includes dot: '.png')
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetFileName(char^ filePath) -> c:GetFileName(filePath);              // Get pointer to filename for a path string
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetFileNameWithoutExt(char^ filePath) -> c:GetFileNameWithoutExt(filePath);    // Get filename string without extension (uses static string)
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetDirectoryPath(char^ filePath) -> c:GetDirectoryPath(filePath);         // Get full path for a given fileName with path (uses static string)
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetPrevDirectoryPath(char^ dirPath) -> c:GetPrevDirectoryPath(dirPath);      // Get previous directory path for a given path (uses static string)
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetWorkingDirectory() -> c:GetWorkingDirectory();                      // Get current working directory (uses static string)
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetApplicationDirectory() -> c:GetApplicationDirectory();                  // Get the directory of the running application (uses static string)
     bool ChangeDirectory(char^ dir) -> c:ChangeDirectory(dir);                      // Change working directory, return true on success
     bool IsPathFile(char^ path) -> c:IsPathFile(path);                          // Check if a given path is a file or a directory
@@ -300,6 +304,7 @@ struct Raylib {
 
     // Input-related functions: gamepads
     bool IsGamepadAvailable(int gamepad) -> c:IsGamepadAvailable(gamepad);                   // Check if a gamepad is available
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
     char^ GetGamepadName(int gamepad) -> c:GetGamepadName(gamepad);                // Get gamepad internal name id
     bool IsGamepadButtonPressed(int gamepad, int button) -> c:IsGamepadButtonPressed(gamepad, button);   // Check if a gamepad button has been pressed once
     bool IsGamepadButtonDown(int gamepad, int button) -> c:IsGamepadButtonDown(gamepad, button);      // Check if a gamepad button is being pressed
@@ -673,6 +678,17 @@ struct Drawer {
 		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
 
+
+	void TextureAtSizeVConditionallyFlipXY(Texture texture, Vec2 pos, Vec2 dimen, bool flip_x, bool flip_y, Color color = Colors.White) {
+		Rectangle dest = RectV(pos, dimen);
+
+		let source_rect = texture.SourceRect();
+		if (flip_x) { source_rect.width *= -1; }
+		if (flip_y) { source_rect.height *= -1; }
+
+		c:DrawTexturePro(texture, source_rect, dest, v2(0, 0).v(), 0, color);
+	}
+
 	void TextureAtRect(Texture texture, Rectangle dest, Color color = Colors.White) {
 		c:DrawTexturePro(texture, texture.SourceRect(), dest, v2(0, 0).v(), 0, color);
 	}
@@ -797,6 +813,20 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		if (a == 0 && other.a == 0) { return true; }
 		return r == other.r && g == other.g && b == other.b && a == other.a;
 	}
+
+	Self Lightened(int lighten_by_amt_0_to_255) -> {
+		.r = std.mini(r + lighten_by_amt_0_to_255, 255),
+		.g = std.mini(g + lighten_by_amt_0_to_255, 255),
+		.b = std.mini(b + lighten_by_amt_0_to_255, 255),
+		:a
+	};
+
+	Self Darkened(int darken_by_amt_0_to_255) -> {
+		.r = std.maxi(r - darken_by_amt_0_to_255, 0),
+		.g = std.maxi(g - darken_by_amt_0_to_255, 0),
+		.b = std.maxi(b - darken_by_amt_0_to_255, 0),
+		:a
+	};
 }
 
 @extern struct Rectangle {
@@ -868,6 +898,14 @@ Rectangle RectCenter(Vec2 pos, Vec2 dimen) -> {
 		:height,
 	};
 
+	Rectangle PadUp(float amount) -> {
+		:x,
+		.y = y - amount,
+		:width,
+		.height = height + amount,
+
+	};
+
 	// 16:9 (x_component = 16, y_component = 9)
 	Rectangle FitIntoSelfWithAspectRatio(float x_component, float y_component) {
 		float ratio = std.min(width / x_component, height / y_component);
@@ -914,7 +952,7 @@ struct Point { // not a real raylib type, but is convenient
 	int height;
 
 	Rectangle SourceRect() -> {
-		.x = 0, .y = 0, :width, :height // NOTE: negative height! - corrects for flipped storage!
+		.x = 0, .y = 0, :width, :height
 	};
 
 	// WARNING: !!!
@@ -990,6 +1028,8 @@ struct Keys {
 	int RIGHT_CONTROL;
 	int LEFT_ALT;
 	int RIGHT_ALT;
+	int LEFT_SHIFT;
+	int RIGHT_SHIFT;
 	// TODO: other special keys - see: https://github.com/raysan5/raylib/blob/master/src/raylib.h
 }
 Keys make_keys() -> {
@@ -1008,6 +1048,8 @@ Keys make_keys() -> {
 	.RIGHT_CONTROL = c:KEY_RIGHT_CONTROL,
 	.LEFT_ALT = c:KEY_LEFT_ALT,
 	.RIGHT_ALT = c:KEY_RIGHT_ALT,
+	.LEFT_SHIFT = c:KEY_LEFT_SHIFT,
+	.RIGHT_SHIFT = c:KEY_RIGHT_SHIFT,
 };
 
 struct Keyboard {
@@ -1022,6 +1064,8 @@ struct Keyboard {
 	bool SuperIsDown() -> IsDown(KEY.LEFT_SUPER) || IsDown(KEY.RIGHT_SUPER);
 	// option | alt
 	bool AltIsDown() -> IsDown(KEY.LEFT_ALT) || IsDown(KEY.RIGHT_ALT);
+	// shift
+	bool ShiftIsDown() -> IsDown(KEY.LEFT_SHIFT) || IsDown(KEY.RIGHT_SHIFT);
 }
 
 @extern
@@ -1126,7 +1170,3 @@ Window window;
 Mouse mouse;
 Keyboard key;
 Keys KEY = make_keys();
-
-c:c:`
-#pragma GCC diagnostic pop
-`;

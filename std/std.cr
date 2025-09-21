@@ -11,6 +11,7 @@ c:import <"stdio.h">;
 c:import <"stdlib.h">;
 c:import <"string.h">;
 c:import <"math.h">;
+c:import <"sys/types.h">;
 // TODO: split into <string> <core> ... etc?
 
 c:import "platform_stdlib_patch.h";
@@ -22,10 +23,13 @@ c:import <"errno.h">;
 c:import <"sys/stat.h">;
 c:import <"ftw.h">;
 
-c:`extern char c_null_term;`
-c:c:`char c_null_term = '\0';`
-
 import list;
+
+void unreachable(char^ msg = NULL) {
+	let str = f"unreachable{msg == NULL ? "" | ": "}{msg == NULL ? msg | ""}";
+	defer free(str);
+	panic(str);
+}
 
 @extern c:void^ NULL; // TODO: make just void^ or something else? (need conversion) / make special `null` parsed?
 @extern int errno;
@@ -51,6 +55,12 @@ struct IndexRangeIter {
 @extern void memset(void^ ptr, char c, int n_bytes);
 @extern void free(c:void^ ptr); // TODO: just void^ instead?
 @extern c:void^ malloc(int n_bytes);
+
+// other ---------------------
+@extern struct pid_t {
+	int into() -> this as c:int; // TODO: crashes when int, rather than c:int!! 
+}
+@extern pid_t getpid();
 
 // string ------------------
 struct string {
@@ -210,7 +220,7 @@ bool str_ends_with(char^ str, char^ ends_with) {
 }
 
 char^ trim(char^ str) {
-	while (*str != c:c_null_term && string.is_whitespace_char(*str)) { str++; }
+	while (*str != '\0' && string.is_whitespace_char(*str)) { str++; }
 
 	int len = strlen(str);
 
@@ -399,13 +409,15 @@ ProgramOpts make_opts(int argc, char^^ argv) -> { :argc, :argv };
 	// ...
 	void close() { c:fclose(^this); }
 
+	ulong read(void^ buf, ulong elem_size, ulong count) -> c:fread(buf, elem_size, count, ^this);
+
 	// does not consume
 	void reset_consumption() {
 		c:fseek(^this, 0, c:SEEK_SET);
 	}
 
 	void println(char^ str) {
-		c:fprintf(^this, "%s\n", str);
+		c:fprintf(^this, c"%s\n", str);
 	}
 
 	// TODO: this is kinda incorrect? - edge case, no newline on last?
@@ -602,10 +614,17 @@ void WalkFileTreeBasic(char^ dir_path, FileTreeWalker^ visitor) {
 	WalkFileTree(dir_path, visitor, {});
 }
 
+struct DirectoryFileLister : FileTreeWalker {
+	char^[]& file_paths;
+	bool is_recursive;
 
-
-
-
+	void visit_file(char^ file_path) {
+		file_paths.add(strdup(file_path));
+	}
+	void visit_dir(char^ dir_path) {
+		if (is_recursive) { panic("is_recursive not implemented for DirectoryFileLister"); }
+	}
+}
 
 struct None {}
 choice Opt<T> {
@@ -613,12 +632,18 @@ choice Opt<T> {
 	 None;
 
 	 static Opt<T> Some(T val) -> val;
+
+	bool __truthify__() -> this is Some;
+	bool operator:!() -> !(this is Some);
 }
 @no_hr
 None none = {};
 
 choice Result<TRes, TErr> {
 	TRes as Ok, TErr as Err;
+
+	bool __truthify__() -> this is Ok;
+	bool operator:!() -> !(this is Ok);
 }
 
 
@@ -683,7 +708,7 @@ struct IO_lib {
 		FILE^ f = io.fopen_opt(file_path, "w").! else return false;
 		defer f#close();
 
-		if (c:fprintf(f, "%s", contents) < 0) {
+		if (c:fprintf(f, c"%s", contents) < 0) {
 			return false;
 		}
 		
@@ -695,7 +720,16 @@ struct IO_lib {
 		FILE^ f = io.fopen_opt(file_path, "a").! else return false;
 		defer f#close();
 
-		if (c:fprintf(f, "%s", contents) < 0) {
+		if (c:fprintf(f, c"%s", contents) < 0) {
+			return false;
+		}
+		
+		return true;
+	}
+
+	// DOES NOT APPEND \n
+	bool fappend_file_text(FILE^ f, char^ contents) {
+		if (c:fprintf(f, c"%s", contents) < 0) {
 			return false;
 		}
 		
@@ -708,8 +742,8 @@ struct IO_lib {
 
 		for (int i = 0; i < lines.n; i++) {
 			// TODO: check that they fprintf's succeed...
-			c:fprintf(f, "%s", lines.at(i));
-			c:fprintf(f, "\n");
+			c:fprintf(f, c"%s", lines.at(i));
+			c:fprintf(f, c"\n");
 		}
 		
 		return true;
@@ -720,8 +754,8 @@ struct IO_lib {
 		defer f#close();
 
 		for (int i = 0; i < lines.n; i++) {
-			c:fprintf(f, "%s", lines.at(i));
-			c:fprintf(f, "\n");
+			c:fprintf(f, c"%s", lines.at(i));
+			c:fprintf(f, c"\n");
 		}
 		
 		return true;
@@ -756,7 +790,7 @@ struct IO_lib {
 
 	void touch_if_nonexistent(char^ file_path) {
 		if (!this.file_exists(file_path)) {
-			this.write_file_text(file_path, "");
+			this.write_file_text(file_path, c"");
 		}
 	}
 
@@ -810,7 +844,7 @@ struct IO_lib {
 	void close(FILE^ f) { c:fclose(f); }
 
 	Strings lines(char^ file_path) {
-		FILE^ f = this.fopen(file_path, "r");
+		FILE^ f = this.fopen(file_path, c"r");
 		defer this.close(f);
 
 		return {
@@ -820,7 +854,7 @@ struct IO_lib {
 	}
 
 	Strings? lines_opt(char^ file_path) {
-		FILE^ f = this.fopen_opt(file_path, "r").! else return none;
+		FILE^ f = this.fopen_opt(file_path, c"r").! else return none;
 		defer this.close(f);
 
 		return Strings{
@@ -834,7 +868,17 @@ struct IO_lib {
 		return c:getcwd(c:NULL, 1024);
 	}
 
-	
+	// panics if non-existant
+	char^[] list_dir_files(char^ dir_path, bool is_recursive = false) {
+		if (!dir_exists(dir_path)) { panic("list_directory_files: !dir_exists"); }
+		
+		char^[] file_paths = {};
+		DirectoryFileLister file_lister = { :file_paths, :is_recursive };
+
+		WalkFileTreeBasic(dir_path, ^file_lister);
+		
+		return file_paths;
+	}
 }
 IO_lib io;
 
@@ -866,6 +910,8 @@ struct std {
 
 	static float clamp(float value, float min, float max) -> c:fmin(c:fmax(value, min), max);
 	static int clampi(int value, int min, int max) -> mini(maxi(value, min), max);
+
+	static float abs(float f) -> c:fabs(f);
 
 	// static bool cstrs_have_overlap(char^ a, char^ b) { // TODO: 
 	// 	if (a == b) {

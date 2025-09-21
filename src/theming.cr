@@ -55,6 +55,7 @@ struct NumberInputTheme {
 struct Theme {
 	Color bg = hex("222222");
 	Color canvas_bg = hex("CCCCCC");
+	Color panel_highlight = hex("5f5f5f");
 	Color panel = hex("4f4f4f");
 	Color panel_disabled = hex("3f3f3f");
 	Color panel_border = hex("6b6b6b");
@@ -101,4 +102,5 @@ struct Theme {
 	Color warning_bg = hex("00000088");
 }
 
+@no_hr
 Theme theme = {};

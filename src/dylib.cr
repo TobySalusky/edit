@@ -31,16 +31,17 @@ char^ DYNAMIC_LIB_EXTENSION;
 struct DyLib {
 	void^ handle;
 
-	// static Err<DyLib, char^> Load(Path dylib_path) {
-	// 	void^ handle = c:dlopen(dylib_path.str, c:RTLD_LAZY);
-	//
-	// 	if (handle == NULL) {
-	// 		char^ err = c:dlerror();
-	// 		return err;
-	// 	}
-	//
-	// 	return DyLib{ :handle };
-	// }
+	static Result<DyLib, char^> Load(Path dylib_path) {
+		// void^ handle = c:dlopen(dylib_path.str, c:RTLD_LAZY);
+		void^ handle = c:dlopen(dylib_path.str, c:RTLD_NOW);
+
+		if (handle == NULL) {
+			char^ err = c:dlerror();
+			return err;
+		}
+
+		return DyLib{ :handle };
+	}
 
 	static DyLib LoadOrPanic(Path dylib_path) {
 		let res = dynamic_lib_open(dylib_path);
@@ -62,6 +63,7 @@ struct DyLib {
 	// 	return it as DyLib;
 	// }
 
+	@[gcc_diagnostic_ignored(.unix = "-Wincompatible-pointer-types-discards-qualifiers", .win32 = "-Wdiscarded-qualifiers")]
 	Result<void^, char^> Sym(char^ fn_name) {
 		let res = dynamic_lib_load_fn(handle, fn_name);
 		if (res.handle == NULL) {
@@ -89,3 +91,5 @@ struct DyLib {
 c:c:`
 #pragma GCC diagnostic pop
 `;
+
+
