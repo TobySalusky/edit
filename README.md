@@ -1,34 +1,35 @@
 # Edit
 
-## New Addition (Serialization! - Apr 20~)
-
-* ensure that you create a `saves/` folder in `edit/`
-
-HOTKEYS:
-- key `o`: Open Modal (type project name into textbox and enter -- opened from `saves/<project_name>`)
-- key `s`: Save Modal (type project name into textbox and enter -- saved to `saves/<project_name>`)
-    * NOTE: when you save over an existing project name, the previous save will be renamed to `saves/<project_name>_old_<random_number>`
-
----
-### Serialization via command line (not recommended rn imo)
-
-* after building program: (e.g. `.\scripts\run.bat`)
-
-On-quit, save a project with name
-`.\build\edit.exe -s <save_name>`
-
-On-open, open a save with name
-`.\build\edit.exe -o <save_name>`
-
-Eg:
-`.\build\edit.exe -s abc1`
-`.\build\edit.exe -o abc1 -s abc2`
-> I recommend not saving to the same name atm, to maintain the last version if anything went wrong (also I think there may be some issues with writing to the same location... not sure tbh but I don't trust it)
-
-
----
+<!-- ## New Addition (Serialization! - Apr 20~) -->
+<!---->
+<!-- * ensure that you create a `saves/` folder in `edit/` -->
+<!---->
+<!-- HOTKEYS: -->
+<!-- - key `o`: Open Modal (type project name into textbox and enter -- opened from `saves/<project_name>`) -->
+<!-- - key `s`: Save Modal (type project name into textbox and enter -- saved to `saves/<project_name>`) -->
+<!--     * NOTE: when you save over an existing project name, the previous save will be renamed to `saves/<project_name>_old_<random_number>` -->
+<!---->
+<!-- --- -->
+<!-- ### Serialization via command line (not recommended rn imo) -->
+<!---->
+<!-- * after building program: (e.g. `.\scripts\run.bat`) -->
+<!---->
+<!-- On-quit, save a project with name -->
+<!-- `.\build\edit.exe -s <save_name>` -->
+<!---->
+<!-- On-open, open a save with name -->
+<!-- `.\build\edit.exe -o <save_name>` -->
+<!---->
+<!-- Eg: -->
+<!-- `.\build\edit.exe -s abc1` -->
+<!-- `.\build\edit.exe -o abc1 -s abc2` -->
+<!-- > I recommend not saving to the same name atm, to maintain the last version if anything went wrong (also I think there may be some issues with writing to the same location... not sure tbh but I don't trust it) -->
+<!---->
+<!---->
+<!-- --- -->
 
 Editing software with a mixed approach to video consisting of graphical programming/procedural style + standard visual editing/clipping/keying.
+- NOTE: `edit` is written in `crust`, a programming language of my own creation (`.cr` filetype).
 
 Notable Structure:
 * `install/`           - everything you need to work with Crust (cr exe w/ lsp support & vscode extension)
@@ -36,7 +37,10 @@ Notable Structure:
 * `docs/`              - learning materials (e.g. for Crust) - more to come
 * `src/`               - .cr code for edit program
 * `test_src/`          - .cr code for user-loaded script in edit program (see: `cool_effect` in `script.cr`)
-* `test_src/external/` - files copied from `src/`'s raylib & std sub-modules (DO NOT EDIT, since changes will be overriden)
+* `plugin_src/`        - .cr code for the code-generator that binds script code to functions usable by `edit`
+* `tcc/`               - bindings for libtcc in crust
+* `std/`               - the crust standard library module
+* `raylib/`            - the raylib bindings crust module
 * `include/`           - c header files accessible for include (c:import) from .cr
 * `local-run.bat`'s    - common run command(s) I use, depending on the directory (notably `./`, `src`, & `test_src`)
 Build/Temp:
@@ -45,6 +49,10 @@ Build/Temp:
 * `test_resource/`     - used for the runtime-created .dlls for hot-reloading :D
 * `build/`             - cmake build files for both src & test_src
 * `build/edit.exe`     - the actual executable we create!
+---
+## WARNING - BELOW GUIDE IS OUTDATED
+(platform support is highly limited ATM, will try to get multiplatform demos/executables working for the next checkpoint)
+
 ---
 
 ## Guide: Getting Proper C Environment setup!
@@ -123,6 +131,6 @@ Currently, the lsp (which provides the errors), only works correctly when your r
 
 > I plan to address this as soon as I reasonably can, but for now I recommend keeping 2 VSCode's open: in `src/` & `test_src/`
 
-## Next Up
+## MORE INFO ON THE CRUST LANGUAGE
 
 check out `intro.md` and `syntax-guide.md` in `docs/`
