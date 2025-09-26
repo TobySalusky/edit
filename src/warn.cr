@@ -31,7 +31,7 @@ struct ProgramWarning {
 	int num_repetitions; // 1 means this is the only one!
 
 	construct(ProgramWarningKind kind, char^ msg) -> 
-		with let time = rl.GetTime() in
+		with let time = rl.GetTime();
 	{
 		:kind,
 		:msg,

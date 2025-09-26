@@ -137,8 +137,7 @@ choice CustomStructMemberType {
 		}
 
 		panic("unreachable - CustomStructMemberType::Deserialize");
-		CustomStructMemberTypeFloat _;
-		return _;
+		return --- as CustomStructMemberTypeFloat;
 	}
 
 	void SerializeStore(yaml_serializer& s) {

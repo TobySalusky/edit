@@ -294,7 +294,7 @@ void CompositionTimelineUI_Clay() {
 							float lr_inset_amt = inset_expand_amt; // TODO: make these not overlap with itself <= width/2
 
 							Rectangle lr_expanded_rect = 
-								with let rect = Clay.GetBoundingBox(elem_id) in
+								with let rect = Clay.GetBoundingBox(elem_id);
 								rect.PadLeftRight(lr_expand_amt);
 
 							let elem_theme = &{

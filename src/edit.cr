@@ -752,7 +752,7 @@ bool keyframe_timeline_dragging = false;
 // TODO: move over!
 
 float SnapToNearestFramesTime(float time) ->
-	with let& comp = Comp() in
+	with let& comp = Comp();
 		((time / comp.time_per_frame) as int) as float / comp.frame_rate;
 
 void SetFrame(int frame) {
@@ -770,7 +770,7 @@ void SetTime(float new_time) {
 }
 
 bool ElementIsVisibleNow(Element& elem) ->
-	with let& comp = Comp() in
+	with let& comp = Comp();
 		elem.visible && elem.ActiveAtTime(comp.current_time) && elem.layer#visible;
 
 void UpdateState() {

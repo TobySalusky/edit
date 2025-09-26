@@ -478,8 +478,7 @@ choice CustomLayerKind {
 		}
 
 		panic("Deserialize - unreachable!");
-		CustomLayerBool _;
-		return _;
+		return --- as CustomLayerBool;
 	}
 
 	void SerializeStore(yaml_serializer& s) {
@@ -2135,9 +2134,9 @@ struct Project {
 		Project^ res = malloc(sizeof(Project));
 
 		*res =
-			with let project_dir = EditPaths.temp_projects/f"{res}" in
-			with let crust_in_dir = EditPaths.temp_crust_in/f"{res}" in
-			with let c_out_dir = EditPaths.temp_c_out/f"{res}" in
+			with let project_dir = EditPaths.temp_projects/f"{res}";
+			with let crust_in_dir = EditPaths.temp_crust_in/f"{res}";
+			with let c_out_dir = EditPaths.temp_c_out/f"{res}";
 		{
 			.name = "Untitled", // untitled
 			.is_untitled = true,

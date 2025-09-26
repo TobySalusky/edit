@@ -141,7 +141,7 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 	char^ contents = t"{structure.name}^ ptr = c:calloc(1, sizeof<{structure.name}>); *ptr = {'{'}{'}'}; List<CustomStructMemberHandle> members = .(); {member_contents} return {'{'} :ptr, :members {'}'};";
 
 	char^ handle_fn_code = t"CustomStructHandle __scriptgen_NewFxArgs_{structure.name}() {'{'}{contents}{'}'}"; // TODO: mem-leak?
-	char^ registration_code = t"void _ = __edit_script().register_fxargs(\"{fn.name}\");\n";
+	char^ registration_code = t"void _ = __edit_script().register_fxargs(\"{structure.name}\");\n";
 	char^ code = f"{handle_fn_code}{registration_code}";
 
 	return {
