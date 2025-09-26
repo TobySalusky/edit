@@ -736,6 +736,14 @@ void CloseModal() { // closes top (current-most) modal!
 
 	UnFocusUIElements(); // TODO: do better?
 }
+int CloseAllModals() {
+	int num_closed = 0;
+	while (!open_modal_states.is_empty()) {
+		CloseModal();
+		num_closed++;
+	}
+	return num_closed;
+}
 
 bool IsModalOpen(fn_ptr<void(ModalState&)> fn_ptr) {
 	for (int i = open_modal_states.size - 1; i >= 0; i--) {

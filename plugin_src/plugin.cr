@@ -43,7 +43,9 @@ PluginCodegen fx_fn_codegen(PluginCodegenArgs args) {
 
 	}
 
-	char^ code = f"CustomFnHandle __scriptgen_NewFxFn_{fn.name}() {'{'} c:void^ ptr = c:{fn.name}; return {'{'} :ptr, .custom_arg_t_name = {custom_arg_t_name}, {'}'}; {'}'}"; // TODO: mem-leak?
+	char^ handle_fn_code = t"CustomFnHandle __scriptgen_NewFxFn_{fn.name}() {'{'} c:void^ ptr = c:{fn.name}; return {'{'} :ptr, .custom_arg_t_name = {custom_arg_t_name}, {'}'}; {'}'}\n"; // TODO: mem-leak?
+	char^ registration_code = t"void _ = __edit_script().register_fxfn(\"{fn.name}\");\n";
+	char^ code = f"{handle_fn_code}{registration_code}";
 
 	return {
 		:code,
@@ -138,7 +140,9 @@ PluginCodegen fx_args_codegen(PluginCodegenArgs args) {
 
 	char^ contents = t"{structure.name}^ ptr = c:calloc(1, sizeof<{structure.name}>); *ptr = {'{'}{'}'}; List<CustomStructMemberHandle> members = .(); {member_contents} return {'{'} :ptr, :members {'}'};";
 
-	char^ code = f"CustomStructHandle __scriptgen_NewFxArgs_{structure.name}() {'{'}{contents}{'}'}"; // TODO: mem-leak?
+	char^ handle_fn_code = t"CustomStructHandle __scriptgen_NewFxArgs_{structure.name}() {'{'}{contents}{'}'}"; // TODO: mem-leak?
+	char^ registration_code = t"void _ = __edit_script().register_fxargs(\"{fn.name}\");\n";
+	char^ code = f"{handle_fn_code}{registration_code}";
 
 	return {
 		:code,

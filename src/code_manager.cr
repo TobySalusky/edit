@@ -3,8 +3,6 @@ import map;
 
 import dylib;
 
-c:`typedef void(*CustomScriptSetupFn)(void);`;
-
 struct CodeManager {
 	Path dylib_path;
 	Path old_dylib_path;
@@ -37,7 +35,7 @@ struct CodeManager {
 		let setup_fn_res = this.GetFn("script_setup"); 
 		switch (setup_fn_res) {
 			void^ fn_ptr -> {
-				c:CustomScriptSetupFn setup_fn = fn_ptr;
+				let setup_fn = fn_ptr as fn_ptr<void()>;
 				setup_fn();
 			},
 			char^ err -> {

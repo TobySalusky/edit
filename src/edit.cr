@@ -1,6 +1,7 @@
 include path("../common");
 include path("../../crust/packs/color_print");
 include path("../tcc");
+include path("../user_runtime_code_common");
 
 // TODO: on ColorPicker & other temporary mini-windows... bottom-right corner three-diag-lines (expand/shrink)
 
@@ -808,7 +809,7 @@ void UpdateState() {
 	}
 	for (let& elem in comp.elements) {
 		if (ElementIsVisibleNow(elem)) { // QUESTION: should we update non-rendered elements? - currently I say no (may change if we add element dependencies!)
-			elem.UpdateState(comp.current_time);
+			elem.UpdateState(comp, comp.current_time);
 		}
 		if (elem.IsVideo()) {
 			VideoElement^ vid = (c:elem#content_impl.ptr);
@@ -1175,6 +1176,32 @@ void QuickAddModal(using ModalState& state) {
 			.textColor = Colors.White,
 		});
 		textbox = ^TextBoxMaintained(UiElementID.ID("QuickAddModal-file-input"), .("QuickAddModal-file-input"), "", .Grow(), rem(1));
+	};
+
+	$clay({
+		.id = .("scroll-quick-add-container"),
+		.layout = {
+			.sizing = {
+				.width = .portion(1),
+				.height = .portion(1),
+			},
+			.layoutDirection = CLAY_TOP_TO_BOTTOM,
+			.childGap = 10,
+		},
+		.backgroundColor = Colors.Red,
+		.clip = {
+			.vertical = true,
+			.childOffset = v2(0, -(((rl.GetTime() * 20) as int) % 1000)),
+		},
+	}) {
+		for i in 0..20 {
+			$clay({
+			 .layout = {
+				 .sizing = { .grow(), .fixed(rem(1.5)) },
+			 },
+			 .border = .(1, Colors.Black) 
+			}) {};
+		}
 	};
 
 	if (errmsg != NULL) {
@@ -1692,6 +1719,7 @@ enum PanelDragDir {
 }
 
 void SidePanel() {
+	let& p = Proj();
 	let& comp = Comp();
 	// TODO: @scope $Panel(...);
 	$Panel(left_panel_expander) {
@@ -1721,7 +1749,7 @@ void SidePanel() {
 
 		float curr_local_time = std.clamp(comp.current_time - selected_elem.start_time, 0, selected_elem.duration);
 
-		CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = comp.current_time, .element = selected_elem, };
+		CustomLayerUIParams params = { :max_elem_time, :curr_local_time, .global_time = comp.current_time, .element = selected_elem, :p, :comp };
 		selected_elem.UI(params);
 	};
 }
@@ -1931,6 +1959,7 @@ bool DoHotReload() {
 
 void PreHotReload() {
 	reinitializeClay = true;
+	if (CloseAllModals() > 0) { warn(.MISC, "open modals not allowed over hr [stored fn-ptrs]"); }
 }
 
 bool hr_once = false; // true for the first frame after hr! NOTE: useful for triggering once off actions where-ever in code :)
@@ -1974,10 +2003,6 @@ char^ TODO_tcc_test() {
 
 CommandLineArgs cmd_args;
 void Init(int argc, char^^ argv) {
-	{ // TCC TESTING TODO
-		TCC_DOIT_2("13");
-	}
-
 	{
 		int pid = getpid();
 		println(t"---- edit starting ({pid=}) ----");
@@ -1993,8 +2018,14 @@ void Init(int argc, char^^ argv) {
 	Env.DebugPrint(); // notes environment settings applied
 
 	{ // manage edit_data (we know that edit_data/ must exist!)
-		io.rmrf_if_existent(Env.edit_temp_projects);
-		io.mkdir(Env.edit_temp_projects);
+		io.rmrf_if_existent(EditPaths.temp_projects);
+		io.mkdir(EditPaths.temp_projects);
+
+		io.rmrf_if_existent(EditPaths.temp_crust_in);
+		io.mkdir(EditPaths.temp_crust_in);
+
+		io.rmrf_if_existent(EditPaths.temp_c_out);
+		io.mkdir(EditPaths.temp_c_out);
 	}
 
 	// RAYLIB INITIALIZED HERE (window.init), no loading assets (textures, images, sounds) before this point!!!
@@ -2079,87 +2110,6 @@ void Tick() {
 	// }
 	// rl.EndDrawing();
 	EditClayApp.Tick(GameTick, RenderAfter, HotKeys.ClayDebugToggle.IsPressed());
-}
-
-struct Unit{}
-struct Err{}
-Result<Unit, Err> TCC_DOIT(char^ expr) {
-	{ // crust compilation
-		io.rmrf_if_existent("tcc_temp");
-		io.mkdir("tcc_temp");
-
-		let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
-		io.write_file_text("tcc_temp/temp.cr", code);
-
-		system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
-	}
-
-	TCCState& tcc = *.new().! else return Err{};
-	defer tcc.delete();
-
-	tcc.set_options("-g");
-	tcc.set_output_type(TCC_OUTPUT_MEMORY);
-	// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
-	tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
-		println(t"backtrace from: {file as char^}");
-		// panic("bad news bears");
-
-		return 0;
-	});
-
-	{
-		tcc.add_include_path("tcc_tout");
-		tcc.add_file("tcc_tout/__unity__.c");
-	}
-	tcc.relocate().! else return Err{};
-
-	fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
-
-	for i in 0..10 {
-		println(t"{fn(i)=}");
-	}
-	
-	return Unit{};
-}
-
-Result<Unit, Err> TCC_DOIT_2(char^ expr) {
-	// { // crust compilation
-	// 	io.rmrf_if_existent("tcc_temp");
-	// 	io.mkdir("tcc_temp");
-	//
-	// 	let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
-	// 	io.write_file_text("tcc_temp/temp.cr", code);
-	//
-	// 	system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
-	// }
-
-	TCCState& tcc = *.new().! else return Err{};
-	defer tcc.delete();
-
-	tcc.set_options("-g");
-	tcc.set_output_type(TCC_OUTPUT_MEMORY);
-	// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
-	tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
-		println(t"backtrace from: {file as char^}");
-		// panic("bad news bears");
-
-		return 0;
-	});
-
-	{
-		// tcc.add_include_path("tcc_tout");
-		// tcc.add_file("tcc_tout/__unity__.c");
-		tcc.compile_string("int fn(int a) { return 7; }");
-	}
-	tcc.relocate().! else return Err{};
-
-	fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
-
-	for i in 0..10 {
-		println(t"{fn(i)=}");
-	}
-	
-	return Unit{};
 }
 
 int main(int argc, char^^ argv) {

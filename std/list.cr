@@ -1,4 +1,5 @@
 import slice;
+@weak import std; // TODO: which way?
 
 struct List<T> {
 	int capacity = 0;

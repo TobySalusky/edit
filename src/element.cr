@@ -16,6 +16,12 @@ import textures;
 import cursor;
 import warn;
 import resources;
+import paths;
+import runtime_code;
+import tcc;
+import user_runtime_code_common;
+
+c:`typedef const char* const_char_star;`;
 
 //  global ui stuff ---------------------------------------------
 ColorPicker global_color_picker = {};
@@ -37,7 +43,7 @@ enum ElementKind {
 interface ElementImpl {
 	void Draw(Element^ e, float current_time);
 
-	void UpdateState(float lt);
+	void UpdateState(Composition& comp, float lt);
 
 	void UI(CustomLayerUIParams& params);
 	void TimelineUI(CustomLayerUIParams& params);
@@ -92,7 +98,7 @@ yaml_object ElementImplToYaml(ElementImpl^ impl) {
 struct RectElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
 	void TimelineUI(CustomLayerUIParams& params) {}
-	void UpdateState(float lt) {}
+	void UpdateState(Composition& comp, float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.RectRot(e#pos, e#scale, e#rotation, e#TintColor());
 	}
@@ -109,7 +115,7 @@ struct RectElement : ElementImpl {
 struct CircleElement : ElementImpl {
 	void UI(CustomLayerUIParams& params) {}
 	void TimelineUI(CustomLayerUIParams& params) {}
-	void UpdateState(float lt) {}
+	void UpdateState(Composition& comp, float lt) {}
 	void Draw(Element^ e, float current_time) {
 		d.Circle(e#pos + e#scale.scale(0.5), e#scale.x / 2, e#TintColor()); // TODO: allow ellipse
 	}
@@ -162,7 +168,7 @@ struct ImageSequenceElement : ElementImpl {
 	void TimelineUI(CustomLayerUIParams& params) {
 		// $HORIZ_FIXED(rem(1));
 	}
-	void UpdateState(float lt) {}
+	void UpdateState(Composition& comp, float lt) {}
 	void Draw(Element^ e, float current_time) {
 		if (textures == NULL) {
 			return; 
@@ -194,7 +200,7 @@ struct ImageElement : ElementImpl {
 	
 	void UI(CustomLayerUIParams& params) {}
 	void TimelineUI(CustomLayerUIParams& params) {}
-	void UpdateState(float lt) {}
+	void UpdateState(Composition& comp, float lt) {}
 	void Draw(Element^ e, float current_time) {
 		// d.RectRot(e#pos, e#scale, e#rotation, Colors.Red);
 		d.TextureRotCenter(ImageCache.Get(file_path), e#pos + e#scale.scale(0.5), e#scale, e#rotation, e#TintColor());
@@ -232,7 +238,7 @@ struct VideoElement : ElementImpl {
 
 	void UI(CustomLayerUIParams& params) {}
 	void TimelineUI(CustomLayerUIParams& params) {}
-	void UpdateState(float lt) {}
+	void UpdateState(Composition& comp, float lt) {}
 	void Draw(Element^ e, float current_time) {
 		if (loaded) {
 			int frame_idx = ((current_time - (e#start_time - start_offset)) * (dec_fr * speed)) as int % frames.size; 
@@ -359,6 +365,16 @@ choice CustomLayerKind {
 	CustomLayerStr,
 	CustomLayerList,
 	;
+
+	char^ kind_t_str() -> match (this) {
+		CustomLayerBool -> "bool",
+		CustomLayerFloat -> "float",
+		CustomLayerInt -> "int",
+		CustomLayerVec2 -> "Vec2",
+		CustomLayerColor -> "Color",
+		CustomLayerStr -> "char^",
+		CustomLayerList -> &{ warn(.MISC, "bad kind_t_str() input"); return "DO_NOT_CALL_KIND_T_STR_ON_THIS"; },
+	};
 
 	void StealData(Self& stealee) {
 		assert(this == stealee, "stealee is bad, nope");
@@ -510,6 +526,8 @@ struct CustomLayerUIParams {
 
 	float& global_time;
 	Element& element;
+	Project& p;
+	Composition& comp;
 }
 
 
@@ -522,7 +540,7 @@ struct CustomLayer {
 	CustomLayerKind kind;
 
 	char^ value_fn_expr_str = NULL;
-	void^ value_fn = NULL;
+	CustomFnID? value_fn_id = none;
 
 	// TODO: bool keyed = false; ?
 
@@ -535,7 +553,6 @@ struct CustomLayer {
 			.name = s.obj.get_str("name"),
 			.kind = CustomLayerKind.Deserialize(kind_s),
 			.value_fn_expr_str = "", // TODO:
-			.value_fn = NULL,
 		};
 	}
 
@@ -547,35 +564,102 @@ struct CustomLayer {
 		return obj;
 	}
 
-	void UpdateState(float lt) {
+	void UpdateState(Composition& comp, float lt) {
 		switch (kind) {
 			CustomLayerBool it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<bool(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerFloat it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<float(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerInt it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<int(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerVec2 it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<Vec2(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerColor it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<Color(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerStr it -> {
 				if (it.value == NULL) { break; }
-				it.kl_value.Set(it.value, lt);
+				switch (value_fn_id) {
+					CustomFnID id -> {
+						let fn = comp.custom_fns.get_fn(id) as fn_ptr<char^(EditCustomFnParams^)>;
+						if (fn != NULL) {
+							EditCustomFnParams params = { :lt };
+							*it.value = fn(^params);
+						}
+					},
+					None -> {
+						it.kl_value.Set(it.value, lt);
+					}
+				}
 			},
 			CustomLayerList it -> {
 				for (let& layer in it.layers) {
-					layer.UpdateState(lt);
+					layer.UpdateState(comp, lt);
 				}
 			}
 		}
@@ -786,21 +870,30 @@ struct CustomLayer {
 						}
 					}
 
-					// value_fn
-					{
+					{ // value_fn -------
 						char^ change_text = TextBox(UiElementID.ID(^this, 0), .(t"{^this}-vfnstr"), value_fn_expr_str, .Grow(), rem(1));
 						if (change_text != NULL) {
 							if (value_fn_expr_str != NULL) { free(value_fn_expr_str); }
 							value_fn_expr_str = strdup(change_text);
 
 							// TRY TO COMPILE CODE
-							char^ code_prelude = "";
-							char^ ret_t_str = "float";
-							char^ code = t"{code_prelude}\n{ret_t_str} THE_VALUE_FN() -> {value_fn_expr_str};";
+							// char^ code_prelude = "";
+							char^ ret_t_str = kind.kind_t_str();
+							// char^ code = t"{code_prelude}\n{ret_t_str} THE_VALUE_FN() -> {value_fn_expr_str};";
 
-							// let maybe_fn = AttemptCompileCrustSnippet(code, "THE_VALUE_FN");
+							value_fn_id = value_fn_id.! or comp.custom_fns.register();
+							let maybe_fn = AttemptCompileCrustSnippet(p, ret_t_str, value_fn_expr_str, value_fn_id.!);
+							switch (maybe_fn) {
+								CustomFnEntry entry -> {
+									comp.custom_fns.set(value_fn_id.!, entry);
+								},
+								char^ err -> {
+									warn(.MISC, t"err: {err}");
+									// TODO: set error on custom_fns
+								}
+							}
 						}
-					}
+					} // ----------------
 				};
 			}
 		};
@@ -810,7 +903,6 @@ struct CustomLayer {
 			let& list = kind as CustomLayerList;
 
 			if (list.is_open) {
-
 				$clay({
 					.layout = {
 						.layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -828,43 +920,64 @@ struct CustomLayer {
 		}
 	}
 
-	void AttemptCompileCrustSnippet(char^ code, char^ name_of_desired_fn) {
-		{ // crust compilation
-			io.rmrf_if_existent("tcc_temp");
-			io.mkdir("tcc_temp");
+	Result<CustomFnEntry, char^> AttemptCompileCrustSnippet(Project& p, char^ ret_t_str, char^ expr, CustomFnID fn_id) {
+		Path crust_in_dir = p.crust_in_dir;
+		Path c_out_dir = p.c_out_dir;
 
-			let code = t"include path(\"../../std\");import std;\nint fn(int a) \{ return {expr}; }";
-			io.write_file_text("tcc_temp/temp.cr", code);
-
-			system(t"crust build tcc_temp -out-dir:tcc_tout -build-type:cgen -unity-build");
+		Path crust_main_cr = crust_in_dir/"main.cr";
+		{ // TODO: err handling
+			io.mkdir_if_nonexistent(crust_in_dir); // TODO: y/n?
 		}
 
-		TCCState& tcc = *.new().! else return Err{};
-		defer tcc.delete();
+		let fn_name = t"fn_{fn_id.index}";
+
+		{ // crust compilation
+			// let code = t"include path(\"../../std\");import std;\n{ret_t_str} fn_{fn_id}(int a) \{ return {expr}; }";
+			// TODO: un-hardcode path!!!!
+			let prelude = "include path(\"/Users/toby/dev/edit/std\"); include path(\"/Users/toby/dev/edit/user_runtime_code_common\");\nimport user_runtime_code_common;\n";
+			let code = t"{prelude}{ret_t_str} {fn_name}(using EditCustomFnParams& params) \{ return {expr}; }";
+			io.write_file_text(crust_main_cr, code);
+
+			int crust_exit_code = system(t"crust build '{crust_in_dir.str}' -out-dir:'{c_out_dir.str}' -build-type:cgen -unity-build");
+
+			if (crust_exit_code != 0) { // TODO: check that crust returns 1 in error
+				return "crust compilation failed";
+			}
+		}
+
+		TCCState& tcc = *.new().! else return "TCC: .new() failed";
+		// TODO: err_defer
+		bool needs_delete = true;
+		defer if (needs_delete) { // basically faking errdefer functionality
+			tcc.delete();
+		}
 
 		tcc.set_options("-g");
 		tcc.set_output_type(TCC_OUTPUT_MEMORY);
 		// typedef int TCCBtFunc(void *udata, void *pc, const char *file, int line, const char* func, const char *msg);
 		tcc.set_backtrace_func(NULL, (void^ udata, void^ pc, c:const_char_star file, int line, c:const_char_star func, c:const_char_star msg):int -> {
-			println(t"backtrace from: {file as char^}");
+			println(t"TCC backtrace from: {file as char^}");
 			// panic("bad news bears");
 
 			return 0;
 		});
 
 		{
-			tcc.add_include_path("tcc_tout");
-			tcc.add_file("tcc_tout/__unity__.c");
+			tcc.add_include_path(c_out_dir).! else return "TCC: .add_include_path(...) failed";
+			tcc.add_file(c_out_dir/"__unity__.c").! else return "TCC: .add_file(...) failed";
 		}
-		tcc.relocate().! else return Err{};
+		tcc.relocate().! else return "TCC: .relocate() failed";
 
-		fn_ptr<int(int)> fn = (tcc.get_symbol("fn").! else return Err{}) as ..;
+		let init_globals_fn = (tcc.get_symbol("__crust_init_globals").! else return "TCC: .get_symbol(__crust_init_globals) failed") as fn_ptr<void()>;
+		init_globals_fn();
 
-		for i in 0..10 {
-			println(t"{fn(i)=}");
-		}
-		
-		return Unit{};
+		void^ fn = tcc.get_symbol(fn_name).! else return t"TCC: .get_symbol({fn_name}) failed";
+
+		needs_delete = false;
+		return CustomFnEntry{
+			:fn,
+			.tcc = ^tcc
+		};
 	}
 
 	void TimelineUI(using CustomLayerUIParams& params) {
@@ -938,9 +1051,9 @@ struct CustomPureFnElement : ElementImpl {
 			custom_layer_list.TimelineUI(params);
 		}
 	}
-	void UpdateState(float lt) {
+	void UpdateState(Composition& comp, float lt) {
 		if (custom_args_handle is Some) {
-			custom_layer_list.UpdateState(lt);
+			custom_layer_list.UpdateState(comp, lt);
 		}
 	}
 
@@ -1573,14 +1686,14 @@ struct Element {
 		};
 	}
 
-	void UpdateState(float t) {
+	void UpdateState(Composition& comp, float t) {
 		float lt = t - start_time;
-		default_layers.UpdateState(lt);
+		default_layers.UpdateState(comp, lt);
 		opacity = std.clamp(opacity, 0, 100);
 		// scale.y = scale.x; // uniform scale
 
 		// TODO: color
-		content_impl#UpdateState(lt);
+		content_impl#UpdateState(comp, lt);
 
 		// println(t"{pos.x} {pos.y} {scale.x} {scale.y} {kl_pos_x.HasValue()} a");
 		// pos = v2(300, 200) * v2(t, t);
@@ -2013,6 +2126,8 @@ struct Project {
 
 	Path project_dir;
 	Path resource_dir;
+	Path crust_in_dir;
+	Path c_out_dir;
 
 	Resources resources;
 
@@ -2020,13 +2135,17 @@ struct Project {
 		Project^ res = malloc(sizeof(Project));
 
 		*res =
-			with let project_dir = Env.edit_temp_projects/f"{res}" in
+			with let project_dir = EditPaths.temp_projects/f"{res}" in
+			with let crust_in_dir = EditPaths.temp_crust_in/f"{res}" in
+			with let c_out_dir = EditPaths.temp_c_out/f"{res}" in
 		{
 			.name = "Untitled", // untitled
 			.is_untitled = true,
 			.comps = {},
 			.selected_comp_index = none,
 			:project_dir,
+			:crust_in_dir,
+			:c_out_dir,
 			.resource_dir = project_dir/"resources", // TODO
 			.resources = {
 				.project = *res,
@@ -2048,6 +2167,7 @@ struct Composition {
 	int height;
 
 	ElementStorage elements;
+	CustomFns custom_fns;
 	EditLayer^[] layers;
 	EditLayer^[] audio_layers;
 
@@ -2117,6 +2237,7 @@ struct Composition {
 			:proj,
 			:width, :height,
 			.elements = {},
+			.custom_fns = {},
 			.selection = {},
 			.effective_selection = {},
 			.layers = {},

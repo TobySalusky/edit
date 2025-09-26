@@ -17,6 +17,7 @@ struct TexturesLib {
 	Texture keyframe_right_arrow_icon;
 	Texture keyframe_add_icon;
 	Texture keyframe_remove_icon;
+	Texture header_bg;
 
 	static Texture LoadAssetsPng(char^ png_name) {
 		return rl.LoadTexture(t"assets/{png_name}.png");
@@ -40,6 +41,7 @@ struct TexturesLib {
 			.keyframe_left_arrow_icon = LoadAssetsPng("keyframe_left_arrow"),
 			.keyframe_add_icon = LoadAssetsPng("keyframe_add"),
 			.keyframe_remove_icon = LoadAssetsPng("keyframe_remove"),
+			.header_bg = LoadAssetsPng("header_bg"),
 		};
 	}
 }

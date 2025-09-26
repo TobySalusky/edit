@@ -20,6 +20,7 @@ struct Env {
 	}
 }
 
+// TODO: use @weak import here
 c:`
 // avoid cyclic import w/ ui_elements.cr
 extern bool NoTextInputFocused(void);

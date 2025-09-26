@@ -210,4 +210,24 @@ struct CustomFnHandle {
 	char^ custom_arg_t_name; // = NULL, when none
 }
 
+struct EditScript {
+	string[] fx_fns = {};
+	string[] fx_args = {};
+
+	void delete() {
+		for str in fx_fns { str.delete(); }
+		fx_fns.delete();
+
+		for str in fx_args { str.delete(); }
+		fx_args.delete();
+	}
+
+	void register_fxfn(char^ name) {
+		fx_fns.add(.(strdup(name)));
+	}
+
+	void register_fxargs(char^ name) {
+		fx_args.add(.(strdup(name)));
+	}
+}
 // -------

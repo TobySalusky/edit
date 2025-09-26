@@ -219,6 +219,11 @@ c:c:`
 	};
 }
 
+@extern struct Clay_AspectRatioElementConfig {
+	construct(float aspectRatio) -> { :aspectRatio };
+	float aspectRatio = 0.0; // A float representing the target "Aspect ratio" for an element, which is its final width divided by its final height.
+}
+
 @extern struct Clay_ImageElementConfig {
     void^ imageData = NULL; // A transparent pointer used to pass image data through to the renderer.
 
@@ -428,6 +433,8 @@ struct Clay_ElementDeclaration {
     Color backgroundColor = Colors.Transparent;
     // Controls the "radius", or corner rounding of elements, including rectangles, borders and images.
     Clay_CornerRadius cornerRadius = .(0);
+    // Controls settings related to aspect ratio scaling.
+		Clay_AspectRatioElementConfig aspectRatio = {};
     // Controls settings related to image elements.
     Clay_ImageElementConfig image = {};
     // Controls whether and how an element "floats", which means it layers over the top of other elements in z order, and doesn't affect the position and size of siblings or parent elements.
@@ -504,6 +511,7 @@ struct Clay_FrameGlobalData {
 // Clay_XXX functions ----------------------
 // -----------------------------------------
 struct Clay {
+
 	static Clay_FrameGlobalData? frame_global_data = none;
 
 	static void SetFrameGlobalData(Clay_FrameGlobalData new_frame_global_data) {
@@ -521,6 +529,8 @@ struct Clay {
 		// },
 		.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
 	};
+
+	static Vec2 GetScrollOffset() -> c:Clay_GetScrollOffset();
 
 	// Returns the size, in bytes, of the minimum amount of memory Clay requires to operate at its current settings.
 	static ulong MinMemorySize() -> c:Clay_MinMemorySize();

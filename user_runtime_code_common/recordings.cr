@@ -1,4 +1,5 @@
 import std;
+import list;
 
 struct SampleRecording<T> {
 	// 1; // TODO: should be syntax error, even when not instantiated!
@@ -7,7 +8,7 @@ struct SampleRecording<T> {
 	float sample_time; // usually high; eg: 1/60 or 1/30
 	// TODO: interpolate for wider sample_times?
 
-	Self Empty(float samples_per_sec = 60) -> {
+	static Self Empty(float samples_per_sec = 60) -> {
 		.data = {},
 		.sample_time = 1.0 / samples_per_sec,
 	};
