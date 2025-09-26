@@ -49,6 +49,11 @@ Build/Temp:
 * `test_resource/`     - used for the runtime-created .dlls for hot-reloading :D
 * `build/`             - cmake build files for both src & test_src
 * `build/edit.exe`     - the actual executable we create!
+* `demos/`             - gif/video demos showing features!
+---
+## DEMOS
+see the `demos/` directory for now!
+
 ---
 ## WARNING - BELOW GUIDE IS OUTDATED
 (platform support is highly limited ATM, will try to get multiplatform demos/executables working for the next checkpoint)
